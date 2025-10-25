@@ -182,7 +182,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+# STATIC_URL = 'static/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -207,3 +207,6 @@ if not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD:
 
 # Allow all origins in development (remove in production)
 CORS_ALLOW_ALL_ORIGINS = True
+FORCE_SCRIPT_NAME = '/blockchain-backend'
+STATIC_URL = '/blockchain-backend/static/' 
+MEDIA_URL = '/blockchain-backend/media/'
