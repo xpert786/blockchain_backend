@@ -210,3 +210,5 @@ CORS_ALLOW_ALL_ORIGINS = True
 FORCE_SCRIPT_NAME = '/blockchain-backend'
 STATIC_URL = '/blockchain-backend/static/' 
 MEDIA_URL = '/blockchain-backend/media/'
+
+USE_X_FORWARDED_HOST = True
