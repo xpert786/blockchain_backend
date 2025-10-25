@@ -1,0 +1,355 @@
+{
+	"info": {
+		"_postman_id": "c1d2e3f4-g5h6-7890-bcde-f34567890123",
+		"name": "Syndicate Onboarding API",
+		"description": "Complete multi-step syndicate onboarding process API collection",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Step 1: Lead Info",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"username\": \"john_manager\",\n    \"email\": \"john@techventures.com\",\n    \"password\": \"securepass123\",\n    \"password2\": \"securepass123\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Manager\",\n    \"accredited\": \"Yes\",\n    \"syndicate_name\": \"Tech Ventures Syndicate\",\n    \"description\": \"A syndicate focused on early-stage technology investments, specializing in AI, blockchain, and SaaS companies.\",\n    \"sector_ids\": [1, 2, 3],\n    \"geography_ids\": [1, 2, 4],\n    \"lp_network_count\": \"We have a network of 50+ accredited investors including angel investors, VCs, and family offices\",\n    \"enable_lp_network\": \"Yes\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/onboarding/step1_lead_info/",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"onboarding",
+						"step1_lead_info",
+						""
+					]
+				},
+				"description": "Step 1: Create user and syndicate with basic information"
+			},
+			"response": []
+		},
+		{
+			"name": "Step 2: Entity Profile",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"syndicate_id\": {{syndicate_id}},\n    \"firm_name\": \"Tech Ventures LLC\",\n    \"description\": \"Tech Ventures LLC is a leading syndicate focused on early-stage technology investments. We specialize in identifying and supporting innovative startups in AI, blockchain, and SaaS sectors.\",\n    \"team_member\": \"John Manager (Managing Partner), Sarah Smith (Investment Analyst), Mike Johnson (Legal Counsel), Lisa Chen (Due Diligence Specialist)\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/onboarding/step2_entity_profile/",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"onboarding",
+						"step2_entity_profile",
+						""
+					]
+				},
+				"description": "Step 2: Update syndicate with company information and team details"
+			},
+			"response": []
+		},
+		{
+			"name": "Step 3: KYB Verification",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"syndicate_id\": {{syndicate_id}},\n    \"company_legal_name\": \"Tech Ventures LLC\",\n    \"contact_name\": \"John Manager\",\n    \"contact_position\": \"Managing Partner\",\n    \"address_1\": \"123 Silicon Valley Blvd\",\n    \"address_2\": \"Suite 456\",\n    \"city\": \"San Francisco\",\n    \"postal_code\": \"94105\",\n    \"country\": \"United States\",\n    \"contact_number\": \"+1-555-123-4567\",\n    \"contact_email\": \"john@techventures.com\",\n    \"sie_eligibility\": \"Yes\",\n    \"notary_required\": \"No\",\n    \"deed_required\": \"No\",\n    \"terms_agreed\": true\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/onboarding/step3_kyb_verification/",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"onboarding",
+						"step3_kyb_verification",
+						""
+					]
+				},
+				"description": "Step 3: Complete Know Your Business (KYB) verification with company details"
+			},
+			"response": []
+		},
+		{
+			"name": "Step 4: Compliance & Attestation",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"syndicate_id\": {{syndicate_id}},\n    \"risk_regulatory_attestation\": \"This syndicate complies with all SEC regulations and operates under Regulation D, Rule 506(c). All investors must be accredited. We maintain strict KYC/AML procedures and conduct regular compliance audits.\",\n    \"jurisdictional_requirements\": \"United States (all 50 states), Canada, United Kingdom, European Union. We comply with local securities laws in each jurisdiction.\",\n    \"additional_compliance_policies\": \"KYC/AML policies enforced, Annual audits conducted, GDPR compliant, Regular compliance training for team members, Anti-money laundering procedures, Sanctions screening, Beneficial ownership disclosure\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/onboarding/step4_compliance/",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"onboarding",
+						"step4_compliance",
+						""
+					]
+				},
+				"description": "Step 4: Add compliance information and regulatory attestations"
+			},
+			"response": []
+		},
+		{
+			"name": "Step 5: Final Review & Submit",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"syndicate_id\": {{syndicate_id}}\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/onboarding/step5_final_review/",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"onboarding",
+						"step5_final_review",
+						""
+					]
+				},
+				"description": "Step 5: Final review and submission - returns JWT tokens"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Syndicate Progress",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/onboarding/get_syndicate_progress/?syndicate_id={{syndicate_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"onboarding",
+						"get_syndicate_progress",
+						""
+					],
+					"query": [
+						{
+							"key": "syndicate_id",
+							"value": "{{syndicate_id}}"
+						}
+					]
+				},
+				"description": "Get the current progress of syndicate onboarding"
+			},
+			"response": []
+		},
+		{
+			"name": "Error Testing",
+			"item": [
+				{
+					"name": "Test Missing Required Fields",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"test_user\",\n    \"email\": \"test@example.com\"\n    // Missing password, password2, accredited\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/onboarding/step1_lead_info/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"onboarding",
+								"step1_lead_info",
+								""
+							]
+						},
+						"description": "Test error handling for missing required fields"
+					},
+					"response": []
+				},
+				{
+					"name": "Test Password Mismatch",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"test_user\",\n    \"email\": \"test@example.com\",\n    \"password\": \"password123\",\n    \"password2\": \"differentpassword\",\n    \"accredited\": \"Yes\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/onboarding/step1_lead_info/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"onboarding",
+								"step1_lead_info",
+								""
+							]
+						},
+						"description": "Test error handling for password mismatch"
+					},
+					"response": []
+				},
+				{
+					"name": "Test Invalid Syndicate ID",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"syndicate_id\": 99999,\n    \"firm_name\": \"Test Firm\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/onboarding/step2_entity_profile/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"onboarding",
+								"step2_entity_profile",
+								""
+							]
+						},
+						"description": "Test error handling for invalid syndicate ID"
+					},
+					"response": []
+				}
+			],
+			"description": "Error handling test cases"
+		},
+		{
+			"name": "Complete Onboarding (One Request)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"username\": \"complete_manager\",\n    \"email\": \"complete@techventures.com\",\n    \"password\": \"securepass123\",\n    \"password2\": \"securepass123\",\n    \"first_name\": \"Complete\",\n    \"last_name\": \"Manager\",\n    \"accredited\": \"Yes\",\n    \"syndicate_name\": \"Complete Ventures Syndicate\",\n    \"description\": \"A comprehensive syndicate for testing complete onboarding flow.\",\n    \"sector_ids\": [1, 2, 3],\n    \"geography_ids\": [1, 2, 4],\n    \"lp_network_count\": \"Network of 100+ investors\",\n    \"enable_lp_network\": \"Yes\",\n    \"firm_name\": \"Complete Ventures LLC\",\n    \"team_member\": \"Complete Manager (CEO), Test Analyst (CFO)\",\n    \"company_legal_name\": \"Complete Ventures LLC\",\n    \"contact_name\": \"Complete Manager\",\n    \"contact_position\": \"CEO\",\n    \"address_1\": \"456 Test Street\",\n    \"city\": \"New York\",\n    \"postal_code\": \"10001\",\n    \"country\": \"United States\",\n    \"contact_number\": \"+1-555-999-8888\",\n    \"contact_email\": \"complete@techventures.com\",\n    \"sie_eligibility\": \"Yes\",\n    \"notary_required\": \"No\",\n    \"deed_required\": \"No\",\n    \"terms_agreed\": true,\n    \"risk_regulatory_attestation\": \"Complete compliance with all regulations\",\n    \"jurisdictional_requirements\": \"Global compliance\",\n    \"additional_compliance_policies\": \"Complete compliance framework\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/onboarding/step1_lead_info/",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"onboarding",
+						"step1_lead_info",
+						""
+					]
+				},
+				"description": "Test complete onboarding with all data in one request"
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://192.168.0.146:8000",
+			"type": "string"
+		},
+		{
+			"key": "syndicate_id",
+			"value": "3",
+			"type": "string"
+		},
+		{
+			"key": "user_id",
+			"value": "39",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
