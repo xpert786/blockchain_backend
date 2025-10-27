@@ -216,3 +216,4 @@ STATIC_ROOT = BASE_DIR / 'static'
 # Media files (optional, if your app handles uploads)
 MEDIA_URL = '/blockchain-backend/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+USE_X_FORWARDED_HOST = True
