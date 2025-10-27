@@ -1,0 +1,9 @@
+● gunicorn_blockchain.service - gunicorn daemon for blockchain_backend Django app
+     Loaded: loaded (]8;;file://srv963737/etc/systemd/system/gunicorn_blockchain.service/etc/systemd/system/gunicorn_blockchain.service]8;;; [0;1;32menabled[0m; preset: [0;1;32menabled[0m)
+     Active: activating (auto-restart) (Result: exit-code) since Mon 2025-10-27 07:36:24 UTC; 18ms ago
+    Process: 567240 ExecStartPre=/bin/mkdir -p /home/ubuntu/blockchain_backend/blockchain_backend (code=exited, status=0/SUCCESS)
+    Process: 567242 ExecStartPre=/bin/rm -f /home/ubuntu/blockchain_backend/blockchain_backend/gunicorn_blockchain.sock (code=exited, status=0/SUCCESS)
+    Process: 567244 ExecStart=/home/ubuntu/blockchain_backend/venv/bin/gunicorn --workers 3 --bind unix:/home/ubuntu/blockchain_backend/blockchain_backend/gunicorn_blockchain.sock blockchain_admin.wsgi:application (code=killed, signal=TERM)
+    Process: 567245 ExecStartPost=/bin/chown ubuntu:www-data /home/ubuntu/blockchain_backend/blockchain_backend/gunicorn_blockchain.sock [0;1;31m(code=exited, status=1/FAILURE)[0m
+   Main PID: 567244 (code=killed, signal=TERM)
+        CPU: 23ms
