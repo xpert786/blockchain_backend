@@ -27,14 +27,14 @@ admin.site.site_title = "Blockchain Administration"
 admin.site.index_title = "Welcome to the Blockchain Management Dashboard"
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('blockchain-backend/admin/', admin.site.urls),
 
     # API endpoints
-    path('api/', include('users.urls')),
-    path('api/', include('kyc.urls')),
+    path('blockchain-backend/users/', include('users.urls')),
+    path('blockchain-backend/api/', include('kyc.urls')),
 
     # JWT token endpoints
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    path('blockchain-backend/api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('blockchain-backend/api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('blockchain-backend/api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
 ]
