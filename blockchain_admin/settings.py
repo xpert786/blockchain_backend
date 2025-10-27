@@ -212,3 +212,4 @@ STATIC_URL = '/blockchain-backend/static/'
 MEDIA_URL = '/blockchain-backend/media/'
 
 USE_X_FORWARDED_HOST = True
+
