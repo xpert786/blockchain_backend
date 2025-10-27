@@ -154,3 +154,4 @@ class Syndicate(models.Model):
 # Import document models at the end to avoid circular imports
 from .syndicate_document_models import SyndicateDocument, SyndicateTeamMember, SyndicateBeneficiary, SyndicateCompliance
 from .syndicate_image_models import SyndicateImage
+
