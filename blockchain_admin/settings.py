@@ -205,10 +205,10 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 if not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-# Allow all origins in development (remove in production)
-CORS_ALLOW_ALL_ORIGINS = True
-FORCE_SCRIPT_NAME = '/blockchain-backend'
-STATIC_URL = '/blockchain-backend/static/' 
-MEDIA_URL = '/blockchain-backend/media/'
+# Static files (CSS, JavaScript, Images)
+STATIC_URL = '/blockchain-backend/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-USE_X_FORWARDED_HOST = True
+# Media files (optional, if your app handles uploads)
+MEDIA_URL = '/blockchain-backend/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
