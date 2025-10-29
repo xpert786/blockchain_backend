@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
-from .models import CustomUser, Syndicate, Sector, Geography, TwoFactorAuth, EmailVerification
+from .models import CustomUser, Sector, Geography, TwoFactorAuth, EmailVerification, TermsAcceptance, SyndicateProfile
 
 # Register CustomUser with Django admin
 @admin.register(CustomUser)
@@ -37,81 +37,40 @@ class CustomUserAdmin(UserAdmin):
         return format_html('<span style="color: red;">✗ Disabled</span>')
     two_factor_status.short_description = '2FA Status'
 
-# Register Sector and Geography models
-@admin.register(Sector)
-class SectorAdmin(admin.ModelAdmin):
-    list_display = ('name', 'description', 'created_at')
-    search_fields = ('name', 'description')
-    ordering = ('name',)
+admin.site.register(Sector)
+admin.site.register(Geography)
+admin.site.register(TwoFactorAuth)
+admin.site.register(EmailVerification)
+admin.site.register(TermsAcceptance)
 
-@admin.register(Geography)
-class GeographyAdmin(admin.ModelAdmin):
-    list_display = ('name', 'region', 'country_code', 'created_at')
-    list_filter = ('region',)
-    search_fields = ('name', 'region', 'country_code')
-    ordering = ('region', 'name')
 
-# Register Syndicate as a normal model
-@admin.register(Syndicate)
-class SyndicateAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'manager', 'accredited', 'get_sectors', 'get_geographies', 'firm_name', 'time_of_register')
-    list_filter = ('accredited', 'enable_lp_network', 'sectors', 'geographies', 'time_of_register')
-    search_fields = ('name', 'manager__username', 'firm_name')
-    autocomplete_fields = ['manager']
+@admin.register(SyndicateProfile)
+class SyndicateProfileAdmin(admin.ModelAdmin):
+    list_display = ('user', 'firm_name', 'is_accredited', 'application_status', 'current_step', 'created_at')
+    list_filter = ('is_accredited', 'application_status', 'enable_platform_lp_access', 'created_at')
+    search_fields = ('user__username', 'user__email', 'firm_name')
+    readonly_fields = ('created_at', 'updated_at', 'submitted_at', 'current_step')
     filter_horizontal = ('sectors', 'geographies')
-    readonly_fields = ('time_of_register',)
-    date_hierarchy = 'time_of_register'
-    ordering = ('-time_of_register',)
+    
     fieldsets = (
-        ('Basic Information', {
-            'fields': ('name', 'manager', 'description', 'firm_name', 'logo', 'time_of_register')
+        ('User Information', {
+            'fields': ('user', 'created_at', 'updated_at')
         }),
-        ('Investment Details', {
-            'fields': ('accredited', 'sectors', 'geographies')
+        ('Step 1: Lead Info', {
+            'fields': ('is_accredited', 'understands_regulatory_requirements', 'sectors', 'geographies', 'existing_lp_count', 'enable_platform_lp_access')
         }),
-        ('LP Network', {
-            'fields': ('enable_lp_network', 'lp_network', 'team_member')
+        ('Step 2: Entity Profile', {
+            'fields': ('firm_name', 'description', 'logo')
         }),
-        ('Compliance', {
-            'fields': ('Risk_Regulatory_Attestation', 'jurisdictional_requirements', 'additional_compliance_policies')
+        ('Step 3: Compliance & Attestation', {
+            'fields': ('risk_regulatory_attestation', 'jurisdictional_compliance_acknowledged', 'additional_compliance_policies')
+        }),
+        ('Step 4: Application Status', {
+            'fields': ('application_submitted', 'submitted_at', 'application_status', 'current_step')
         }),
     )
     
-    def get_sectors(self, obj):
-        return ", ".join([sector.name for sector in obj.sectors.all()])
-    get_sectors.short_description = 'Sectors'
+    def current_step(self, obj):
+        return obj.current_step
+    current_step.short_description = 'Current Step'
     
-    def get_geographies(self, obj):
-        return ", ".join([geo.name for geo in obj.geographies.all()])
-    get_geographies.short_description = 'Geographies'
-
-
-# Register Two-Factor Authentication models
-@admin.register(TwoFactorAuth)
-class TwoFactorAuthAdmin(admin.ModelAdmin):
-    list_display = ('user', 'phone_number', 'is_verified', 'created_at', 'expires_at', 'is_expired')
-    list_filter = ('is_verified', 'created_at', 'expires_at')
-    search_fields = ('user__username', 'user__email', 'phone_number')
-    readonly_fields = ('code', 'created_at', 'expires_at')
-    ordering = ('-created_at',)
-    
-    def is_expired(self, obj):
-        from django.utils import timezone
-        return obj.expires_at < timezone.now()
-    is_expired.boolean = True
-    is_expired.short_description = 'Expired'
-
-
-@admin.register(EmailVerification)
-class EmailVerificationAdmin(admin.ModelAdmin):
-    list_display = ('user', 'email', 'is_verified', 'created_at', 'expires_at', 'is_expired')
-    list_filter = ('is_verified', 'created_at', 'expires_at')
-    search_fields = ('user__username', 'user__email', 'email')
-    readonly_fields = ('code', 'created_at', 'expires_at')
-    ordering = ('-created_at',)
-    
-    def is_expired(self, obj):
-        from django.utils import timezone
-        return obj.expires_at < timezone.now()
-    is_expired.boolean = True
-    is_expired.short_description = 'Expired'

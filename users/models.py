@@ -4,7 +4,7 @@ from django.utils import timezone
 
 role_choices = (
     ('admin', 'Admin'),
-    ('syndicate_manager', 'Syndicate Manager'),
+    ('syndicate', 'Syndicate'),
     ('investor', 'Investor'),
 )
 
@@ -118,40 +118,115 @@ class TermsAcceptance(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.get_terms_type_display()}"
 
-class Syndicate(models.Model):
-    ACREDITED_CHOICES = (
-    ('Yes', 'Yes'),
-    ('No', 'No'),
-)
-    LP_CHOICES = (
-    ('Yes', 'Yes'),
-    ('No', 'No'),
-)
-    name = models.CharField(max_length=255)
-    manager = models.ForeignKey(CustomUser, on_delete=models.CASCADE)  # The user who manages the syndicate
+# Choices for SyndicateProfile
+ACCREDITED_CHOICES = [
+    ('yes', 'I am an accredited investor'),
+    ('no', 'I am not an accredited investor'),
+]
+
+LP_NETWORK_CHOICES = [
+    ('0', 'No'),
+    ('1-10', '1-10'),
+    ('11-25', '11-25'),
+    ('26-50', '26-50'),
+    ('51-100', '51-100'),
+    ('100+', '100+'),
+]
+
+
+class SyndicateProfile(models.Model):
+    """Model for syndicate onboarding profile"""
+    
+    # Basic info
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='syndicate_profile')
+    
+    # Step 1: Lead Info
+    is_accredited = models.CharField(max_length=3, choices=ACCREDITED_CHOICES, blank=True, null=True)
+    understands_regulatory_requirements = models.BooleanField(default=False)
+    sectors = models.ManyToManyField(Sector, blank=True, related_name='syndicate_profiles')
+    geographies = models.ManyToManyField(Geography, blank=True, related_name='syndicate_profiles')
+    existing_lp_count = models.CharField(max_length=10, choices=LP_NETWORK_CHOICES, blank=True, null=True)
+    enable_platform_lp_access = models.BooleanField(default=False)
+    
+    # Step 2: Entity Profile
+    firm_name = models.CharField(max_length=255, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
-    accredited = models.CharField(max_length=3, choices=ACREDITED_CHOICES, blank=True, null=True)   
-    sectors = models.ManyToManyField(Sector, blank=True, related_name='syndicates')
-    geographies = models.ManyToManyField(Geography, blank=True, related_name='syndicates')
-    lp_network = models.TextField(blank=True, null=True)
-    enable_lp_network = models.CharField(max_length=3, choices=LP_CHOICES, blank=True, null=True) 
-    firm_name = models.TextField(blank=True, null=True)
     logo = models.ImageField(upload_to='syndicate_logos/', blank=True, null=True)
-    team_member = models.TextField(blank=True, null=True)
-    Risk_Regulatory_Attestation = models.TextField(blank=True, null=True)
-    jurisdictional_requirements = models.TextField(blank=True, null=True)
-    additional_compliance_policies = models.TextField(blank=True, null=True)
-    time_of_register = models.DateTimeField(auto_now_add=True, verbose_name="Registration Time")
+    
+    # Step 3: Compliance & Attestation
+    risk_regulatory_attestation = models.BooleanField(default=False)
+    jurisdictional_compliance_acknowledged = models.BooleanField(default=False)
+    additional_compliance_policies = models.FileField(upload_to='syndicate_compliance/', blank=True, null=True)
+    
+    # Step 4: Final Review & Submit
+    application_submitted = models.BooleanField(default=False)
+    submitted_at = models.DateTimeField(blank=True, null=True)
+    application_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('draft', 'Draft'),
+            ('submitted', 'Submitted'),
+            ('under_review', 'Under Review'),
+            ('approved', 'Approved'),
+            ('rejected', 'Rejected'),
+        ],
+        default='draft'
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        verbose_name = 'syndicate'
-        verbose_name_plural = 'syndicates'
-
+        verbose_name = 'syndicate profile'
+        verbose_name_plural = 'syndicate profiles'
+        ordering = ['-created_at']
+    
     def __str__(self):
-        return self.name
-
-
-# Import document models at the end to avoid circular imports
-from .syndicate_document_models import SyndicateDocument, SyndicateTeamMember, SyndicateBeneficiary, SyndicateCompliance
-from .syndicate_image_models import SyndicateImage
-
+        return f"{self.user.username} - {self.firm_name or 'Draft Profile'}"
+    
+    @property
+    def step1_completed(self):
+        """Check if Step 1 is completed"""
+        return all([
+            self.is_accredited,
+            self.understands_regulatory_requirements,
+            self.sectors.exists(),
+            self.geographies.exists(),
+            self.existing_lp_count
+        ])
+    
+    @property
+    def step2_completed(self):
+        """Check if Step 2 is completed"""
+        return all([
+            self.firm_name,
+            self.description
+        ])
+    
+    @property
+    def step3_completed(self):
+        """Check if Step 3 is completed"""
+        return all([
+            self.risk_regulatory_attestation,
+            self.jurisdictional_compliance_acknowledged
+        ])
+    
+    @property
+    def step4_completed(self):
+        """Check if Step 4 is completed"""
+        return self.application_submitted
+    
+    @property
+    def current_step(self):
+        """Determine current step"""
+        if not self.step1_completed:
+            return 1
+        elif not self.step2_completed:
+            return 2
+        elif not self.step3_completed:
+            return 3
+        elif not self.step4_completed:
+            return 4
+        else:
+            return 5  # Completed

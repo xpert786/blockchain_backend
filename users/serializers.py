@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CustomUser, Syndicate, Sector, Geography, EmailVerification, TwoFactorAuth, TermsAcceptance
+from .models import CustomUser, Sector, Geography, EmailVerification, TwoFactorAuth, TermsAcceptance, SyndicateProfile
 from .email_utils import send_verification_email, send_sms_verification
 from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
@@ -47,10 +47,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     """Serializer for user registration"""
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
     password2 = serializers.CharField(write_only=True, required=True)
+    full_name = serializers.CharField(write_only=True, required=True)
     
     class Meta:
         model = CustomUser
-        fields = ['username', 'email', 'first_name', 'last_name', 'role', 'password', 'password2']
+        fields = ['email', 'full_name', 'phone_number', 'role', 'password', 'password2']
     
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
@@ -58,9 +59,20 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return attrs
     
     def create(self, validated_data):
+        # Split full name into first and last name
+        full_name = validated_data.pop('full_name')
+        name_parts = full_name.strip().split(' ', 1)
+        first_name = name_parts[0]
+        last_name = name_parts[1] if len(name_parts) > 1 else ''
+        
         validated_data.pop('password2')
         password = validated_data.pop('password')
-        user = CustomUser.objects.create(**validated_data)
+        
+        user = CustomUser.objects.create(
+            first_name=first_name,
+            last_name=last_name,
+            **validated_data
+        )
         user.set_password(password)
         user.save()
         return user
@@ -84,129 +96,6 @@ class GeographySerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 
-class SyndicateSerializer(serializers.ModelSerializer):
-    """Serializer for Syndicate model"""
-    manager_details = CustomUserSerializer(source='manager', read_only=True)
-    sectors = SectorSerializer(many=True, read_only=True)
-    geographies = GeographySerializer(many=True, read_only=True)
-    sector_ids = serializers.PrimaryKeyRelatedField(
-        queryset=Sector.objects.all(), 
-        source='sectors', 
-        many=True, 
-        write_only=True,
-        required=False
-    )
-    geography_ids = serializers.PrimaryKeyRelatedField(
-        queryset=Geography.objects.all(), 
-        source='geographies', 
-        many=True, 
-        write_only=True,
-        required=False
-    )
-    
-    class Meta:
-        model = Syndicate
-        fields = '__all__'
-        read_only_fields = ['id', 'time_of_register']
-    
-    def to_representation(self, instance):
-        """Customize the output representation"""
-        representation = super().to_representation(instance)
-        # Add manager username to the output
-        if instance.manager:
-            representation['manager_username'] = instance.manager.username
-        return representation
-
-
-class SyndicateCreateUpdateSerializer(serializers.ModelSerializer):
-    """Serializer for creating and updating syndicates"""
-    sector_ids = serializers.PrimaryKeyRelatedField(
-        queryset=Sector.objects.all(), 
-        source='sectors', 
-        many=True, 
-        write_only=True,
-        required=False
-    )
-    geography_ids = serializers.PrimaryKeyRelatedField(
-        queryset=Geography.objects.all(), 
-        source='geographies', 
-        many=True, 
-        write_only=True,
-        required=False
-    )
-    
-    class Meta:
-        model = Syndicate
-        fields = '__all__'
-        read_only_fields = ['time_of_register']
-
-
-class SyndicateWithUserCreationSerializer(serializers.ModelSerializer):
-    """Serializer for creating syndicate with user creation (no auth required)"""
-    # User fields
-    username = serializers.CharField(write_only=True)
-    email = serializers.EmailField(write_only=True)
-    password = serializers.CharField(write_only=True, validators=[validate_password])
-    password2 = serializers.CharField(write_only=True)
-    first_name = serializers.CharField(write_only=True, required=False)
-    last_name = serializers.CharField(write_only=True, required=False)
-    
-    # Syndicate fields
-    sector_ids = serializers.PrimaryKeyRelatedField(
-        queryset=Sector.objects.all(), 
-        source='sectors', 
-        many=True, 
-        write_only=True,
-        required=False
-    )
-    geography_ids = serializers.PrimaryKeyRelatedField(
-        queryset=Geography.objects.all(), 
-        source='geographies', 
-        many=True, 
-        write_only=True,
-        required=False
-    )
-    
-    class Meta:
-        model = Syndicate
-        fields = [
-            'name', 'description', 'accredited', 'sector_ids', 'geography_ids',
-            'lp_network', 'enable_lp_network', 'firm_name', 'logo', 'team_member',
-            'Risk_Regulatory_Attestation', 'jurisdictional_requirements', 
-            'additional_compliance_policies',
-            'username', 'email', 'password', 'password2', 'first_name', 'last_name'
-        ]
-        read_only_fields = ['time_of_register']
-    
-    def validate(self, attrs):
-        if attrs['password'] != attrs['password2']:
-            raise serializers.ValidationError({"password": "Password fields didn't match."})
-        return attrs
-    
-    def create(self, validated_data):
-        # Extract user data
-        user_data = {
-            'username': validated_data.pop('username'),
-            'email': validated_data.pop('email'),
-            'password': validated_data.pop('password'),
-            'first_name': validated_data.pop('first_name', ''),
-            'last_name': validated_data.pop('last_name', ''),
-            'role': 'syndicate_manager'
-        }
-        validated_data.pop('password2')  # Remove password2
-        
-        # Create user
-        user = CustomUser.objects.create(**user_data)
-        user.set_password(user_data['password'])
-        user.save()
-        
-        # Create syndicate with the new user as manager
-        validated_data['manager'] = user
-        syndicate = Syndicate.objects.create(**validated_data)
-        
-        return syndicate
-
-
 class RegistrationSerializer(serializers.ModelSerializer):
     """Serializer for user registration with full details"""
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
@@ -215,7 +104,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = CustomUser
-        fields = ['username', 'email', 'phone_number', 'role', 'password', 'confirm_password', 'full_name']
+        fields = ['full_name', 'email', 'phone_number', 'role', 'password', 'confirm_password']
     
     def validate(self, attrs):
         if attrs['password'] != attrs['confirm_password']:
@@ -224,10 +113,6 @@ class RegistrationSerializer(serializers.ModelSerializer):
         # Check if email already exists
         if CustomUser.objects.filter(email=attrs['email']).exists():
             raise serializers.ValidationError({"email": "A user with this email already exists."})
-        
-        # Check if username already exists
-        if CustomUser.objects.filter(username=attrs['username']).exists():
-            raise serializers.ValidationError({"username": "A user with this username already exists."})
         
         return attrs
     
@@ -241,7 +126,19 @@ class RegistrationSerializer(serializers.ModelSerializer):
         validated_data.pop('confirm_password')
         password = validated_data.pop('password')
         
+        # Generate username from email (part before @)
+        email = validated_data['email']
+        base_username = email.split('@')[0]
+        username = base_username
+        
+        # Ensure username is unique
+        counter = 1
+        while CustomUser.objects.filter(username=username).exists():
+            username = f"{base_username}{counter}"
+            counter += 1
+        
         user = CustomUser.objects.create(
+            username=username,
             first_name=first_name,
             last_name=last_name,
             **validated_data
@@ -407,4 +304,146 @@ class VerifyTwoFactorSerializer(serializers.Serializer):
             raise serializers.ValidationError("Invalid or expired verification code.")
         
         return attrs
+
+
+class SyndicateProfileSerializer(serializers.ModelSerializer):
+    """Serializer for SyndicateProfile model"""
+    sectors = SectorSerializer(many=True, read_only=True)
+    geographies = GeographySerializer(many=True, read_only=True)
+    sector_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Sector.objects.all(),
+        source='sectors',
+        many=True,
+        write_only=True,
+        required=False
+    )
+    geography_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Geography.objects.all(),
+        source='geographies',
+        many=True,
+        write_only=True,
+        required=False
+    )
+    
+    class Meta:
+        model = SyndicateProfile
+        fields = '__all__'
+        read_only_fields = ['user', 'created_at', 'updated_at', 'submitted_at']
+    
+    def to_representation(self, instance):
+        """Customize the output representation"""
+        representation = super().to_representation(instance)
+        representation['step1_completed'] = instance.step1_completed
+        representation['step2_completed'] = instance.step2_completed
+        representation['step3_completed'] = instance.step3_completed
+        representation['step4_completed'] = instance.step4_completed
+        representation['current_step'] = instance.current_step
+        return representation
+
+
+class SyndicateStep1Serializer(serializers.ModelSerializer):
+    """Serializer for Step 1: Lead Info"""
+    sector_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Sector.objects.all(),
+        source='sectors',
+        many=True,
+        write_only=True,
+        required=True
+    )
+    geography_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Geography.objects.all(),
+        source='geographies',
+        many=True,
+        write_only=True,
+        required=True
+    )
+    
+    class Meta:
+        model = SyndicateProfile
+        fields = [
+            'is_accredited', 'understands_regulatory_requirements',
+            'sector_ids', 'geography_ids', 'existing_lp_count',
+            'enable_platform_lp_access'
+        ]
+    
+    def validate(self, attrs):
+        if not attrs.get('is_accredited'):
+            raise serializers.ValidationError("Accreditation status is required.")
+        
+        if not attrs.get('understands_regulatory_requirements'):
+            raise serializers.ValidationError("You must acknowledge regulatory requirements.")
+        
+        if not attrs.get('sectors'):
+            raise serializers.ValidationError("At least one sector must be selected.")
+        
+        if not attrs.get('geographies'):
+            raise serializers.ValidationError("At least one geography must be selected.")
+        
+        return attrs
+
+
+class SyndicateStep2Serializer(serializers.ModelSerializer):
+    """Serializer for Step 2: Entity Profile"""
+    
+    class Meta:
+        model = SyndicateProfile
+        fields = ['firm_name', 'description', 'logo']
+    
+    def validate(self, attrs):
+        if not attrs.get('firm_name'):
+            raise serializers.ValidationError("Firm name is required.")
+        
+        if not attrs.get('description'):
+            raise serializers.ValidationError("Description is required.")
+        
+        return attrs
+
+
+class SyndicateStep3Serializer(serializers.ModelSerializer):
+    """Serializer for Step 3: Compliance & Attestation"""
+    
+    class Meta:
+        model = SyndicateProfile
+        fields = [
+            'risk_regulatory_attestation', 'jurisdictional_compliance_acknowledged',
+            'additional_compliance_policies'
+        ]
+    
+    def validate(self, attrs):
+        if not attrs.get('risk_regulatory_attestation'):
+            raise serializers.ValidationError("Risk & Regulatory Attestation is required.")
+        
+        if not attrs.get('jurisdictional_compliance_acknowledged'):
+            raise serializers.ValidationError("Jurisdictional compliance acknowledgment is required.")
+        
+        return attrs
+
+
+class SyndicateStep4Serializer(serializers.ModelSerializer):
+    """Serializer for Step 4: Final Review & Submit"""
+    
+    class Meta:
+        model = SyndicateProfile
+        fields = ['application_submitted']
+    
+    def validate(self, attrs):
+        instance = self.instance
+        if not instance.step1_completed:
+            raise serializers.ValidationError("Step 1 must be completed before submission.")
+        
+        if not instance.step2_completed:
+            raise serializers.ValidationError("Step 2 must be completed before submission.")
+        
+        if not instance.step3_completed:
+            raise serializers.ValidationError("Step 3 must be completed before submission.")
+        
+        return attrs
+    
+    def update(self, instance, validated_data):
+        if validated_data.get('application_submitted'):
+            instance.application_submitted = True
+            instance.submitted_at = timezone.now()
+            instance.application_status = 'submitted'
+            instance.save()
+        return instance
 

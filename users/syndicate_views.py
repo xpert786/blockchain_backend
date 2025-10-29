@@ -1,0 +1,338 @@
+from rest_framework import status, permissions
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from django.utils import timezone
+from django.shortcuts import get_object_or_404
+
+from .models import CustomUser, SyndicateProfile, Sector, Geography
+from .serializers import (
+    SyndicateProfileSerializer, SyndicateStep1Serializer, 
+    SyndicateStep2Serializer, SyndicateStep3Serializer, SyndicateStep4Serializer
+)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_syndicate_profile(request):
+    """
+    Get current user's syndicate profile
+    GET /api/syndicate/profile/
+    """
+    user = request.user
+    
+    # Check if user has syndicate role
+    if user.role != 'syndicate':
+        return Response({
+            'error': 'Only users with syndicate role can access this endpoint'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        profile = SyndicateProfile.objects.get(user=user)
+        serializer = SyndicateProfileSerializer(profile)
+        return Response(serializer.data)
+    except SyndicateProfile.DoesNotExist:
+        return Response({
+            'error': 'Syndicate profile not found. Please start the onboarding process.'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def create_syndicate_profile(request):
+    """
+    Create syndicate profile for current user
+    POST /api/syndicate/profile/
+    """
+    user = request.user
+    
+    # Check if user has syndicate role
+    if user.role != 'syndicate':
+        return Response({
+            'error': 'Only users with syndicate role can create syndicate profiles'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    # Check if profile already exists
+    if SyndicateProfile.objects.filter(user=user).exists():
+        return Response({
+            'error': 'Syndicate profile already exists. Use update endpoints instead.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    serializer = SyndicateProfileSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save(user=user)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def syndicate_step1(request):
+    """
+    Step 1: Lead Info - Personal and accreditation details
+    POST /api/syndicate/step1/
+    """
+    user = request.user
+    
+    # Check if user has syndicate role
+    if user.role != 'syndicate':
+        return Response({
+            'error': 'Only users with syndicate role can access this endpoint'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    # Get or create syndicate profile
+    profile, created = SyndicateProfile.objects.get_or_create(user=user)
+    
+    serializer = SyndicateStep1Serializer(profile, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        
+        # Return updated profile with step completion status
+        profile_serializer = SyndicateProfileSerializer(profile)
+        return Response({
+            'success': True,
+            'message': 'Step 1 completed successfully',
+            'profile': profile_serializer.data,
+            'next_step': 'step2' if profile.step1_completed else 'step1'
+        }, status=status.HTTP_200_OK)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def syndicate_step2(request):
+    """
+    Step 2: Entity Profile - Company information and structure
+    POST /api/syndicate/step2/
+    """
+    user = request.user
+    
+    # Check if user has syndicate role
+    if user.role != 'syndicate':
+        return Response({
+            'error': 'Only users with syndicate role can access this endpoint'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        profile = SyndicateProfile.objects.get(user=user)
+    except SyndicateProfile.DoesNotExist:
+        return Response({
+            'error': 'Syndicate profile not found. Please complete Step 1 first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Check if Step 1 is completed
+    if not profile.step1_completed:
+        return Response({
+            'error': 'Step 1 must be completed before proceeding to Step 2'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    serializer = SyndicateStep2Serializer(profile, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        
+        # Return updated profile with step completion status
+        profile_serializer = SyndicateProfileSerializer(profile)
+        return Response({
+            'success': True,
+            'message': 'Step 2 completed successfully',
+            'profile': profile_serializer.data,
+            'next_step': 'step3' if profile.step2_completed else 'step2'
+        }, status=status.HTTP_200_OK)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def syndicate_step3(request):
+    """
+    Step 3: Compliance & Attestation - Regulatory requirements
+    POST /api/syndicate/step3/
+    """
+    user = request.user
+    
+    # Check if user has syndicate role
+    if user.role != 'syndicate':
+        return Response({
+            'error': 'Only users with syndicate role can access this endpoint'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        profile = SyndicateProfile.objects.get(user=user)
+    except SyndicateProfile.DoesNotExist:
+        return Response({
+            'error': 'Syndicate profile not found. Please complete previous steps first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Check if Step 2 is completed
+    if not profile.step2_completed:
+        return Response({
+            'error': 'Step 2 must be completed before proceeding to Step 3'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    serializer = SyndicateStep3Serializer(profile, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        
+        # Return updated profile with step completion status
+        profile_serializer = SyndicateProfileSerializer(profile)
+        return Response({
+            'success': True,
+            'message': 'Step 3 completed successfully',
+            'profile': profile_serializer.data,
+            'next_step': 'step4' if profile.step3_completed else 'step3'
+        }, status=status.HTTP_200_OK)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def syndicate_step4(request):
+    """
+    Step 4: Final Review & Submit - Submit application for review
+    POST /api/syndicate/step4/
+    """
+    user = request.user
+    
+    # Check if user has syndicate role
+    if user.role != 'syndicate':
+        return Response({
+            'error': 'Only users with syndicate role can access this endpoint'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        profile = SyndicateProfile.objects.get(user=user)
+    except SyndicateProfile.DoesNotExist:
+        return Response({
+            'error': 'Syndicate profile not found. Please complete previous steps first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Check if Step 3 is completed
+    if not profile.step3_completed:
+        return Response({
+            'error': 'Step 3 must be completed before proceeding to Step 4'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    serializer = SyndicateStep4Serializer(profile, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        
+        # Return updated profile with submission status
+        profile_serializer = SyndicateProfileSerializer(profile)
+        return Response({
+            'success': True,
+            'message': 'Syndicate application submitted successfully! Your application is now under review.',
+            'profile': profile_serializer.data,
+            'application_status': profile.application_status,
+            'submitted_at': profile.submitted_at
+        }, status=status.HTTP_200_OK)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def syndicate_progress(request):
+    """
+    Get syndicate onboarding progress
+    GET /api/syndicate/progress/
+    """
+    user = request.user
+    
+    # Check if user has syndicate role
+    if user.role != 'syndicate':
+        return Response({
+            'error': 'Only users with syndicate role can access this endpoint'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        profile = SyndicateProfile.objects.get(user=user)
+        
+        progress = {
+            'step1_completed': profile.step1_completed,
+            'step2_completed': profile.step2_completed,
+            'step3_completed': profile.step3_completed,
+            'step4_completed': profile.step4_completed,
+            'current_step': profile.current_step,
+            'application_status': profile.application_status,
+            'submitted_at': profile.submitted_at
+        }
+        
+        return Response({
+            'progress': progress,
+            'profile': SyndicateProfileSerializer(profile).data
+        })
+        
+    except SyndicateProfile.DoesNotExist:
+        return Response({
+            'progress': {
+                'step1_completed': False,
+                'step2_completed': False,
+                'step3_completed': False,
+                'step4_completed': False,
+                'current_step': 1,
+                'application_status': 'not_started',
+                'submitted_at': None
+            },
+            'message': 'Syndicate profile not found. Please start the onboarding process.'
+        })
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_sectors_and_geographies(request):
+    """
+    Get available sectors and geographies for syndicate onboarding
+    GET /api/syndicate/sectors-geographies/
+    """
+    sectors = Sector.objects.all()
+    geographies = Geography.objects.all()
+    
+    from .serializers import SectorSerializer, GeographySerializer
+    
+    return Response({
+        'sectors': SectorSerializer(sectors, many=True).data,
+        'geographies': GeographySerializer(geographies, many=True).data
+    })
+
+
+@api_view(['PUT'])
+@permission_classes([permissions.IsAuthenticated])
+def update_syndicate_profile(request):
+    """
+    Update syndicate profile (admin only)
+    PUT /api/syndicate/profile/<id>/
+    """
+    user = request.user
+    
+    # Check if user is admin
+    if not user.is_staff and user.role != 'admin':
+        return Response({
+            'error': 'Only administrators can update syndicate profiles'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    profile_id = request.data.get('profile_id')
+    if not profile_id:
+        return Response({
+            'error': 'profile_id is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        profile = SyndicateProfile.objects.get(id=profile_id)
+    except SyndicateProfile.DoesNotExist:
+        return Response({
+            'error': 'Syndicate profile not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    serializer = SyndicateProfileSerializer(profile, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response({
+            'success': True,
+            'message': 'Syndicate profile updated successfully',
+            'profile': serializer.data
+        })
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
