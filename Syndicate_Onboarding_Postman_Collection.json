@@ -211,7 +211,53 @@
 					"response": []
 				},
 				{
-					"name": "Step 3: Compliance & Attestation",
+					"name": "Step 3: KYB Verification - Business Verification & Documents",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"certificate_of_incorporation\": \"base64_encoded_document_or_file_path\",\n    \"company_bank_statement\": \"base64_encoded_document_or_file_path\",\n    \"address_1\": \"123 Business Street\",\n    \"address_2\": \"Suite 100\",\n    \"city\": \"New York\",\n    \"zip_code\": \"10001\",\n    \"country\": \"United States\",\n    \"company_proof_of_address\": null,\n    \"owner_identity_doc\": \"base64_encoded_document_or_file_path\",\n    \"owner_proof_of_address\": \"base64_encoded_document_or_file_path\",\n    \"sie_eligibilty\": \"Mention\",\n    \"notary\": \"NO\",\n    \"Unlocksley_To_Sign_a_Deed_Of_adherence\": false,\n    \"Investee_Company_Contact_Number\": \"+1234567890\",\n    \"Investee_Company_Email\": \"contact@company.com\",\n    \"I_Agree_To_Investee_Terms\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/kyc/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "kyc", ""]
+						},
+						"description": "Step 3: Submit KYB (Know Your Business) verification documents. Includes: Company certificate of incorporation, bank statement, company address, proof of address, beneficiary owner identity document, beneficiary owner proof of address, UTIB eligibility, notary requirements, deed of adherence, and investor terms agreement."
+					},
+					"response": []
+				},
+				{
+					"name": "Get My KYC Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/kyc/my_kyc/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "kyc", "my_kyc", ""]
+						},
+						"description": "Get current user's KYC records and verification status"
+					},
+					"response": []
+				},
+				{
+					"name": "Step 4: Compliance & Attestation",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -233,12 +279,12 @@
 							"host": ["{{base_url}}"],
 							"path": ["syndicate", "step3", ""]
 						},
-						"description": "Step 3: Complete compliance and attestation requirements"
+						"description": "Step 4: Complete compliance and attestation requirements"
 					},
 					"response": []
 				},
 				{
-					"name": "Step 4: Final Review & Submit",
+					"name": "Step 5: Final Review & Submit",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -260,7 +306,7 @@
 							"host": ["{{base_url}}"],
 							"path": ["syndicate", "step4", ""]
 						},
-						"description": "Step 4: Submit syndicate application for review"
+						"description": "Step 5: Submit syndicate application for review"
 					},
 					"response": []
 				}
