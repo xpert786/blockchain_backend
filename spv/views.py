@@ -1,14 +1,23 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
-from .models import SPV, PortfolioCompany, CompanyStage, IncorporationType
+from .models import (
+    SPV, PortfolioCompany, CompanyStage, IncorporationType,
+    InstrumentType, ShareClass, Round, MasterPartnershipEntity
+)
 from .serializers import (
     SPVSerializer,
     SPVCreateSerializer,
     SPVListSerializer,
+    SPVStep2Serializer,
+    SPVStep3Serializer,
     PortfolioCompanySerializer,
     CompanyStageSerializer,
     IncorporationTypeSerializer,
+    InstrumentTypeSerializer,
+    ShareClassSerializer,
+    RoundSerializer,
+    MasterPartnershipEntitySerializer,
 )
 
 
@@ -91,6 +100,54 @@ class SPVViewSet(viewsets.ModelViewSet):
             'message': 'SPV status updated successfully',
             'data': SPVSerializer(spv).data
         }, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['patch'], permission_classes=[permissions.IsAuthenticated])
+    def update_step2(self, request, pk=None):
+        """
+        Update SPV Step 2 (Terms) fields
+        PATCH /api/spv/{id}/update_step2/
+        """
+        spv = self.get_object()
+        
+        # Check permissions
+        if not (request.user.is_staff or request.user.role == 'admin' or spv.created_by == request.user):
+            return Response({
+                'error': 'You do not have permission to update this SPV'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = SPVStep2Serializer(spv, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'message': 'SPV Step 2 (Terms) updated successfully',
+                'data': SPVSerializer(spv).data
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['patch'], permission_classes=[permissions.IsAuthenticated])
+    def update_step3(self, request, pk=None):
+        """
+        Update SPV Step 3 (Adviser & Legal Structure) fields
+        PATCH /api/spv/{id}/update_step3/
+        """
+        spv = self.get_object()
+        
+        # Check permissions
+        if not (request.user.is_staff or request.user.role == 'admin' or spv.created_by == request.user):
+            return Response({
+                'error': 'You do not have permission to update this SPV'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = SPVStep3Serializer(spv, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'message': 'SPV Step 3 (Adviser & Legal Structure) updated successfully',
+                'data': SPVSerializer(spv).data
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PortfolioCompanyViewSet(viewsets.ModelViewSet):
@@ -130,6 +187,42 @@ class IncorporationTypeViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
 
+class InstrumentTypeViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for viewing Instrument Types (read-only)
+    """
+    queryset = InstrumentType.objects.all()
+    serializer_class = InstrumentTypeSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class ShareClassViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for viewing Share Classes (read-only)
+    """
+    queryset = ShareClass.objects.all()
+    serializer_class = ShareClassSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class RoundViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for viewing Rounds (read-only)
+    """
+    queryset = Round.objects.all()
+    serializer_class = RoundSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class MasterPartnershipEntityViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for viewing Master Partnership Entities (read-only)
+    """
+    queryset = MasterPartnershipEntity.objects.all()
+    serializer_class = MasterPartnershipEntitySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def get_spv_options(request):
@@ -141,4 +234,11 @@ def get_spv_options(request):
         'company_stages': CompanyStageSerializer(CompanyStage.objects.all(), many=True).data,
         'incorporation_types': IncorporationTypeSerializer(IncorporationType.objects.all(), many=True).data,
         'portfolio_companies': PortfolioCompanySerializer(PortfolioCompany.objects.all()[:50], many=True).data,
+        'instrument_types': InstrumentTypeSerializer(InstrumentType.objects.all(), many=True).data,
+        'share_classes': ShareClassSerializer(ShareClass.objects.all(), many=True).data,
+        'rounds': RoundSerializer(Round.objects.all(), many=True).data,
+        'master_partnership_entities': MasterPartnershipEntitySerializer(MasterPartnershipEntity.objects.all(), many=True).data,
+        'transaction_types': [{'value': choice[0], 'label': choice[1]} for choice in SPV.TRANSACTION_TYPE_CHOICES],
+        'valuation_types': [{'value': choice[0], 'label': choice[1]} for choice in SPV.VALUATION_TYPE_CHOICES],
+        'adviser_entities': [{'value': choice[0], 'label': choice[1]} for choice in SPV.ADVISER_ENTITY_CHOICES],
     })

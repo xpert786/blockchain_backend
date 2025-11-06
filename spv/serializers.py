@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import SPV, PortfolioCompany, CompanyStage, IncorporationType
+from .models import (
+    SPV, PortfolioCompany, CompanyStage, IncorporationType,
+    InstrumentType, ShareClass, Round, MasterPartnershipEntity
+)
 from users.models import CustomUser
 
 
@@ -18,6 +21,42 @@ class IncorporationTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = IncorporationType
         fields = ['id', 'name', 'description']
+        read_only_fields = ['id']
+
+
+class InstrumentTypeSerializer(serializers.ModelSerializer):
+    """Serializer for InstrumentType model"""
+    
+    class Meta:
+        model = InstrumentType
+        fields = ['id', 'name', 'description', 'order']
+        read_only_fields = ['id']
+
+
+class ShareClassSerializer(serializers.ModelSerializer):
+    """Serializer for ShareClass model"""
+    
+    class Meta:
+        model = ShareClass
+        fields = ['id', 'name', 'description', 'order']
+        read_only_fields = ['id']
+
+
+class RoundSerializer(serializers.ModelSerializer):
+    """Serializer for Round model"""
+    
+    class Meta:
+        model = Round
+        fields = ['id', 'name', 'description', 'order']
+        read_only_fields = ['id']
+
+
+class MasterPartnershipEntitySerializer(serializers.ModelSerializer):
+    """Serializer for MasterPartnershipEntity model"""
+    
+    class Meta:
+        model = MasterPartnershipEntity
+        fields = ['id', 'name', 'description', 'order']
         read_only_fields = ['id']
 
 
@@ -50,6 +89,18 @@ class SPVCreateSerializer(serializers.ModelSerializer):
             'incorporation_type',
             'founder_email',
             'pitch_deck',
+            # Step 2: Terms fields
+            'transaction_type',
+            'instrument_type',
+            'valuation_type',
+            'share_class',
+            'round',
+            'round_size',
+            'allocation',
+            # Step 3: Adviser & Legal Structure fields
+            'adviser_entity',
+            'master_partnership_entity',
+            'fund_lead',
         ]
     
     def validate(self, data):
@@ -72,6 +123,11 @@ class SPVSerializer(serializers.ModelSerializer):
     portfolio_company_detail = PortfolioCompanySerializer(source='portfolio_company', read_only=True)
     company_stage_detail = CompanyStageSerializer(source='company_stage', read_only=True)
     incorporation_type_detail = IncorporationTypeSerializer(source='incorporation_type', read_only=True)
+    instrument_type_detail = InstrumentTypeSerializer(source='instrument_type', read_only=True)
+    share_class_detail = ShareClassSerializer(source='share_class', read_only=True)
+    round_detail = RoundSerializer(source='round', read_only=True)
+    master_partnership_entity_detail = MasterPartnershipEntitySerializer(source='master_partnership_entity', read_only=True)
+    fund_lead_detail = serializers.SerializerMethodField()
     company_name = serializers.CharField(read_only=True)
     
     class Meta:
@@ -91,6 +147,23 @@ class SPVSerializer(serializers.ModelSerializer):
             'incorporation_type_detail',
             'founder_email',
             'pitch_deck',
+            # Step 2: Terms fields
+            'transaction_type',
+            'instrument_type',
+            'instrument_type_detail',
+            'valuation_type',
+            'share_class',
+            'share_class_detail',
+            'round',
+            'round_detail',
+            'round_size',
+            'allocation',
+            # Step 3: Adviser & Legal Structure fields
+            'adviser_entity',
+            'master_partnership_entity',
+            'master_partnership_entity_detail',
+            'fund_lead',
+            'fund_lead_detail',
             'status',
             'created_at',
             'updated_at',
@@ -105,6 +178,17 @@ class SPVSerializer(serializers.ModelSerializer):
             'email': obj.created_by.email,
             'full_name': obj.created_by.get_full_name() or obj.created_by.username,
         }
+    
+    def get_fund_lead_detail(self, obj):
+        """Get fund lead user details"""
+        if obj.fund_lead:
+            return {
+                'id': obj.fund_lead.id,
+                'username': obj.fund_lead.username,
+                'email': obj.fund_lead.email,
+                'full_name': obj.fund_lead.get_full_name() or obj.fund_lead.username,
+            }
+        return None
 
 
 class SPVListSerializer(serializers.ModelSerializer):
@@ -127,8 +211,32 @@ class SPVListSerializer(serializers.ModelSerializer):
             'created_at',
         ]
         read_only_fields = ['id', 'created_at']
+
+
+class SPVStep2Serializer(serializers.ModelSerializer):
+    """Serializer for updating SPV Step 2 (Terms) fields only"""
     
-    def get_created_by_name(self, obj):
-        """Get creator name"""
-        return obj.created_by.get_full_name() or obj.created_by.username
+    class Meta:
+        model = SPV
+        fields = [
+            'transaction_type',
+            'instrument_type',
+            'valuation_type',
+            'share_class',
+            'round',
+            'round_size',
+            'allocation',
+        ]
+
+
+class SPVStep3Serializer(serializers.ModelSerializer):
+    """Serializer for updating SPV Step 3 (Adviser & Legal Structure) fields only"""
+    
+    class Meta:
+        model = SPV
+        fields = [
+            'adviser_entity',
+            'master_partnership_entity',
+            'fund_lead',
+        ]
 

@@ -33,6 +33,70 @@ class IncorporationType(models.Model):
         return self.name
 
 
+class InstrumentType(models.Model):
+    """Model for instrument types (e.g., SAFE, Convertible Note, Equity)"""
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, null=True)
+    order = models.IntegerField(default=0, help_text="Order for display in dropdown")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name = 'instrument type'
+        verbose_name_plural = 'instrument types'
+    
+    def __str__(self):
+        return self.name
+
+
+class ShareClass(models.Model):
+    """Model for share classes (e.g., Preferred, Common, Series A)"""
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, null=True)
+    order = models.IntegerField(default=0, help_text="Order for display in dropdown")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name = 'share class'
+        verbose_name_plural = 'share classes'
+    
+    def __str__(self):
+        return self.name
+
+
+class Round(models.Model):
+    """Model for funding rounds (e.g., Seed, Series A, Series B)"""
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, null=True)
+    order = models.IntegerField(default=0, help_text="Order for display in dropdown")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name = 'round'
+        verbose_name_plural = 'rounds'
+    
+    def __str__(self):
+        return self.name
+
+
+class MasterPartnershipEntity(models.Model):
+    """Model for master partnership entities"""
+    name = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True, null=True)
+    order = models.IntegerField(default=0, help_text="Order for display in dropdown")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name = 'master partnership entity'
+        verbose_name_plural = 'master partnership entities'
+    
+    def __str__(self):
+        return self.name
+
+
 class PortfolioCompany(models.Model):
     """Model for portfolio companies"""
     name = models.CharField(max_length=255, unique=True)
@@ -104,6 +168,101 @@ class SPV(models.Model):
         blank=True, 
         null=True,
         help_text="Upload pitch deck (PDF, PPT, PPTX)"
+    )
+    
+    # Step 2: Terms
+    TRANSACTION_TYPE_CHOICES = [
+        ('primary', 'Primary'),
+        ('secondary', 'Secondary'),
+    ]
+    
+    VALUATION_TYPE_CHOICES = [
+        ('pre_money', 'Pre money'),
+        ('post_money', 'Post money'),
+    ]
+    
+    transaction_type = models.CharField(
+        max_length=20,
+        choices=TRANSACTION_TYPE_CHOICES,
+        blank=True,
+        null=True,
+        help_text="Transaction type: Primary or Secondary"
+    )
+    instrument_type = models.ForeignKey(
+        'InstrumentType',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='spvs',
+        help_text="Legal instrument used for the deal"
+    )
+    valuation_type = models.CharField(
+        max_length=20,
+        choices=VALUATION_TYPE_CHOICES,
+        blank=True,
+        null=True,
+        help_text="Valuation type: Pre money or Post money"
+    )
+    share_class = models.ForeignKey(
+        'ShareClass',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='spvs',
+        help_text="Share class for the deal"
+    )
+    round = models.ForeignKey(
+        'Round',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='spvs',
+        help_text="Funding round"
+    )
+    round_size = models.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        help_text="Total round size in currency"
+    )
+    allocation = models.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        help_text="Your allocation amount in currency"
+    )
+    
+    # Step 3: Adviser & Legal Structure
+    ADVISER_ENTITY_CHOICES = [
+        ('platform_advisers', 'Platform Advisers LLC'),
+        ('self_advised', 'Self-Advised Entity'),
+    ]
+    
+    adviser_entity = models.CharField(
+        max_length=30,
+        choices=ADVISER_ENTITY_CHOICES,
+        default='platform_advisers',
+        blank=True,
+        null=True,
+        help_text="Adviser entity type"
+    )
+    master_partnership_entity = models.ForeignKey(
+        'MasterPartnershipEntity',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='spvs',
+        help_text="Master partnership entity (appears on cap table)"
+    )
+    fund_lead = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='led_spvs',
+        help_text="Fund lead (designated in fund documentation)"
     )
     
     # Status and Metadata

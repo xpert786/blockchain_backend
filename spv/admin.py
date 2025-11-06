@@ -1,5 +1,8 @@
 from django.contrib import admin
-from .models import SPV, PortfolioCompany, CompanyStage, IncorporationType
+from .models import (
+    SPV, PortfolioCompany, CompanyStage, IncorporationType,
+    InstrumentType, ShareClass, Round, MasterPartnershipEntity
+)
 
 
 @admin.register(CompanyStage)
@@ -16,6 +19,38 @@ class IncorporationTypeAdmin(admin.ModelAdmin):
     list_filter = ('created_at',)
     search_fields = ('name', 'description')
     ordering = ('name',)
+
+
+@admin.register(InstrumentType)
+class InstrumentTypeAdmin(admin.ModelAdmin):
+    list_display = ('name', 'order', 'created_at')
+    list_filter = ('created_at',)
+    search_fields = ('name', 'description')
+    ordering = ('order', 'name')
+
+
+@admin.register(ShareClass)
+class ShareClassAdmin(admin.ModelAdmin):
+    list_display = ('name', 'order', 'created_at')
+    list_filter = ('created_at',)
+    search_fields = ('name', 'description')
+    ordering = ('order', 'name')
+
+
+@admin.register(Round)
+class RoundAdmin(admin.ModelAdmin):
+    list_display = ('name', 'order', 'created_at')
+    list_filter = ('created_at',)
+    search_fields = ('name', 'description')
+    ordering = ('order', 'name')
+
+
+@admin.register(MasterPartnershipEntity)
+class MasterPartnershipEntityAdmin(admin.ModelAdmin):
+    list_display = ('name', 'order', 'created_at')
+    list_filter = ('created_at',)
+    search_fields = ('name', 'description')
+    ordering = ('order', 'name')
 
 
 @admin.register(PortfolioCompany)
@@ -38,7 +73,10 @@ class SPVAdmin(admin.ModelAdmin):
         'created_by', 
         'created_at'
     )
-    list_filter = ('status', 'company_stage', 'country_of_incorporation', 'created_at')
+    list_filter = (
+        'status', 'company_stage', 'country_of_incorporation',
+        'transaction_type', 'valuation_type', 'round', 'adviser_entity', 'created_at'
+    )
     search_fields = (
         'display_name', 
         'portfolio_company_name', 
@@ -47,7 +85,10 @@ class SPVAdmin(admin.ModelAdmin):
         'created_by__email'
     )
     readonly_fields = ('created_at', 'updated_at')
-    autocomplete_fields = ['created_by', 'portfolio_company', 'company_stage', 'incorporation_type']
+    autocomplete_fields = [
+        'created_by', 'portfolio_company', 'company_stage', 'incorporation_type',
+        'instrument_type', 'share_class', 'round', 'master_partnership_entity', 'fund_lead'
+    ]
     
     fieldsets = (
         ('Basic Information', {
@@ -64,6 +105,24 @@ class SPVAdmin(admin.ModelAdmin):
         }),
         ('Documents', {
             'fields': ('pitch_deck',)
+        }),
+        ('Step 2: Terms', {
+            'fields': (
+                'transaction_type',
+                'instrument_type',
+                'valuation_type',
+                'share_class',
+                'round',
+                'round_size',
+                'allocation',
+            )
+        }),
+        ('Step 3: Adviser & Legal Structure', {
+            'fields': (
+                'adviser_entity',
+                'master_partnership_entity',
+                'fund_lead',
+            )
         }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at'),
