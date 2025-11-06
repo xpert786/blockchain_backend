@@ -230,3 +230,9 @@ class SyndicateProfile(models.Model):
             return 4
         else:
             return 5  # Completed
+            
+class Syndicate(SyndicateProfile):
+    class Meta:
+        proxy = True
+        verbose_name = 'syndicate'
+        verbose_name_plural = 'syndicates'
