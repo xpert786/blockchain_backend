@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Document, DocumentSignatory
+from .models import Document, DocumentSignatory, DocumentTemplate, DocumentGeneration
 from users.models import CustomUser
 
 
@@ -195,4 +195,134 @@ class DocumentStatisticsSerializer(serializers.Serializer):
     draft = serializers.IntegerField()
     pending_review = serializers.IntegerField()
     finalized = serializers.IntegerField()
+
+
+class DocumentTemplateSerializer(serializers.ModelSerializer):
+    """Serializer for DocumentTemplate model"""
+    
+    created_by_detail = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = DocumentTemplate
+        fields = [
+            'id',
+            'name',
+            'description',
+            'version',
+            'category',
+            'template_file',
+            'required_fields',
+            'enable_digital_signature',
+            'is_active',
+            'created_by',
+            'created_by_detail',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_created_by_detail(self, obj):
+        """Get creator user details"""
+        if obj.created_by:
+            return {
+                'id': obj.created_by.id,
+                'username': obj.created_by.username,
+                'email': obj.created_by.email,
+            }
+        return None
+
+
+class DocumentTemplateListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for template list views"""
+    
+    class Meta:
+        model = DocumentTemplate
+        fields = [
+            'id',
+            'name',
+            'description',
+            'version',
+            'category',
+            'enable_digital_signature',
+            'is_active',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'created_at']
+
+
+class DocumentGenerationSerializer(serializers.ModelSerializer):
+    """Serializer for DocumentGeneration model"""
+    
+    template_detail = DocumentTemplateListSerializer(source='template', read_only=True)
+    generated_document_detail = DocumentListSerializer(source='generated_document', read_only=True)
+    generated_by_detail = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = DocumentGeneration
+        fields = [
+            'id',
+            'template',
+            'template_detail',
+            'generated_document',
+            'generated_document_detail',
+            'generation_data',
+            'generated_by',
+            'generated_by_detail',
+            'generated_at',
+            'enable_digital_signature',
+        ]
+        read_only_fields = ['id', 'generated_at']
+    
+    def get_generated_by_detail(self, obj):
+        """Get generator user details"""
+        return {
+            'id': obj.generated_by.id,
+            'username': obj.generated_by.username,
+            'email': obj.generated_by.email,
+            'full_name': obj.generated_by.get_full_name() or obj.generated_by.username,
+        }
+
+
+class DocumentGenerationRequestSerializer(serializers.Serializer):
+    """Serializer for document generation request"""
+    
+    template_id = serializers.IntegerField(help_text="ID of the template to use")
+    field_data = serializers.JSONField(help_text="Field values for template generation")
+    enable_digital_signature = serializers.BooleanField(
+        default=False,
+        help_text="Enable digital signature workflow"
+    )
+    title = serializers.CharField(
+        required=False,
+        help_text="Custom title for generated document (optional)"
+    )
+    description = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Description for generated document (optional)"
+    )
+    spv_id = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text="Associated SPV ID (optional)"
+    )
+    syndicate_id = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text="Associated Syndicate ID (optional)"
+    )
+    
+    def validate_template_id(self, value):
+        """Validate template exists and is active"""
+        try:
+            template = DocumentTemplate.objects.get(id=value, is_active=True)
+        except DocumentTemplate.DoesNotExist:
+            raise serializers.ValidationError("Template not found or is not active.")
+        return value
+    
+    def validate_field_data(self, value):
+        """Validate field data is a dictionary"""
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("field_data must be a dictionary.")
+        return value
 

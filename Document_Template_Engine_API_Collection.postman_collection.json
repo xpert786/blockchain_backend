@@ -1,0 +1,552 @@
+{
+	"info": {
+		"_postman_id": "document-template-engine-api-2024",
+		"name": "Document Template Engine API Collection",
+		"description": "Complete API collection for Document Template Engine - template management and document generation",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Document Templates",
+			"item": [
+				{
+					"name": "Get All Templates",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/blockchain-backend/api/document-templates/?category=legal&search=investment",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"blockchain-backend",
+								"api",
+								"document-templates",
+								""
+							],
+							"query": [
+								{
+									"key": "category",
+									"value": "legal",
+									"description": "Filter by category: legal, compliance, informational, financial, other",
+									"disabled": true
+								},
+								{
+									"key": "search",
+									"value": "investment",
+									"description": "Search templates by name or description",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get list of all active document templates. Supports query parameters: category, search"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Template by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/blockchain-backend/api/document-templates/:id/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"blockchain-backend",
+								"api",
+								"document-templates",
+								":id",
+								""
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Get detailed template information including required_fields"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Template",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Investment Agreement\",\n    \"description\": \"Standard investment agreement for SPV participation\",\n    \"version\": \"2.1\",\n    \"category\": \"legal\",\n    \"required_fields\": [\n        {\n            \"name\": \"investor_name\",\n            \"label\": \"Investor Name\",\n            \"type\": \"text\",\n            \"required\": true\n        },\n        {\n            \"name\": \"spv_name\",\n            \"label\": \"SPV Name\",\n            \"type\": \"text\",\n            \"required\": true\n        },\n        {\n            \"name\": \"investment_amount\",\n            \"label\": \"Investment Amount\",\n            \"type\": \"number\",\n            \"required\": true\n        },\n        {\n            \"name\": \"shares\",\n            \"label\": \"Shares\",\n            \"type\": \"number\",\n            \"required\": true\n        },\n        {\n            \"name\": \"percentage\",\n            \"label\": \"Percentage\",\n            \"type\": \"number\",\n            \"required\": true\n        }\n    ],\n    \"enable_digital_signature\": true,\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/blockchain-backend/api/document-templates/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"blockchain-backend",
+								"api",
+								"document-templates",
+								""
+							]
+						},
+						"description": "Create a new document template with required fields definition"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Template",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Investment Agreement\",\n    \"description\": \"Updated description\",\n    \"version\": \"2.2\",\n    \"category\": \"legal\",\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/blockchain-backend/api/document-templates/:id/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"blockchain-backend",
+								"api",
+								"document-templates",
+								":id",
+								""
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Update template (full update)"
+					},
+					"response": []
+				},
+				{
+					"name": "Partial Update Template",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"is_active\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/blockchain-backend/api/document-templates/:id/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"blockchain-backend",
+								"api",
+								"document-templates",
+								":id",
+								""
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Partially update template fields"
+					},
+					"response": []
+				},
+				{
+					"name": "Duplicate Template",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/blockchain-backend/api/document-templates/:id/duplicate/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"blockchain-backend",
+								"api",
+								"document-templates",
+								":id",
+								"duplicate",
+								""
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Duplicate a template (creates a new version with incremented version number)"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Template",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/blockchain-backend/api/document-templates/:id/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"blockchain-backend",
+								"api",
+								"document-templates",
+								":id",
+								""
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Delete a template"
+					},
+					"response": []
+				}
+			],
+			"description": "Template CRUD operations"
+		},
+		{
+			"name": "Document Generation",
+			"item": [
+				{
+					"name": "Generate Document from Template",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"template_id\": 1,\n    \"field_data\": {\n        \"investor_name\": \"Alice Investor\",\n        \"spv_name\": \"SPV-001\",\n        \"investment_amount\": 100000,\n        \"shares\": 1000,\n        \"percentage\": 5.0\n    },\n    \"enable_digital_signature\": true,\n    \"title\": \"Investment Agreement - Alice Investor\",\n    \"description\": \"Investment agreement for SPV-001\",\n    \"spv_id\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/blockchain-backend/api/documents/generate-from-template/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"blockchain-backend",
+								"api",
+								"documents",
+								"generate-from-template",
+								""
+							]
+						},
+						"description": "Generate a document from a template. Field data must include all required fields defined in the template."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Generated Documents",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/blockchain-backend/api/documents/generated-documents/?template=1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"blockchain-backend",
+								"api",
+								"documents",
+								"generated-documents",
+								""
+							],
+							"query": [
+								{
+									"key": "template",
+									"value": "1",
+									"description": "Filter by template ID",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get all documents generated from templates. Includes template details and generation data."
+					},
+					"response": []
+				},
+				{
+					"name": "Generate Document - Transfer Agreement Example",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"template_id\": 2,\n    \"field_data\": {\n        \"transferor_name\": \"Bob Smith\",\n        \"transferee_name\": \"Sarah Wilson\",\n        \"shares_transferred\": 500,\n        \"transfer_price\": 50000\n    },\n    \"enable_digital_signature\": true,\n    \"title\": \"Transfer Agreement - Bob to Sarah\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/blockchain-backend/api/documents/generate-from-template/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"blockchain-backend",
+								"api",
+								"documents",
+								"generate-from-template",
+								""
+							]
+						},
+						"description": "Example: Generate Transfer Agreement document"
+					},
+					"response": []
+				},
+				{
+					"name": "Generate Document - KYC Package Example",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"template_id\": 3,\n    \"field_data\": {\n        \"full_name\": \"John Doe\",\n        \"address\": \"123 Main St, City, State 12345\",\n        \"date_of_birth\": \"1990-01-15\",\n        \"ssn\": \"123-45-6789\",\n        \"accreditation_status\": \"Accredited Investor\"\n    },\n    \"enable_digital_signature\": false,\n    \"title\": \"KYC Documentation - John Doe\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/blockchain-backend/api/documents/generate-from-template/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"blockchain-backend",
+								"api",
+								"documents",
+								"generate-from-template",
+								""
+							]
+						},
+						"description": "Example: Generate KYC Document Package"
+					},
+					"response": []
+				}
+			],
+			"description": "Document generation from templates"
+		},
+		{
+			"name": "Template Categories",
+			"item": [
+				{
+					"name": "Get Legal Templates",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/blockchain-backend/api/document-templates/?category=legal",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"blockchain-backend",
+								"api",
+								"document-templates",
+								""
+							],
+							"query": [
+								{
+									"key": "category",
+									"value": "legal"
+								}
+							]
+						},
+						"description": "Get all legal document templates"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Compliance Templates",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/blockchain-backend/api/document-templates/?category=compliance",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"blockchain-backend",
+								"api",
+								"document-templates",
+								""
+							],
+							"query": [
+								{
+									"key": "category",
+									"value": "compliance"
+								}
+							]
+						},
+						"description": "Get all compliance document templates"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Informational Templates",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/blockchain-backend/api/document-templates/?category=informational",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"blockchain-backend",
+								"api",
+								"document-templates",
+								""
+							],
+							"query": [
+								{
+									"key": "category",
+									"value": "informational"
+								}
+							]
+						},
+						"description": "Get all informational document templates"
+					},
+					"response": []
+				}
+			],
+			"description": "Filter templates by category"
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
+

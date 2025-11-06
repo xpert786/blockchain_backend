@@ -3,13 +3,17 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django.db.models import Q, Count, Case, When, IntegerField
 from django.http import FileResponse
-from .models import Document, DocumentSignatory
+from .models import Document, DocumentSignatory, DocumentTemplate, DocumentGeneration
 from .serializers import (
     DocumentSerializer,
     DocumentListSerializer,
     DocumentCreateSerializer,
     DocumentSignatorySerializer,
     DocumentStatisticsSerializer,
+    DocumentTemplateSerializer,
+    DocumentTemplateListSerializer,
+    DocumentGenerationSerializer,
+    DocumentGenerationRequestSerializer,
 )
 
 
@@ -274,4 +278,171 @@ class DocumentSignatoryViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(document_id=document_id)
         
         return queryset.select_related('document', 'user', 'invited_by')
+
+
+class DocumentTemplateViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing document templates
+    """
+    queryset = DocumentTemplate.objects.filter(is_active=True)
+    serializer_class = DocumentTemplateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_serializer_class(self):
+        """Use different serializers for different actions"""
+        if self.action == 'list':
+            return DocumentTemplateListSerializer
+        return DocumentTemplateSerializer
+    
+    def get_queryset(self):
+        """Filter templates"""
+        queryset = DocumentTemplate.objects.filter(is_active=True)
+        
+        # Filter by category
+        category = self.request.query_params.get('category', None)
+        if category:
+            queryset = queryset.filter(category=category)
+        
+        # Search
+        search = self.request.query_params.get('search', None)
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(description__icontains=search)
+            )
+        
+        return queryset.order_by('name', '-version')
+    
+    def perform_create(self, serializer):
+        """Set creator when creating template"""
+        serializer.save(created_by=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def duplicate(self, request, pk=None):
+        """
+        Duplicate a template (create a new version)
+        POST /api/document-templates/{id}/duplicate/
+        """
+        template = self.get_object()
+        
+        # Create a new template based on the existing one
+        new_template = DocumentTemplate.objects.create(
+            name=template.name,
+            description=template.description,
+            version=f"{float(template.version) + 0.1:.1f}",  # Increment version
+            category=template.category,
+            template_file=template.template_file,
+            required_fields=template.required_fields,
+            enable_digital_signature=template.enable_digital_signature,
+            is_active=True,
+            created_by=request.user,
+        )
+        
+        serializer = DocumentTemplateSerializer(new_template)
+        return Response({
+            'message': 'Template duplicated successfully',
+            'data': serializer.data
+        }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def generate_document_from_template(request):
+    """
+    Generate a document from a template
+    POST /api/documents/generate-from-template/
+    """
+    serializer = DocumentGenerationRequestSerializer(data=request.data)
+    
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    template_id = serializer.validated_data['template_id']
+    field_data = serializer.validated_data['field_data']
+    enable_digital_signature = serializer.validated_data.get('enable_digital_signature', False)
+    title = serializer.validated_data.get('title')
+    description = serializer.validated_data.get('description', '')
+    spv_id = serializer.validated_data.get('spv_id')
+    syndicate_id = serializer.validated_data.get('syndicate_id')
+    
+    try:
+        template = DocumentTemplate.objects.get(id=template_id, is_active=True)
+    except DocumentTemplate.DoesNotExist:
+        return Response({
+            'error': 'Template not found or is not active'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Validate required fields
+    required_fields = template.required_fields or []
+    missing_fields = []
+    for field_def in required_fields:
+        field_name = field_def.get('name')
+        if field_def.get('required', False) and field_name not in field_data:
+            missing_fields.append(field_def.get('label', field_name))
+    
+    if missing_fields:
+        return Response({
+            'error': f'Missing required fields: {", ".join(missing_fields)}'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Generate document title if not provided
+    if not title:
+        title = f"{template.name} - {field_data.get('investor_name', 'Document')}"
+    
+    # Create the document
+    document = Document.objects.create(
+        title=title,
+        description=description or template.description,
+        document_type='other',  # Can be customized based on template
+        version='1.0',
+        status='draft',
+        created_by=request.user,
+        spv_id=spv_id if spv_id else None,
+        syndicate_id=syndicate_id if syndicate_id else None,
+    )
+    
+    # Create generation record
+    generation = DocumentGeneration.objects.create(
+        template=template,
+        generated_document=document,
+        generation_data=field_data,
+        generated_by=request.user,
+        enable_digital_signature=enable_digital_signature,
+    )
+    
+    # If digital signature is enabled, set status to pending_signatures
+    if enable_digital_signature:
+        document.status = 'pending_signatures'
+        document.save()
+    
+    return Response({
+        'message': 'Document generated successfully',
+        'data': {
+            'document': DocumentSerializer(document).data,
+            'generation': DocumentGenerationSerializer(generation).data,
+        }
+    }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_generated_documents(request):
+    """
+    Get all documents generated from templates
+    GET /api/documents/generated-documents/
+    """
+    user = request.user
+    queryset = DocumentGeneration.objects.all()
+    
+    # Filter by user role
+    if not (user.is_staff or user.role == 'admin'):
+        queryset = queryset.filter(generated_by=user)
+    
+    # Filter by template
+    template_id = request.query_params.get('template', None)
+    if template_id:
+        queryset = queryset.filter(template_id=template_id)
+    
+    serializer = DocumentGenerationSerializer(queryset, many=True)
+    return Response(serializer.data)
 

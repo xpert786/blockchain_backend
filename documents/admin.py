@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
-from .models import Document, DocumentSignatory
+from .models import Document, DocumentSignatory, DocumentTemplate, DocumentGeneration
 
 
 @admin.register(Document)
@@ -207,6 +207,112 @@ class DocumentSignatoryAdmin(admin.ModelAdmin):
             'fields': (
                 'invited_at',
                 'invited_by',
+            )
+        }),
+    )
+
+
+@admin.register(DocumentTemplate)
+class DocumentTemplateAdmin(admin.ModelAdmin):
+    list_display = (
+        'name',
+        'version',
+        'category',
+        'is_active',
+        'enable_digital_signature',
+        'created_by',
+        'created_at',
+    )
+    list_filter = (
+        'category',
+        'is_active',
+        'enable_digital_signature',
+        'created_at',
+    )
+    search_fields = (
+        'name',
+        'description',
+        'version',
+    )
+    readonly_fields = ('created_at', 'updated_at')
+    autocomplete_fields = ['created_by']
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': (
+                'name',
+                'description',
+                'version',
+                'category',
+            )
+        }),
+        ('Template Configuration', {
+            'fields': (
+                'template_file',
+                'required_fields',
+                'enable_digital_signature',
+                'is_active',
+            )
+        }),
+        ('Metadata', {
+            'fields': (
+                'created_by',
+                'created_at',
+                'updated_at',
+            )
+        }),
+    )
+    
+    actions = ['mark_active', 'mark_inactive']
+    
+    def mark_active(self, request, queryset):
+        updated = queryset.update(is_active=True)
+        self.message_user(request, f'{updated} template(s) marked as active.')
+    mark_active.short_description = 'Mark selected templates as active'
+    
+    def mark_inactive(self, request, queryset):
+        updated = queryset.update(is_active=False)
+        self.message_user(request, f'{updated} template(s) marked as inactive.')
+    mark_inactive.short_description = 'Mark selected templates as inactive'
+
+
+@admin.register(DocumentGeneration)
+class DocumentGenerationAdmin(admin.ModelAdmin):
+    list_display = (
+        'template',
+        'generated_document',
+        'generated_by',
+        'generated_at',
+        'enable_digital_signature',
+    )
+    list_filter = (
+        'generated_at',
+        'enable_digital_signature',
+        'template',
+    )
+    search_fields = (
+        'template__name',
+        'generated_document__document_id',
+        'generated_document__title',
+        'generated_by__username',
+        'generated_by__email',
+    )
+    readonly_fields = ('generated_at',)
+    autocomplete_fields = ['template', 'generated_document', 'generated_by']
+    
+    fieldsets = (
+        ('Generation Information', {
+            'fields': (
+                'template',
+                'generated_document',
+                'generated_by',
+                'generated_at',
+            )
+        }),
+        ('Generation Data', {
+            'fields': (
+                'generation_data',
+                'enable_digital_signature',
             )
         }),
     )

@@ -195,3 +195,108 @@ class DocumentSignatory(models.Model):
     def __str__(self):
         return f"{self.document.document_id} - {self.user.username} ({'Signed' if self.signed else 'Pending'})"
 
+
+class DocumentTemplate(models.Model):
+    """Model for document templates used in the template engine"""
+    
+    CATEGORY_CHOICES = [
+        ('legal', 'Legal'),
+        ('compliance', 'Compliance'),
+        ('informational', 'Informational'),
+        ('financial', 'Financial'),
+        ('other', 'Other'),
+    ]
+    
+    name = models.CharField(max_length=255, help_text="Template name (e.g., 'Investment Agreement')")
+    description = models.TextField(help_text="Template description")
+    version = models.CharField(max_length=20, default='1.0', help_text="Template version")
+    category = models.CharField(max_length=30, choices=CATEGORY_CHOICES, help_text="Template category")
+    
+    # Template file (can be a document template file or JSON schema)
+    template_file = models.FileField(
+        upload_to='document_templates/',
+        blank=True,
+        null=True,
+        help_text="Template file (DOCX, PDF, or JSON schema)"
+    )
+    
+    # Required fields schema (JSON field to store required field definitions)
+    required_fields = models.JSONField(
+        default=list,
+        help_text="List of required fields with their types and validation rules. Format: [{'name': 'investor_name', 'label': 'Investor Name', 'type': 'text', 'required': True}, ...]"
+    )
+    
+    # Template configuration
+    enable_digital_signature = models.BooleanField(
+        default=False,
+        help_text="Enable digital signature workflow for generated documents"
+    )
+    is_active = models.BooleanField(default=True, help_text="Whether template is active and available for use")
+    
+    # Metadata
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_templates',
+        help_text="User who created the template"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'document template'
+        verbose_name_plural = 'document templates'
+        unique_together = ['name', 'version']
+    
+    def __str__(self):
+        return f"{self.name} v{self.version}"
+
+
+class DocumentGeneration(models.Model):
+    """Model for tracking document generation from templates"""
+    
+    template = models.ForeignKey(
+        DocumentTemplate,
+        on_delete=models.CASCADE,
+        related_name='generations',
+        help_text="Template used for generation"
+    )
+    generated_document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name='generation_history',
+        help_text="Generated document"
+    )
+    
+    # Generation data (the field values used)
+    generation_data = models.JSONField(
+        default=dict,
+        help_text="Field values used during document generation"
+    )
+    
+    # Generation metadata
+    generated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='generated_documents',
+        help_text="User who generated the document"
+    )
+    generated_at = models.DateTimeField(auto_now_add=True)
+    
+    # Options
+    enable_digital_signature = models.BooleanField(
+        default=False,
+        help_text="Whether digital signature workflow was enabled"
+    )
+    
+    class Meta:
+        ordering = ['-generated_at']
+        verbose_name = 'document generation'
+        verbose_name_plural = 'document generations'
+    
+    def __str__(self):
+        return f"{self.template.name} -> {self.generated_document.document_id}"
+
