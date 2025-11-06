@@ -33,6 +33,7 @@ urlpatterns = [
     path('blockchain-backend/', include('users.urls')),
     path('blockchain-backend/api/', include('kyc.urls')),
     path('blockchain-backend/api/', include('spv.urls')),
+    path('blockchain-backend/api/', include('documents.urls')),
     
     # JWT token endpoints
     path('blockchain-backend/api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

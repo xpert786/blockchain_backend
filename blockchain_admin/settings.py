@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'transfers',
     'reporting',
     'config',
+    'documents',
 
 ]
 
