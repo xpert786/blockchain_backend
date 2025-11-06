@@ -22,7 +22,7 @@ class SyndicateImage(models.Model):
         ('other', 'Other'),
     ]
     
-    syndicate = models.ForeignKey('users.Syndicate', on_delete=models.CASCADE, related_name='images')
+    syndicate = models.ForeignKey('users.SyndicateProfile', on_delete=models.CASCADE, related_name='images')
     image_type = models.CharField(max_length=20, choices=IMAGE_TYPES, default='gallery')
     image = models.ImageField(upload_to=syndicate_image_upload_path)
     title = models.CharField(max_length=255, blank=True, null=True)
@@ -41,7 +41,7 @@ class SyndicateImage(models.Model):
         ordering = ['-uploaded_at']
     
     def __str__(self):
-        return f"{self.syndicate.name} - {self.get_image_type_display()}"
+        return f"{self.syndicate.firm_name or self.syndicate.user.username} - {self.get_image_type_display()}"
     
     def save(self, *args, **kwargs):
         if self.image:

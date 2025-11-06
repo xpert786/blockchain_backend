@@ -25,7 +25,7 @@ class SyndicateDocument(models.Model):
         ('compliance_documents', 'Compliance & Attestation Documents'),
     ]
     
-    syndicate = models.ForeignKey('users.Syndicate', on_delete=models.CASCADE, related_name='documents')
+    syndicate = models.ForeignKey('users.SyndicateProfile', on_delete=models.CASCADE, related_name='documents')
     document_type = models.CharField(max_length=50, choices=DOCUMENT_TYPES)
     file = models.FileField(upload_to=syndicate_document_upload_path)
     original_filename = models.CharField(max_length=255)
@@ -42,7 +42,7 @@ class SyndicateDocument(models.Model):
         ordering = ['-uploaded_at']
     
     def __str__(self):
-        return f"{self.syndicate.name} - {self.get_document_type_display()}"
+        return f"{self.syndicate.firm_name or self.syndicate.user.username} - {self.get_document_type_display()}"
     
     def save(self, *args, **kwargs):
         if self.file:
@@ -55,7 +55,7 @@ class SyndicateDocument(models.Model):
 class SyndicateTeamMember(models.Model):
     """Model for syndicate team members"""
     
-    syndicate = models.ForeignKey('users.Syndicate', on_delete=models.CASCADE, related_name='team_members')
+    syndicate = models.ForeignKey('users.SyndicateProfile', on_delete=models.CASCADE, related_name='team_members')
     name = models.CharField(max_length=255)
     email = models.EmailField()
     role = models.CharField(max_length=100)
@@ -76,7 +76,7 @@ class SyndicateTeamMember(models.Model):
 class SyndicateBeneficiary(models.Model):
     """Model for syndicate beneficiaries (KYB verification)"""
     
-    syndicate = models.ForeignKey('users.Syndicate', on_delete=models.CASCADE, related_name='beneficiaries')
+    syndicate = models.ForeignKey('users.SyndicateProfile', on_delete=models.CASCADE, related_name='beneficiaries')
     name = models.CharField(max_length=255)
     email = models.EmailField(blank=True, null=True)
     relationship = models.CharField(max_length=100, blank=True, null=True)  # e.g., "Owner", "Director"
@@ -96,7 +96,7 @@ class SyndicateBeneficiary(models.Model):
 class SyndicateCompliance(models.Model):
     """Model for syndicate compliance and attestations"""
     
-    syndicate = models.ForeignKey('users.Syndicate', on_delete=models.CASCADE, related_name='compliance_records')
+    syndicate = models.ForeignKey('users.SyndicateProfile', on_delete=models.CASCADE, related_name='compliance_records')
     risk_regulatory_attestation = models.BooleanField(default=False)
     jurisdictional_requirements = models.BooleanField(default=False)
     additional_compliance_policies = models.BooleanField(default=False)
@@ -112,4 +112,4 @@ class SyndicateCompliance(models.Model):
         verbose_name_plural = 'syndicate compliance records'
     
     def __str__(self):
-        return f"{self.syndicate.name} - Compliance Record"
+        return f"{self.syndicate.firm_name or self.syndicate.user.username} - Compliance Record"
