@@ -1,14 +1,19 @@
 from rest_framework import status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.exceptions import ParseError
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
+import logging
 
 from .models import CustomUser, SyndicateProfile, Sector, Geography
 from .serializers import (
     SyndicateProfileSerializer, SyndicateStep1Serializer, 
     SyndicateStep2Serializer, SyndicateStep3Serializer, SyndicateStep4Serializer
 )
+
+logger = logging.getLogger(__name__)
 
 
 @api_view(['GET'])
@@ -149,7 +154,21 @@ def syndicate_step3(request):
     """
     Step 3: Compliance & Attestation - Regulatory requirements
     POST /api/syndicate/step3/
+    
+    Supports both JSON and multipart/form-data for file uploads.
+    When uploading files (additional_compliance_policies), use multipart/form-data.
     """
+    # Handle parser selection based on Content-Type
+    content_type = request.content_type or request.META.get('CONTENT_TYPE', '')
+    
+    # If Content-Type is JSON but request has files, provide helpful error
+    if 'application/json' in content_type and hasattr(request, 'FILES') and request.FILES:
+        return Response({
+            'detail': 'File uploads require Content-Type: multipart/form-data, not application/json. '
+                     'Please remove the Content-Type: application/json header when uploading files, '
+                     'or use multipart/form-data instead.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
     user = request.user
     
     # Check if user has syndicate role
@@ -171,9 +190,27 @@ def syndicate_step3(request):
             'error': 'Step 2 must be completed before proceeding to Step 3'
         }, status=status.HTTP_400_BAD_REQUEST)
     
-    serializer = SyndicateStep3Serializer(profile, data=request.data, partial=True)
+    # Handle file upload if present
+    if 'additional_compliance_policies' in request.FILES:
+        file = request.FILES['additional_compliance_policies']
+        profile.additional_compliance_policies = file
+        profile.save()
+    
+    # Prepare data for serializer (exclude file field if it's in FILES, as it's already handled)
+    serializer_data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
+    if 'additional_compliance_policies' in request.FILES:
+        # Don't pass file field to serializer if it's already saved
+        if hasattr(serializer_data, 'pop'):
+            serializer_data.pop('additional_compliance_policies', None)
+        elif isinstance(serializer_data, dict):
+            serializer_data.pop('additional_compliance_policies', None)
+    
+    serializer = SyndicateStep3Serializer(profile, data=serializer_data, partial=True, context={'request': request})
     if serializer.is_valid():
         serializer.save()
+        
+        # Refresh profile to get updated file information
+        profile.refresh_from_db()
         
         # Return updated profile with step completion status
         profile_serializer = SyndicateProfileSerializer(profile)

@@ -401,6 +401,7 @@ class SyndicateStep2Serializer(serializers.ModelSerializer):
 
 class SyndicateStep3Serializer(serializers.ModelSerializer):
     """Serializer for Step 3: Compliance & Attestation"""
+    additional_compliance_policies = serializers.FileField(required=False, allow_null=True)
     
     class Meta:
         model = SyndicateProfile
@@ -417,6 +418,28 @@ class SyndicateStep3Serializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Jurisdictional compliance acknowledgment is required.")
         
         return attrs
+    
+    def to_internal_value(self, data):
+        """Override to handle file fields properly"""
+        request = self.context.get('request')
+        
+        # Handle file field - if it's in FILES, use it; if it's in data as empty/null, remove it
+        if isinstance(data, dict):
+            data = data.copy()
+            if 'additional_compliance_policies' in data:
+                # If request has FILES and field is not there, it might be empty/null
+                if request and hasattr(request, 'FILES'):
+                    if 'additional_compliance_policies' not in request.FILES:
+                        value = data.get('additional_compliance_policies')
+                        if value == '' or value is None or value == 'null':
+                            data.pop('additional_compliance_policies', None)
+                else:
+                    # No FILES (JSON request) - if value is empty/null, remove it
+                    value = data.get('additional_compliance_policies')
+                    if value == '' or value is None or value == 'null':
+                        data.pop('additional_compliance_policies', None)
+        
+        return super().to_internal_value(data)
 
 
 class SyndicateStep4Serializer(serializers.ModelSerializer):
