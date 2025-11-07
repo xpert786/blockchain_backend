@@ -190,22 +190,48 @@ def syndicate_step3(request):
             'error': 'Step 2 must be completed before proceeding to Step 3'
         }, status=status.HTTP_400_BAD_REQUEST)
     
-    # Handle file upload if present
-    if 'additional_compliance_policies' in request.FILES:
+    # Handle file upload if present (do this first to avoid pickling issues)
+    file_uploaded = False
+    if hasattr(request, 'FILES') and 'additional_compliance_policies' in request.FILES:
         file = request.FILES['additional_compliance_policies']
         profile.additional_compliance_policies = file
         profile.save()
+        file_uploaded = True
     
-    # Prepare data for serializer (exclude file field if it's in FILES, as it's already handled)
-    serializer_data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
-    if 'additional_compliance_policies' in request.FILES:
-        # Don't pass file field to serializer if it's already saved
-        if hasattr(serializer_data, 'pop'):
-            serializer_data.pop('additional_compliance_policies', None)
-        elif isinstance(serializer_data, dict):
-            serializer_data.pop('additional_compliance_policies', None)
+    # Prepare clean data for serializer (only non-file fields)
+    # This avoids pickling issues with file objects
+    serializer_data = {}
     
-    serializer = SyndicateStep3Serializer(profile, data=serializer_data, partial=True, context={'request': request})
+    # Extract only the fields we need, avoiding file objects
+    if hasattr(request, 'data'):
+        from django.http import QueryDict
+        if isinstance(request.data, QueryDict):
+            # For QueryDict, get only the non-file fields
+            for key in request.data.keys():
+                if key != 'additional_compliance_policies':  # Skip file field
+                    value = request.data.get(key)
+                    # Convert string boolean values
+                    if value in ['true', 'True', '1']:
+                        serializer_data[key] = True
+                    elif value in ['false', 'False', '0']:
+                        serializer_data[key] = False
+                    else:
+                        serializer_data[key] = value
+        elif isinstance(request.data, dict):
+            # For dict, copy only non-file fields
+            for key, value in request.data.items():
+                if key != 'additional_compliance_policies':  # Skip file field
+                    serializer_data[key] = value
+    
+    # Add file field to serializer data only if it was uploaded and needs to be validated
+    # But actually, since we already saved it, we don't need to include it
+    serializer = SyndicateStep3Serializer(
+        profile, 
+        data=serializer_data, 
+        partial=True, 
+        context={'request': request}
+    )
+    
     if serializer.is_valid():
         serializer.save()
         
