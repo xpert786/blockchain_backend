@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .models import KYC
 from .serializers import (
     KYCSerializer, 
@@ -29,6 +30,7 @@ class KYCViewSet(viewsets.ModelViewSet):
     queryset = KYC.objects.all()
     serializer_class = KYCSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     
     def get_serializer_class(self):
         """Use different serializers for different actions"""
