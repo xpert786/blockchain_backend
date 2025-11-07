@@ -25,7 +25,12 @@ class KYCSerializer(serializers.ModelSerializer):
 
 class KYCCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating KYC records"""
+    # Explicitly define all file fields as optional
+    certificate_of_incorporation = serializers.FileField(required=False, allow_null=True)
+    company_bank_statement = serializers.FileField(required=False, allow_null=True)
     company_proof_of_address = serializers.FileField(required=False, allow_null=True)
+    owner_identity_doc = serializers.FileField(required=False, allow_null=True)
+    owner_proof_of_address = serializers.FileField(required=False, allow_null=True)
     
     class Meta:
         model = KYC
@@ -36,9 +41,14 @@ class KYCCreateSerializer(serializers.ModelSerializer):
         # Get request from context to access FILES
         request = self.context.get('request')
         
-        # For file fields, if they're in data but not in FILES, remove them
-        # This handles cases where the field is sent as null/empty string in JSON
-        file_fields = ['company_proof_of_address']
+        # All file fields in the model
+        file_fields = [
+            'certificate_of_incorporation',
+            'company_bank_statement',
+            'company_proof_of_address',
+            'owner_identity_doc',
+            'owner_proof_of_address'
+        ]
         
         # Handle QueryDict (from multipart/form-data) or regular dict
         from django.http import QueryDict
@@ -73,7 +83,12 @@ class KYCCreateSerializer(serializers.ModelSerializer):
 
 class KYCUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating KYC records (supports file uploads)"""
+    # Explicitly define all file fields as optional
+    certificate_of_incorporation = serializers.FileField(required=False, allow_null=True)
+    company_bank_statement = serializers.FileField(required=False, allow_null=True)
     company_proof_of_address = serializers.FileField(required=False, allow_null=True)
+    owner_identity_doc = serializers.FileField(required=False, allow_null=True)
+    owner_proof_of_address = serializers.FileField(required=False, allow_null=True)
     
     class Meta:
         model = KYC
@@ -84,9 +99,14 @@ class KYCUpdateSerializer(serializers.ModelSerializer):
         # Get request from context to access FILES
         request = self.context.get('request')
         
-        # For file fields, if they're in data but not in FILES, remove them
-        # This handles cases where the field is sent as null/empty string in JSON
-        file_fields = ['company_proof_of_address']
+        # All file fields in the model
+        file_fields = [
+            'certificate_of_incorporation',
+            'company_bank_statement',
+            'company_proof_of_address',
+            'owner_identity_doc',
+            'owner_proof_of_address'
+        ]
         
         # Handle QueryDict (from multipart/form-data) or regular dict
         from django.http import QueryDict

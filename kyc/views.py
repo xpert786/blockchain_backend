@@ -251,11 +251,15 @@ class KYCViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post', 'patch'])
     def upload_document(self, request, pk=None):
         """
-        Upload a document to an existing KYC record
+        Upload documents to an existing KYC record
         POST/PATCH /api/kyc/{id}/upload_document/
         
         Form Data (multipart/form-data):
-        - company_proof_of_address: File (optional, if updating this field)
+        - certificate_of_incorporation: File (optional)
+        - company_bank_statement: File (optional)
+        - company_proof_of_address: File (optional)
+        - owner_identity_doc: File (optional)
+        - owner_proof_of_address: File (optional)
         """
         kyc = self.get_object()
         
@@ -265,18 +269,27 @@ class KYCViewSet(viewsets.ModelViewSet):
                 'error': 'You do not have permission to update this KYC record'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Handle file uploads
+        # Handle file uploads for all file fields
         uploaded_files = []
+        file_fields = {
+            'certificate_of_incorporation': 'Certificate of Incorporation',
+            'company_bank_statement': 'Company Bank Statement',
+            'company_proof_of_address': 'Company Proof of Address',
+            'owner_identity_doc': 'Owner Identity Document',
+            'owner_proof_of_address': 'Owner Proof of Address',
+        }
         
-        if 'company_proof_of_address' in request.FILES:
-            file = request.FILES['company_proof_of_address']
-            kyc.company_proof_of_address = file
-            uploaded_files.append({
-                'field': 'company_proof_of_address',
-                'filename': file.name,
-                'size': file.size,
-                'mime_type': file.content_type
-            })
+        for field_name, display_name in file_fields.items():
+            if field_name in request.FILES:
+                file = request.FILES[field_name]
+                setattr(kyc, field_name, file)
+                uploaded_files.append({
+                    'field': field_name,
+                    'display_name': display_name,
+                    'filename': file.name,
+                    'size': file.size,
+                    'mime_type': file.content_type
+                })
         
         # Save if any files were uploaded
         if uploaded_files:
@@ -289,5 +302,5 @@ class KYCViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
         else:
             return Response({
-                'error': 'No files were provided for upload'
+                'error': 'No files were provided for upload. Supported fields: ' + ', '.join(file_fields.keys())
             }, status=status.HTTP_400_BAD_REQUEST)

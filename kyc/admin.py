@@ -11,31 +11,13 @@ class KYCAdminForm(forms.ModelForm):
         model = KYC
         fields = '__all__'
         widgets = {
-            'certificate_of_incorporation': forms.Textarea(attrs={'rows': 3, 'cols': 80, 'readonly': False}),
-            'company_bank_statement': forms.Textarea(attrs={'rows': 3, 'cols': 80, 'readonly': False}),
-            'owner_identity_doc': forms.Textarea(attrs={'rows': 3, 'cols': 80}),
-            'owner_proof_of_address': forms.Textarea(attrs={'rows': 3, 'cols': 80}),
+            # Text fields
             'address_1': forms.Textarea(attrs={'rows': 2}),
             'address_2': forms.Textarea(attrs={'rows': 2}),
             'sie_eligibilty': forms.Textarea(attrs={'rows': 3}),
             'notary': forms.Textarea(attrs={'rows': 2}),
+            # File fields use default FileInput widget (no need to specify)
         }
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Make base64 fields smaller and add helper text
-        if self.instance and self.instance.pk:
-            # If there's base64 data, show it's there but make field smaller
-            if self.instance.certificate_of_incorporation:
-                self.fields['certificate_of_incorporation'].widget.attrs.update({
-                    'rows': 2,
-                    'placeholder': f'Base64 data ({len(self.instance.certificate_of_incorporation):,} chars) - Edit to change'
-                })
-            if self.instance.company_bank_statement:
-                self.fields['company_bank_statement'].widget.attrs.update({
-                    'rows': 2,
-                    'placeholder': f'Base64 data ({len(self.instance.company_bank_statement):,} chars) - Edit to change'
-                })
 
 
 @admin.register(KYC)
@@ -44,7 +26,14 @@ class KYCAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'status', 'city', 'country', 'submitted_at', 'file_links')
     list_filter = ('status', 'country', 'submitted_at')
     search_fields = ('user__username', 'user__email', 'city', 'country', 'Investee_Company_Email')
-    readonly_fields = ('submitted_at', 'file_preview_company_proof', 'base64_file_info')
+    readonly_fields = (
+        'submitted_at', 
+        'file_preview_certificate',
+        'file_preview_bank_statement',
+        'file_preview_company_proof',
+        'file_preview_owner_identity',
+        'file_preview_owner_proof',
+    )
     autocomplete_fields = ['user']
     
     fieldsets = (
@@ -56,16 +45,22 @@ class KYCAdmin(admin.ModelAdmin):
         }),
         ('Company Documents', {
             'fields': (
+                'certificate_of_incorporation',
+                'file_preview_certificate',
+                'company_bank_statement',
+                'file_preview_bank_statement',
                 'company_proof_of_address',
                 'file_preview_company_proof',
-                'certificate_of_incorporation',
-                'company_bank_statement',
-                'base64_file_info',
             ),
-            'description': 'Upload company documents. Certificate and Bank Statement can be uploaded as files or base64 encoded data.'
+            'description': 'Upload company documents as files.'
         }),
         ('Owner Documents', {
-            'fields': ('owner_identity_doc', 'owner_proof_of_address'),
+            'fields': (
+                'owner_identity_doc',
+                'file_preview_owner_identity',
+                'owner_proof_of_address',
+                'file_preview_owner_proof',
+            ),
             'classes': ('collapse',)
         }),
         ('Company Contact Information', {
@@ -85,48 +80,72 @@ class KYCAdmin(admin.ModelAdmin):
     def file_links(self, obj):
         """Display links to uploaded files in list view"""
         links = []
-        if obj.company_proof_of_address:
-            url = obj.company_proof_of_address.url
-            links.append(f'<a href="{url}" target="_blank">Proof of Address</a>')
+        file_fields = [
+            ('certificate_of_incorporation', 'Certificate'),
+            ('company_bank_statement', 'Bank Statement'),
+            ('company_proof_of_address', 'Proof of Address'),
+            ('owner_identity_doc', 'Owner ID'),
+            ('owner_proof_of_address', 'Owner Proof'),
+        ]
+        
+        for field_name, display_name in file_fields:
+            file_field = getattr(obj, field_name, None)
+            if file_field:
+                try:
+                    url = file_field.url
+                    links.append(f'<a href="{url}" target="_blank">{display_name}</a>')
+                except (ValueError, AttributeError):
+                    pass
+        
         if links:
             return format_html(' | '.join(links))
         return '-'
     file_links.short_description = 'Files'
     
-    def file_preview_company_proof(self, obj):
-        """Display file preview and download link for company_proof_of_address"""
-        if obj.company_proof_of_address:
-            url = obj.company_proof_of_address.url
-            filename = obj.company_proof_of_address.name.split('/')[-1]
-            return format_html(
-                '<p><strong>Current file:</strong> <a href="{}" target="_blank">{}</a></p>'
-                '<p><small>Upload a new file to replace the existing one.</small></p>',
-                url,
-                filename
-            )
+    def _file_preview(self, obj, field_name, field_display_name):
+        """Helper method to generate file preview HTML"""
+        file_field = getattr(obj, field_name, None)
+        if file_field:
+            try:
+                url = file_field.url
+                filename = file_field.name.split('/')[-1]
+                file_size = file_field.size if hasattr(file_field, 'size') else 'Unknown'
+                return format_html(
+                    '<p><strong>Current file:</strong> <a href="{}" target="_blank">{}</a> '
+                    '<small>({} bytes)</small></p>'
+                    '<p><small>Upload a new file to replace the existing one.</small></p>',
+                    url,
+                    filename,
+                    file_size
+                )
+            except (ValueError, AttributeError):
+                return format_html('<p><em>File exists but URL unavailable.</em></p>')
         return format_html('<p><em>No file uploaded yet.</em></p>')
-    file_preview_company_proof.short_description = 'File Preview'
     
-    def base64_file_info(self, obj):
-        """Display information about base64 encoded files"""
-        info = []
-        if obj.certificate_of_incorporation:
-            length = len(obj.certificate_of_incorporation)
-            info.append(f'<p><strong>Certificate of Incorporation:</strong> Base64 data ({length:,} characters)</p>')
-        if obj.company_bank_statement:
-            length = len(obj.company_bank_statement)
-            info.append(f'<p><strong>Company Bank Statement:</strong> Base64 data ({length:,} characters)</p>')
-        if obj.owner_identity_doc:
-            length = len(obj.owner_identity_doc)
-            info.append(f'<p><strong>Owner Identity Doc:</strong> Base64 data ({length:,} characters)</p>')
-        if obj.owner_proof_of_address:
-            length = len(obj.owner_proof_of_address)
-            info.append(f'<p><strong>Owner Proof of Address:</strong> Base64 data ({length:,} characters)</p>')
-        
-        if info:
-            return format_html(''.join(info) + '<p><small><em>Note: These fields store base64 encoded data. Consider converting to FileField for better file management.</em></small></p>')
-        return format_html('<p><em>No base64 encoded files stored.</em></p>')
-    base64_file_info.short_description = 'Base64 Files Information'
+    def file_preview_certificate(self, obj):
+        """Display file preview for certificate_of_incorporation"""
+        return self._file_preview(obj, 'certificate_of_incorporation', 'Certificate of Incorporation')
+    file_preview_certificate.short_description = 'Certificate Preview'
+    
+    def file_preview_bank_statement(self, obj):
+        """Display file preview for company_bank_statement"""
+        return self._file_preview(obj, 'company_bank_statement', 'Company Bank Statement')
+    file_preview_bank_statement.short_description = 'Bank Statement Preview'
+    
+    def file_preview_company_proof(self, obj):
+        """Display file preview for company_proof_of_address"""
+        return self._file_preview(obj, 'company_proof_of_address', 'Company Proof of Address')
+    file_preview_company_proof.short_description = 'Proof of Address Preview'
+    
+    def file_preview_owner_identity(self, obj):
+        """Display file preview for owner_identity_doc"""
+        return self._file_preview(obj, 'owner_identity_doc', 'Owner Identity Document')
+    file_preview_owner_identity.short_description = 'Owner Identity Preview'
+    
+    def file_preview_owner_proof(self, obj):
+        """Display file preview for owner_proof_of_address"""
+        return self._file_preview(obj, 'owner_proof_of_address', 'Owner Proof of Address')
+    file_preview_owner_proof.short_description = 'Owner Proof Preview'
     
     class Media:
         css = {
