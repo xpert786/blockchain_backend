@@ -71,6 +71,54 @@ class KYCCreateSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
 
+class KYCUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating KYC records (supports file uploads)"""
+    company_proof_of_address = serializers.FileField(required=False, allow_null=True)
+    
+    class Meta:
+        model = KYC
+        exclude = ['user', 'status', 'submitted_at']
+    
+    def to_internal_value(self, data):
+        """Override to handle file fields properly - filter out non-file values"""
+        # Get request from context to access FILES
+        request = self.context.get('request')
+        
+        # For file fields, if they're in data but not in FILES, remove them
+        # This handles cases where the field is sent as null/empty string in JSON
+        file_fields = ['company_proof_of_address']
+        
+        # Handle QueryDict (from multipart/form-data) or regular dict
+        from django.http import QueryDict
+        
+        if isinstance(data, QueryDict):
+            # QueryDict - check if field is in data but not in FILES
+            if request and hasattr(request, 'FILES'):
+                for field in file_fields:
+                    if field in data and field not in request.FILES:
+                        value = data.get(field)
+                        if value == '' or value is None or value == 'null':
+                            # Create new QueryDict without this field
+                            data = data.copy()
+                            data.pop(field, None)
+                            break
+        elif isinstance(data, dict):
+            # Regular dict (from JSONParser) - we can modify directly
+            data = data.copy()
+            for field in file_fields:
+                if field in data:
+                    value = data.get(field)
+                    # If request has FILES and field is not there, or if value is empty/null, remove it
+                    if request and hasattr(request, 'FILES'):
+                        if field not in request.FILES and (value == '' or value is None or value == 'null'):
+                            data.pop(field, None)
+                    elif value == '' or value is None or value == 'null':
+                        # No FILES (JSON request) and value is empty/null - remove it
+                        data.pop(field, None)
+        
+        return super().to_internal_value(data)
+
+
 class KYCStatusUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating KYC status"""
     

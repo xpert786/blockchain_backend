@@ -6,6 +6,7 @@ from .models import KYC
 from .serializers import (
     KYCSerializer, 
     KYCCreateSerializer,
+    KYCUpdateSerializer,
     KYCStatusUpdateSerializer
 )
 
@@ -36,6 +37,8 @@ class KYCViewSet(viewsets.ModelViewSet):
         """Use different serializers for different actions"""
         if self.action == 'create':
             return KYCCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return KYCUpdateSerializer
         elif self.action == 'update_status':
             return KYCStatusUpdateSerializer
         return KYCSerializer
@@ -53,6 +56,32 @@ class KYCViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Set the user to current user when creating KYC"""
         serializer.save(user=self.request.user)
+    
+    def update(self, request, *args, **kwargs):
+        """Handle update with file uploads"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        
+        # Check permissions
+        if not (request.user.is_staff or request.user.role == 'admin' or instance.user == request.user):
+            return Response({
+                'error': 'You do not have permission to update this KYC record'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        
+        return Response(serializer.data)
+    
+    def partial_update(self, request, *args, **kwargs):
+        """Handle partial update with file uploads"""
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+    
+    def perform_update(self, serializer):
+        """Perform the update"""
+        serializer.save()
     
     @action(detail=False, methods=['get'])
     def my_kyc(self, request):
@@ -146,3 +175,47 @@ class KYCViewSet(viewsets.ModelViewSet):
             'status': kyc.status,
             'submitted_at': kyc.submitted_at,
         })
+    
+    @action(detail=True, methods=['post', 'patch'])
+    def upload_document(self, request, pk=None):
+        """
+        Upload a document to an existing KYC record
+        POST/PATCH /api/kyc/{id}/upload_document/
+        
+        Form Data (multipart/form-data):
+        - company_proof_of_address: File (optional, if updating this field)
+        """
+        kyc = self.get_object()
+        
+        # Check permissions
+        if not (request.user.is_staff or request.user.role == 'admin' or kyc.user == request.user):
+            return Response({
+                'error': 'You do not have permission to update this KYC record'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Handle file uploads
+        uploaded_files = []
+        
+        if 'company_proof_of_address' in request.FILES:
+            file = request.FILES['company_proof_of_address']
+            kyc.company_proof_of_address = file
+            uploaded_files.append({
+                'field': 'company_proof_of_address',
+                'filename': file.name,
+                'size': file.size,
+                'mime_type': file.content_type
+            })
+        
+        # Save if any files were uploaded
+        if uploaded_files:
+            kyc.save()
+            return Response({
+                'success': True,
+                'message': 'Document(s) uploaded successfully',
+                'uploaded_files': uploaded_files,
+                'kyc': KYCSerializer(kyc).data
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'error': 'No files were provided for upload'
+            }, status=status.HTTP_400_BAD_REQUEST)
