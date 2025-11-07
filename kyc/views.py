@@ -2,6 +2,9 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.exceptions import ParseError
+from django.http import QueryDict
+import logging
 from .models import KYC
 from .serializers import (
     KYCSerializer, 
@@ -9,6 +12,8 @@ from .serializers import (
     KYCUpdateSerializer,
     KYCStatusUpdateSerializer
 )
+
+logger = logging.getLogger(__name__)
 
 
 class IsOwnerOrAdmin(permissions.BasePermission):
@@ -31,7 +36,30 @@ class KYCViewSet(viewsets.ModelViewSet):
     queryset = KYC.objects.all()
     serializer_class = KYCSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
+    # Order matters: MultiPartParser must come first for file uploads
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+    
+    def get_parsers(self):
+        """
+        Override to handle parser selection based on content type.
+        Prevents JSON parser from trying to parse binary file data.
+        """
+        # Get content type from request
+        if hasattr(self.request, 'content_type'):
+            content_type = self.request.content_type or ''
+        else:
+            content_type = self.request.META.get('CONTENT_TYPE', '')
+        
+        # If content type indicates form data, only use form parsers
+        if 'multipart/form-data' in content_type.lower() or 'application/x-www-form-urlencoded' in content_type.lower():
+            return [MultiPartParser(), FormParser()]
+        
+        # For JSON content type, only use JSON parser
+        if 'application/json' in content_type.lower():
+            return [JSONParser()]
+        
+        # Default: use all parsers (DRF will select appropriate one)
+        return super().get_parsers()
     
     def get_serializer_class(self):
         """Use different serializers for different actions"""
@@ -53,8 +81,43 @@ class KYCViewSet(viewsets.ModelViewSet):
             # Users can only see their own KYC records
             return KYC.objects.filter(user=user)
     
+    def dispatch(self, request, *args, **kwargs):
+        """
+        Override dispatch to catch encoding errors early
+        """
+        try:
+            return super().dispatch(request, *args, **kwargs)
+        except (UnicodeDecodeError, ValueError, ParseError) as e:
+            # Check if this looks like a file upload with wrong Content-Type
+            content_type = getattr(request, 'content_type', '') or request.META.get('CONTENT_TYPE', '')
+            
+            error_msg = str(e)
+            if 'utf-8' in error_msg.lower() or 'codec' in error_msg.lower():
+                # Encoding error - likely binary data sent as JSON
+                if 'application/json' in content_type:
+                    # Create a proper exception response
+                    from rest_framework.views import exception_handler
+                    exc = ParseError({
+                        'detail': 'Invalid request encoding. When uploading files, '
+                                 'use Content-Type: multipart/form-data, not application/json. '
+                                 'For file uploads, send the request as multipart/form-data.'
+                    })
+                    response = exception_handler(exc, {})
+                    if response is not None:
+                        return response
+            # Re-raise if we can't handle it
+            raise
+    
     def perform_create(self, serializer):
         """Set the user to current user when creating KYC"""
+        # Validate that if files are present, Content-Type is correct
+        content_type = getattr(self.request, 'content_type', '') or self.request.META.get('CONTENT_TYPE', '')
+        if hasattr(self.request, 'FILES') and self.request.FILES:
+            if 'multipart/form-data' not in content_type and 'application/x-www-form-urlencoded' not in content_type:
+                raise ParseError({
+                    'detail': 'File uploads require Content-Type: multipart/form-data. '
+                             'Please set the correct Content-Type header when uploading files.'
+                })
         serializer.save(user=self.request.user)
     
     def update(self, request, *args, **kwargs):
@@ -67,6 +130,15 @@ class KYCViewSet(viewsets.ModelViewSet):
             return Response({
                 'error': 'You do not have permission to update this KYC record'
             }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Validate Content-Type for file uploads
+        content_type = getattr(request, 'content_type', '') or request.META.get('CONTENT_TYPE', '')
+        if hasattr(request, 'FILES') and request.FILES:
+            if 'multipart/form-data' not in content_type and 'application/x-www-form-urlencoded' not in content_type:
+                return Response({
+                    'detail': 'File uploads require Content-Type: multipart/form-data. '
+                             'Please set the correct Content-Type header when uploading files.'
+                }, status=status.HTTP_400_BAD_REQUEST)
         
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
