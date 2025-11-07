@@ -30,7 +30,7 @@ urlpatterns = [
     path('blockchain-backend/admin/', admin.site.urls),
     
     # API endpoints
-    path('blockchain-backend/', include('users.urls')),
+    path('blockchain-backend/api/', include('users.urls')),
     path('blockchain-backend/api/', include('kyc.urls')),
     path('blockchain-backend/api/', include('spv.urls')),
     path('blockchain-backend/api/', include('documents.urls')),
