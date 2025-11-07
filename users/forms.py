@@ -12,7 +12,7 @@ class SyndicateManagerSignupForm(forms.ModelForm):
 
     def save(self, commit=True):
         user = super().save(commit=False)
-        user.role = 'syndicate_manager'
+        user.role = 'syndicate'
         if commit:
             user.save()
             # Create Syndicate with form input
