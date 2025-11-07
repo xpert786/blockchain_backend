@@ -1,6 +1,12 @@
 from django.db import models
 from users.models import CustomUser  # if you want to link KYC to a user
 
+
+def kyc_upload_path(instance, filename):
+    """Generate upload path for KYC documents"""
+    return f'kyc/{instance.user.id}/{filename}'
+
+
 class KYC(models.Model):
     STATUS_CHOICES = (
         ('Pending', 'Pending'),
@@ -16,7 +22,7 @@ class KYC(models.Model):
     city = models.CharField(max_length=100, blank=True, null=True)
     zip_code = models.CharField(max_length=20, blank=True, null=True)
     country = models.CharField(max_length=100, blank=True, null=True)
-    company_proof_of_address = models.FileField(blank=True, null=True)
+    company_proof_of_address = models.FileField(upload_to=kyc_upload_path, blank=True, null=True)
     owner_identity_doc = models.TextField(blank=True, null=True)
     owner_proof_of_address = models.TextField(blank=True, null=True)
     sie_eligibilty = models.TextField(blank=True, null=True)
