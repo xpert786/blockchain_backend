@@ -114,26 +114,32 @@ def user_login(request):
     Login user and return JWT tokens
     POST /api/users/login/
     """
-    username = request.data.get('username')
+    email = request.data.get('email')
     password = request.data.get('password')
     
-    if not username or not password:
+    if not email or not password:
         return Response({
-            'error': 'Username and password are required'
+            'error': 'Email and password are required'
         }, status=status.HTTP_400_BAD_REQUEST)
     
-    user = authenticate(email=username, password=password)
-    if user:
-        refresh = RefreshToken.for_user(user)
-        return Response({
-            'access': str(refresh.access_token),
-            'refresh': str(refresh),
-            'user': CustomUserSerializer(user).data
-        })
-    else:
+    user = CustomUser.objects.filter(email__iexact=email).first()
+    if not user:
         return Response({
             'error': 'Invalid credentials'
         }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    user = authenticate(request, username=user.username, password=password)
+    if not user:
+        return Response({
+            'error': 'Invalid credentials'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    refresh = RefreshToken.for_user(user)
+    return Response({
+        'access': str(refresh.access_token),
+        'refresh': str(refresh),
+        'user': CustomUserSerializer(user).data
+    })
 
 
 # ==================== SYNDICATE MANAGEMENT ====================
