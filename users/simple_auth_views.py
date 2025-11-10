@@ -17,18 +17,24 @@ from .email_utils import send_verification_email, send_sms_verification, send_2f
 @permission_classes([permissions.AllowAny])
 def auth_login(request):
     """
-    Login with username and password
+    Login with email and password
     POST /api/auth/login/
     """
-    username = request.data.get('username')
+    email = request.data.get('email')
     password = request.data.get('password')
     
-    if not username or not password:
+    if not email or not password:
         return Response({
-            'error': 'Username and password are required'
+            'error': 'Email and password are required'
         }, status=status.HTTP_400_BAD_REQUEST)
     
-    user = authenticate(username=username, password=password)
+    user = CustomUser.objects.filter(email__iexact=email).first()
+    if not user:
+        return Response({
+            'error': 'Invalid credentials'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    user = authenticate(request, username=user.username, password=password)
     if not user:
         return Response({
             'error': 'Invalid credentials'
@@ -45,6 +51,7 @@ def auth_login(request):
             'requires_2fa': True,
             'user_id': user.id,
             'username': user.username,
+            'email': user.email,
             'two_factor_method': user.two_factor_method,
             'message': f'Please verify your {user.two_factor_method.upper()} code'
         }, status=status.HTTP_200_OK)
