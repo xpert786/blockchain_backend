@@ -1,10 +1,11 @@
 from rest_framework import status, permissions
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 from .models import CustomUser, Sector, Geography, EmailVerification, TwoFactorAuth, TermsAcceptance
 from .email_utils import send_verification_email, send_sms_verification, send_2fa_code_email
 from .serializers import (
@@ -49,6 +50,8 @@ def user_detail(request, pk):
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@authentication_classes([])
+@csrf_exempt
 def user_register(request):
     """
     Register a new user
@@ -109,6 +112,8 @@ def user_register(request):
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@authentication_classes([])
+@csrf_exempt
 def user_login(request):
     """
     Login user and return JWT tokens
