@@ -1,5 +1,5 @@
 from rest_framework import status, permissions
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
@@ -14,9 +14,10 @@ from .serializers import CustomUserSerializer
 from .email_utils import send_verification_email, send_sms_verification
 
 
-@csrf_exempt
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@authentication_classes([])
+@csrf_exempt
 def registration_flow_register(request):
     """
     Step 1: Register user with basic information
