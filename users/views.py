@@ -122,7 +122,7 @@ def user_login(request):
             'error': 'Username and password are required'
         }, status=status.HTTP_400_BAD_REQUEST)
     
-    user = authenticate(username=username, password=password)
+    user = authenticate(email=username, password=password)
     if user:
         refresh = RefreshToken.for_user(user)
         return Response({

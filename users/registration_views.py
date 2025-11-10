@@ -5,6 +5,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
 from datetime import timedelta
+from django.views.decorators.csrf import csrf_exempt
 import random
 import string
 
@@ -13,6 +14,7 @@ from .serializers import CustomUserSerializer
 from .email_utils import send_verification_email, send_sms_verification
 
 
+@csrf_exempt
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
 def registration_flow_register(request):
