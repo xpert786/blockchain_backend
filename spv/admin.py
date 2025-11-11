@@ -75,7 +75,8 @@ class SPVAdmin(admin.ModelAdmin):
     )
     list_filter = (
         'status', 'company_stage', 'country_of_incorporation',
-        'transaction_type', 'valuation_type', 'round', 'adviser_entity', 'created_at'
+        'transaction_type', 'valuation_type', 'round', 'adviser_entity',
+        'access_mode', 'investment_visibility', 'created_at'
     )
     search_fields = (
         'display_name', 
@@ -122,6 +123,35 @@ class SPVAdmin(admin.ModelAdmin):
                 'adviser_entity',
                 'master_partnership_entity',
                 'fund_lead',
+            )
+        }),
+        ('Step 4: Fundraising & Jurisdiction', {
+            'fields': (
+                'jurisdiction',
+                'entity_type',
+                'minimum_lp_investment',
+                'target_closing_date',
+                'total_carry_percentage',
+                'carry_recipient',
+                'gp_commitment',
+                'deal_partners',
+                'deal_name',
+                'access_mode',
+            )
+        }),
+        ('Step 5: Invite LPs & Additional Info', {
+            'fields': (
+                'lp_invite_emails',
+                'lp_invite_message',
+                'lead_carry_percentage',
+                'investment_visibility',
+                'auto_invite_active_spvs',
+                'invite_private_note',
+                'invite_tags',
+                'deal_tags',
+                'syndicate_selection',
+                'deal_memo',
+                'supporting_document',
             )
         }),
         ('Metadata', {

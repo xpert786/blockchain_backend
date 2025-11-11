@@ -77,6 +77,24 @@ class SPVCreateSerializer(serializers.ModelSerializer):
         allow_blank=True,
         help_text="Portfolio company name (if not selecting from existing)"
     )
+    lp_invite_emails = serializers.ListField(
+        child=serializers.EmailField(),
+        required=False,
+        allow_empty=True,
+        default=list
+    )
+    invite_tags = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        allow_empty=True,
+        default=list
+    )
+    deal_tags = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        allow_empty=True,
+        default=list
+    )
     
     class Meta:
         model = SPV
@@ -101,6 +119,29 @@ class SPVCreateSerializer(serializers.ModelSerializer):
             'adviser_entity',
             'master_partnership_entity',
             'fund_lead',
+            # Step 4: Fundraising & Jurisdiction
+            'jurisdiction',
+            'entity_type',
+            'minimum_lp_investment',
+            'target_closing_date',
+            'total_carry_percentage',
+            'carry_recipient',
+            'gp_commitment',
+            'deal_partners',
+            'deal_name',
+            'access_mode',
+            # Step 5: Invite LPs & Additional Information
+            'lp_invite_emails',
+            'lp_invite_message',
+            'lead_carry_percentage',
+            'investment_visibility',
+            'auto_invite_active_spvs',
+            'invite_private_note',
+            'invite_tags',
+            'deal_tags',
+            'syndicate_selection',
+            'deal_memo',
+            'supporting_document',
         ]
     
     def validate(self, data):
@@ -164,6 +205,29 @@ class SPVSerializer(serializers.ModelSerializer):
             'master_partnership_entity_detail',
             'fund_lead',
             'fund_lead_detail',
+            # Step 4: Fundraising & Jurisdiction
+            'jurisdiction',
+            'entity_type',
+            'minimum_lp_investment',
+            'target_closing_date',
+            'total_carry_percentage',
+            'carry_recipient',
+            'gp_commitment',
+            'deal_partners',
+            'deal_name',
+            'access_mode',
+            # Step 5: Invite LPs & Additional Information
+            'lp_invite_emails',
+            'lp_invite_message',
+            'lead_carry_percentage',
+            'investment_visibility',
+            'auto_invite_active_spvs',
+            'invite_private_note',
+            'invite_tags',
+            'deal_tags',
+            'syndicate_selection',
+            'deal_memo',
+            'supporting_document',
             'status',
             'created_at',
             'updated_at',
@@ -238,5 +302,66 @@ class SPVStep3Serializer(serializers.ModelSerializer):
             'adviser_entity',
             'master_partnership_entity',
             'fund_lead',
+        ]
+
+
+class SPVStep4Serializer(serializers.ModelSerializer):
+    """Serializer for updating SPV Step 4 (Fundraising & Jurisdiction) fields"""
+    
+    target_closing_date = serializers.DateField(required=False, allow_null=True)
+    
+    class Meta:
+        model = SPV
+        fields = [
+            'jurisdiction',
+            'entity_type',
+            'minimum_lp_investment',
+            'target_closing_date',
+            'total_carry_percentage',
+            'carry_recipient',
+            'gp_commitment',
+            'deal_partners',
+            'deal_name',
+            'access_mode',
+        ]
+
+
+class SPVStep5Serializer(serializers.ModelSerializer):
+    """Serializer for updating SPV Step 5 (Invite LPs & Additional Info) fields"""
+    
+    lp_invite_emails = serializers.ListField(
+        child=serializers.EmailField(),
+        required=False,
+        allow_empty=True,
+        default=list
+    )
+    invite_tags = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        allow_empty=True,
+        default=list
+    )
+    deal_tags = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        allow_empty=True,
+        default=list
+    )
+    
+    class Meta:
+        model = SPV
+        fields = [
+            'lp_invite_emails',
+            'lp_invite_message',
+            'lead_carry_percentage',
+            'investment_visibility',
+            'auto_invite_active_spvs',
+            'invite_private_note',
+            'invite_tags',
+            'deal_tags',
+            'syndicate_selection',
+            'deal_memo',
+            'supporting_document',
+            'access_mode',
         ]
 

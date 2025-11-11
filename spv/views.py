@@ -11,6 +11,8 @@ from .serializers import (
     SPVListSerializer,
     SPVStep2Serializer,
     SPVStep3Serializer,
+    SPVStep4Serializer,
+    SPVStep5Serializer,
     PortfolioCompanySerializer,
     CompanyStageSerializer,
     IncorporationTypeSerializer,
@@ -47,6 +49,14 @@ class SPVViewSet(viewsets.ModelViewSet):
             return SPVCreateSerializer
         elif self.action == 'list':
             return SPVListSerializer
+        elif self.action == 'update_step2':
+            return SPVStep2Serializer
+        elif self.action == 'update_step3':
+            return SPVStep3Serializer
+        elif self.action == 'update_step4':
+            return SPVStep4Serializer
+        elif self.action == 'update_step5':
+            return SPVStep5Serializer
         return SPVSerializer
     
     def get_queryset(self):
@@ -148,6 +158,54 @@ class SPVViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['patch'], permission_classes=[permissions.IsAuthenticated])
+    def update_step4(self, request, pk=None):
+        """
+        Update SPV Step 4 (Fundraising & Jurisdiction) fields
+        PATCH /api/spv/{id}/update_step4/
+        """
+        spv = self.get_object()
+        
+        # Check permissions
+        if not (request.user.is_staff or request.user.role == 'admin' or spv.created_by == request.user):
+            return Response({
+                'error': 'You do not have permission to update this SPV'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = SPVStep4Serializer(spv, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'message': 'SPV Step 4 (Fundraising & Jurisdiction) updated successfully',
+                'data': SPVSerializer(spv).data
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['patch'], permission_classes=[permissions.IsAuthenticated])
+    def update_step5(self, request, pk=None):
+        """
+        Update SPV Step 5 (Invite LPs & Additional Information) fields
+        PATCH /api/spv/{id}/update_step5/
+        """
+        spv = self.get_object()
+        
+        # Check permissions
+        if not (request.user.is_staff or request.user.role == 'admin' or spv.created_by == request.user):
+            return Response({
+                'error': 'You do not have permission to update this SPV'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = SPVStep5Serializer(spv, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'message': 'SPV Step 5 (Invite LPs & Additional Information) updated successfully',
+                'data': SPVSerializer(spv).data
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PortfolioCompanyViewSet(viewsets.ModelViewSet):
@@ -241,4 +299,6 @@ def get_spv_options(request):
         'transaction_types': [{'value': choice[0], 'label': choice[1]} for choice in SPV.TRANSACTION_TYPE_CHOICES],
         'valuation_types': [{'value': choice[0], 'label': choice[1]} for choice in SPV.VALUATION_TYPE_CHOICES],
         'adviser_entities': [{'value': choice[0], 'label': choice[1]} for choice in SPV.ADVISER_ENTITY_CHOICES],
+        'access_modes': [{'value': choice[0], 'label': choice[1]} for choice in SPV.ACCESS_MODE_CHOICES],
+        'investment_visibility_options': [{'value': choice[0], 'label': choice[1]} for choice in SPV.INVESTMENT_VISIBILITY_CHOICES],
     })

@@ -239,6 +239,14 @@ class SPV(models.Model):
         ('platform_advisers', 'Platform Advisers LLC'),
         ('self_advised', 'Self-Advised Entity'),
     ]
+    ACCESS_MODE_CHOICES = [
+        ('private', 'Private'),
+        ('visible', 'Visible to all'),
+    ]
+    INVESTMENT_VISIBILITY_CHOICES = [
+        ('hidden', 'Hidden'),
+        ('visible', 'Visible to all'),
+    ]
     
     adviser_entity = models.CharField(
         max_length=30,
@@ -263,6 +271,132 @@ class SPV(models.Model):
         blank=True,
         related_name='led_spvs',
         help_text="Fund lead (designated in fund documentation)"
+    )
+    
+    # Step 4: Fundraising & Jurisdiction
+    jurisdiction = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Jurisdiction for the deal"
+    )
+    entity_type = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Entity type based on jurisdiction"
+    )
+    minimum_lp_investment = models.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        help_text="Minimum LP investment amount"
+    )
+    target_closing_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text="Target closing date"
+    )
+    total_carry_percentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        help_text="Total carry percentage"
+    )
+    carry_recipient = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Carry recipient entity"
+    )
+    gp_commitment = models.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        help_text="GP commitment amount"
+    )
+    deal_partners = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Strategic or deal partners (comma separated)"
+    )
+    deal_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Deal name for investor-facing materials"
+    )
+    access_mode = models.CharField(
+        max_length=20,
+        choices=ACCESS_MODE_CHOICES,
+        default='private',
+        help_text="Access mode for investors"
+    )
+    
+    # Step 5: Invite LPs
+    lp_invite_emails = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of LP email addresses invited"
+    )
+    lp_invite_message = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Default email message content"
+    )
+    lead_carry_percentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        help_text="Lead carry percentage"
+    )
+    investment_visibility = models.CharField(
+        max_length=20,
+        choices=INVESTMENT_VISIBILITY_CHOICES,
+        default='hidden',
+        help_text="Visibility setting for investment and fund valuations"
+    )
+    auto_invite_active_spvs = models.BooleanField(
+        default=False,
+        help_text="Automatically invite to all current SPVs"
+    )
+    invite_private_note = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Private notes for the invite"
+    )
+    invite_tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Tags to apply to invitees"
+    )
+    
+    # Step 5: Additional Information
+    deal_tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Tags describing the deal"
+    )
+    syndicate_selection = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Selected syndicate"
+    )
+    deal_memo = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Deal memo content"
+    )
+    supporting_document = models.FileField(
+        upload_to='spv/supporting_documents/',
+        blank=True,
+        null=True,
+        help_text="Additional document upload"
     )
     
     # Status and Metadata
