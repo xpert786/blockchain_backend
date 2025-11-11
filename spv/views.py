@@ -564,3 +564,133 @@ def spv_dashboard_summary(request):
     }
 
     return Response(response_data)
+
+
+STATUS_TABS = {
+    'all': {
+        'label': 'All',
+        'statuses': None,
+    },
+    'ready_to_launch': {
+        'label': 'Ready to launch',
+        'statuses': ['approved', 'pending_review'],
+    },
+    'fundraising': {
+        'label': 'Fundraising',
+        'statuses': ['active'],
+    },
+    'closed': {
+        'label': 'Closed',
+        'statuses': ['closed', 'cancelled'],
+    },
+}
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def spv_management_overview(request):
+    """
+    SPV management overview list with status filters.
+    GET /api/spv/management/
+    """
+    user = request.user
+    if user.is_staff or getattr(user, 'role', '') == 'admin':
+        base_queryset = SPV.objects.all()
+    else:
+        base_queryset = SPV.objects.filter(created_by=user)
+
+    base_queryset = base_queryset.select_related('company_stage', 'round', 'portfolio_company')
+
+    status_key = request.query_params.get('status', 'all')
+    if status_key not in STATUS_TABS:
+        status_key = 'all'
+
+    status_filter = STATUS_TABS[status_key]['statuses']
+    queryset = base_queryset
+    if status_filter:
+        queryset = queryset.filter(status__in=status_filter)
+
+    totals = base_queryset.aggregate(
+        total_allocation=Sum('allocation'),
+        total_round_size=Sum('round_size'),
+        spv_count=Count('id')
+    )
+
+    total_aum = _safe_decimal(totals.get('total_allocation'))
+    total_target = _safe_decimal(totals.get('total_round_size'))
+    spv_count = totals.get('spv_count', 0) or 0
+
+    active_investors = sum(len(spv.lp_invite_emails or []) for spv in base_queryset)
+    success_rate = Decimal('0')
+    if total_target > 0:
+        success_rate = (total_aum / total_target) * Decimal('100')
+
+    spv_cards = []
+    for spv in queryset:
+        my_commitment = _safe_decimal(spv.allocation)
+        target_amount = _safe_decimal(spv.round_size)
+        progress_percent = Decimal('0')
+        if target_amount > 0:
+            progress_percent = (my_commitment / target_amount) * Decimal('100')
+        progress_percent = min(progress_percent, Decimal('100'))
+
+        spv_cards.append({
+            'id': spv.id,
+            'code': f"SPV-{spv.id:03d}",
+            'name': spv.display_name,
+            'status': spv.status,
+            'status_label': spv.get_status_display(),
+            'jurisdiction': spv.jurisdiction,
+            'sector': spv.deal_tags[0] if isinstance(spv.deal_tags, list) and spv.deal_tags else None,
+            'industry_tags': spv.deal_tags or [],
+            'created_at': spv.created_at.isoformat(),
+            'target_amount': _decimal_to_float(target_amount),
+            'my_commitment': _decimal_to_float(my_commitment),
+            'investor_count': len(spv.lp_invite_emails or []),
+            'minimum_investment': _decimal_to_float(spv.minimum_lp_investment),
+            'round': spv.round.name if spv.round else None,
+            'stage': spv.company_stage.name if spv.company_stage else None,
+            'portfolio_company': spv.portfolio_company.name if spv.portfolio_company else spv.portfolio_company_name,
+            'funding_progress_percent': float(progress_percent.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)),
+            'actions': {
+                'manage_investors': True,
+                'documents': spv.pitch_deck is not None or spv.supporting_document is not None,
+                'analytics': True,
+            }
+        })
+
+    tab_summary = []
+    for key, config in STATUS_TABS.items():
+        tab_queryset = base_queryset
+        if config['statuses']:
+            tab_queryset = tab_queryset.filter(status__in=config['statuses'])
+
+        tab_data = tab_queryset.aggregate(
+            count=Count('id'),
+            total_allocation=Sum('allocation')
+        )
+        tab_summary.append({
+            'key': key,
+            'label': config['label'],
+            'count': tab_data.get('count', 0) or 0,
+            'total_allocation': _decimal_to_float(tab_data.get('total_allocation')),
+            'active': key == status_key,
+        })
+
+    response_data = {
+        'filters': {
+            'selected_status': status_key,
+            'available_statuses': tab_summary,
+        },
+        'summary': {
+            'total_spvs': spv_count,
+            'total_aum': _decimal_to_float(total_aum),
+            'total_target': _decimal_to_float(total_target),
+            'active_investors': active_investors,
+            'success_rate_percent': float(success_rate.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)) if success_rate else 0.0,
+            'last_updated': timezone.now().isoformat(),
+        },
+        'spvs': spv_cards,
+    }
+
+    return Response(response_data)

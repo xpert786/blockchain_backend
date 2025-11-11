@@ -16,6 +16,7 @@ from .views import (
     list_rounds,
     list_master_partnership_entities,
     spv_dashboard_summary,
+    spv_management_overview,
 )
 
 spv_list = SPVViewSet.as_view({'get': 'list', 'post': 'create'})
@@ -68,6 +69,7 @@ urlpatterns = [
     path('spv/<int:pk>/update_step4/', spv_update_step4, name='spv-update-step4'),
     path('spv/<int:pk>/update_step5/', spv_update_step5, name='spv-update-step5'),
     path('spv/dashboard/', spv_dashboard_summary, name='spv-dashboard'),
+    path('spv/management/', spv_management_overview, name='spv-management'),
     path('portfolio-companies/', portfolio_company_list, name='portfolio-company-list'),
     path('portfolio-companies/<int:pk>/', portfolio_company_detail, name='portfolio-company-detail'),
     path('company-stages/', company_stage_list, name='company-stage-list'),

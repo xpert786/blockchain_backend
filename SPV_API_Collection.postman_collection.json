@@ -403,6 +403,46 @@
           }
         }
       ]
+    },
+    {
+      "name": "06 SPV Management",
+      "description": "Detailed SPV management listing and filters.",
+      "item": [
+        {
+          "name": "List SPV Management (All)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{member_token}}", "type": "text" }
+            ],
+            "url": "{{base_url}}/api/spv/management/"
+          }
+        },
+        {
+          "name": "List SPV Management (Fundraising)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{member_token}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/spv/management/?status=fundraising",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "spv",
+                "management",
+                ""
+              ],
+              "query": [
+                { "key": "status", "value": "fundraising" }
+              ]
+            }
+          }
+        }
+      ]
     }
   ],
   "variable": [
