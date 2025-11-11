@@ -1,3 +1,4 @@
+from django.db.models import Max
 from rest_framework import serializers
 from .models import (
     SPV, PortfolioCompany, CompanyStage, IncorporationType,
@@ -95,6 +96,36 @@ class SPVCreateSerializer(serializers.ModelSerializer):
         allow_empty=True,
         default=list
     )
+    company_stage_name = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True
+    )
+    incorporation_type_name = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True
+    )
+    instrument_type_name = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True
+    )
+    share_class_name = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True
+    )
+    round_name = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True
+    )
+    master_partnership_entity_name = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True
+    )
     
     class Meta:
         model = SPV
@@ -113,11 +144,17 @@ class SPVCreateSerializer(serializers.ModelSerializer):
             'valuation_type',
             'share_class',
             'round',
+            'company_stage_name',
+            'incorporation_type_name',
+            'instrument_type_name',
+            'share_class_name',
+            'round_name',
             'round_size',
             'allocation',
             # Step 3: Adviser & Legal Structure fields
             'adviser_entity',
             'master_partnership_entity',
+            'master_partnership_entity_name',
             'fund_lead',
             # Step 4: Fundraising & Jurisdiction
             'jurisdiction',
@@ -155,6 +192,97 @@ class SPVCreateSerializer(serializers.ModelSerializer):
             })
         
         return data
+
+    def _get_next_order(self, model):
+        """Return the next order value for ordered lookup models."""
+        max_order = model.objects.aggregate(max_order=Max('order'))['max_order']
+        return (max_order or 0) + 1
+
+    def _ensure_lookup(self, validated_data, field_name, name_value, model, has_order=False):
+        """
+        Ensure a lookup relation exists by ID or create by name.
+        """
+        if validated_data.get(field_name) or not name_value:
+            return
+
+        defaults = {'description': ''}
+        if has_order and hasattr(model, 'order'):
+            defaults['order'] = self._get_next_order(model)
+
+        lookup_obj, _ = model.objects.get_or_create(
+            name=name_value,
+            defaults=defaults
+        )
+        validated_data[field_name] = lookup_obj
+
+    def create(self, validated_data):
+        company_stage_name = validated_data.pop('company_stage_name', '').strip()
+        incorporation_type_name = validated_data.pop('incorporation_type_name', '').strip()
+        instrument_type_name = validated_data.pop('instrument_type_name', '').strip()
+        share_class_name = validated_data.pop('share_class_name', '').strip()
+        round_name = validated_data.pop('round_name', '').strip()
+        master_partnership_entity_name = validated_data.pop('master_partnership_entity_name', '').strip()
+
+        self._ensure_lookup(
+            validated_data,
+            'company_stage',
+            company_stage_name,
+            CompanyStage,
+            has_order=True
+        )
+        self._ensure_lookup(
+            validated_data,
+            'incorporation_type',
+            incorporation_type_name,
+            IncorporationType,
+            has_order=False
+        )
+        self._ensure_lookup(
+            validated_data,
+            'instrument_type',
+            instrument_type_name,
+            InstrumentType,
+            has_order=True
+        )
+        self._ensure_lookup(
+            validated_data,
+            'share_class',
+            share_class_name,
+            ShareClass,
+            has_order=True
+        )
+        self._ensure_lookup(
+            validated_data,
+            'round',
+            round_name,
+            Round,
+            has_order=True
+        )
+        self._ensure_lookup(
+            validated_data,
+            'master_partnership_entity',
+            master_partnership_entity_name,
+            MasterPartnershipEntity,
+            has_order=True
+        )
+
+        portfolio_company = validated_data.get('portfolio_company')
+        portfolio_company_name = validated_data.get('portfolio_company_name', '').strip()
+
+        if not portfolio_company and portfolio_company_name:
+            portfolio_company, _ = PortfolioCompany.objects.get_or_create(
+                name=portfolio_company_name,
+                defaults={'description': ''}
+            )
+            validated_data['portfolio_company'] = portfolio_company
+
+        if validated_data.get('portfolio_company'):
+            validated_data['portfolio_company_name'] = (
+                validated_data.get('portfolio_company_name')
+                or validated_data['portfolio_company'].name
+            )
+
+        return super().create(validated_data)
 
 
 class SPVSerializer(serializers.ModelSerializer):
