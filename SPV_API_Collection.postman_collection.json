@@ -180,12 +180,42 @@
           }
         },
         {
+          "name": "Create Company Stage",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Growth\",\n  \"description\": \"Companies scaling rapidly\",\n  \"order\": 5\n}"
+            },
+            "url": "{{base_url}}/api/company-stages/"
+          }
+        },
+        {
           "name": "Incorporation Types",
           "request": {
             "method": "GET",
             "header": [
               { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }
             ],
+            "url": "{{base_url}}/api/incorporation-types/"
+          }
+        },
+        {
+          "name": "Create Incorporation Type",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Limited Liability Company\",\n  \"description\": \"LLC structure\"\n}"
+            },
             "url": "{{base_url}}/api/incorporation-types/"
           }
         },
@@ -200,12 +230,42 @@
           }
         },
         {
+          "name": "Create Instrument Type",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"SAFE\",\n  \"description\": \"Simple Agreement for Future Equity\",\n  \"order\": 1\n}"
+            },
+            "url": "{{base_url}}/api/instrument-types/"
+          }
+        },
+        {
           "name": "Share Classes",
           "request": {
             "method": "GET",
             "header": [
               { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }
             ],
+            "url": "{{base_url}}/api/share-classes/"
+          }
+        },
+        {
+          "name": "Create Share Class",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Series A Preferred\",\n  \"description\": \"Series A preferred shares\",\n  \"order\": 2\n}"
+            },
             "url": "{{base_url}}/api/share-classes/"
           }
         },
@@ -220,12 +280,42 @@
           }
         },
         {
+          "name": "Create Round",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Series B\",\n  \"description\": \"Series B financing\",\n  \"order\": 3\n}"
+            },
+            "url": "{{base_url}}/api/rounds/"
+          }
+        },
+        {
           "name": "Master Partnership Entities",
           "request": {
             "method": "GET",
             "header": [
               { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }
             ],
+            "url": "{{base_url}}/api/master-partnership-entities/"
+          }
+        },
+        {
+          "name": "Create Master Partnership Entity",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Unlocksley Master LP\",\n  \"description\": \"Default master partnership entity\",\n  \"order\": 1\n}"
+            },
             "url": "{{base_url}}/api/master-partnership-entities/"
           }
         },

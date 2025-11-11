@@ -227,58 +227,79 @@ class PortfolioCompanyViewSet(viewsets.ModelViewSet):
         return queryset.order_by('name')
 
 
-class CompanyStageViewSet(viewsets.ReadOnlyModelViewSet):
+class StaffCreateMixin:
     """
-    ViewSet for viewing Company Stages (read-only)
+    Mixin to allow only staff/admin users to create reference data entries.
+    """
+
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        if not (user.is_staff or getattr(user, 'role', None) == 'admin'):
+            return Response(
+                {'error': 'Only staff or admin users can create entries.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return super().create(request, *args, **kwargs)
+
+
+class CompanyStageViewSet(StaffCreateMixin, viewsets.ModelViewSet):
+    """
+    ViewSet for viewing and creating Company Stages
     """
     queryset = CompanyStage.objects.all()
     serializer_class = CompanyStageSerializer
     permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post', 'head', 'options']
 
 
-class IncorporationTypeViewSet(viewsets.ReadOnlyModelViewSet):
+class IncorporationTypeViewSet(StaffCreateMixin, viewsets.ModelViewSet):
     """
-    ViewSet for viewing Incorporation Types (read-only)
+    ViewSet for viewing and creating Incorporation Types
     """
     queryset = IncorporationType.objects.all()
     serializer_class = IncorporationTypeSerializer
     permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post', 'head', 'options']
 
 
-class InstrumentTypeViewSet(viewsets.ReadOnlyModelViewSet):
+class InstrumentTypeViewSet(StaffCreateMixin, viewsets.ModelViewSet):
     """
-    ViewSet for viewing Instrument Types (read-only)
+    ViewSet for viewing and creating Instrument Types
     """
     queryset = InstrumentType.objects.all()
     serializer_class = InstrumentTypeSerializer
     permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post', 'head', 'options']
 
 
-class ShareClassViewSet(viewsets.ReadOnlyModelViewSet):
+class ShareClassViewSet(StaffCreateMixin, viewsets.ModelViewSet):
     """
-    ViewSet for viewing Share Classes (read-only)
+    ViewSet for viewing and creating Share Classes
     """
     queryset = ShareClass.objects.all()
     serializer_class = ShareClassSerializer
     permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post', 'head', 'options']
 
 
-class RoundViewSet(viewsets.ReadOnlyModelViewSet):
+class RoundViewSet(StaffCreateMixin, viewsets.ModelViewSet):
     """
-    ViewSet for viewing Rounds (read-only)
+    ViewSet for viewing and creating Rounds
     """
     queryset = Round.objects.all()
     serializer_class = RoundSerializer
     permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post', 'head', 'options']
 
 
-class MasterPartnershipEntityViewSet(viewsets.ReadOnlyModelViewSet):
+class MasterPartnershipEntityViewSet(StaffCreateMixin, viewsets.ModelViewSet):
     """
-    ViewSet for viewing Master Partnership Entities (read-only)
+    ViewSet for viewing and creating Master Partnership Entities
     """
     queryset = MasterPartnershipEntity.objects.all()
     serializer_class = MasterPartnershipEntitySerializer
     permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post', 'head', 'options']
 
 
 @api_view(['GET'])
@@ -302,3 +323,68 @@ def get_spv_options(request):
         'access_modes': [{'value': choice[0], 'label': choice[1]} for choice in SPV.ACCESS_MODE_CHOICES],
         'investment_visibility_options': [{'value': choice[0], 'label': choice[1]} for choice in SPV.INVESTMENT_VISIBILITY_CHOICES],
     })
+
+
+def _build_lookup_response(serializer_class, queryset):
+    """
+    Helper to serialize lookup querysets consistently.
+    """
+    serializer = serializer_class(queryset, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def list_company_stages(request):
+    """
+    Lookup endpoint: GET /api/lookups/company-stages/
+    """
+    return _build_lookup_response(CompanyStageSerializer, CompanyStage.objects.all())
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def list_incorporation_types(request):
+    """
+    Lookup endpoint: GET /api/lookups/incorporation-types/
+    """
+    return _build_lookup_response(IncorporationTypeSerializer, IncorporationType.objects.all())
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def list_instrument_types(request):
+    """
+    Lookup endpoint: GET /api/lookups/instrument-types/
+    """
+    return _build_lookup_response(InstrumentTypeSerializer, InstrumentType.objects.all())
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def list_share_classes(request):
+    """
+    Lookup endpoint: GET /api/lookups/share-classes/
+    """
+    return _build_lookup_response(ShareClassSerializer, ShareClass.objects.all())
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def list_rounds(request):
+    """
+    Lookup endpoint: GET /api/lookups/rounds/
+    """
+    return _build_lookup_response(RoundSerializer, Round.objects.all())
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def list_master_partnership_entities(request):
+    """
+    Lookup endpoint: GET /api/lookups/master-partnership-entities/
+    """
+    return _build_lookup_response(
+        MasterPartnershipEntitySerializer,
+        MasterPartnershipEntity.objects.all()
+    )

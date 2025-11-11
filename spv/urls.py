@@ -9,6 +9,12 @@ from .views import (
     RoundViewSet,
     MasterPartnershipEntityViewSet,
     get_spv_options,
+    list_company_stages,
+    list_incorporation_types,
+    list_instrument_types,
+    list_share_classes,
+    list_rounds,
+    list_master_partnership_entities,
 )
 
 spv_list = SPVViewSet.as_view({'get': 'list', 'post': 'create'})
@@ -75,5 +81,13 @@ urlpatterns = [
     path('master-partnership-entities/', master_partnership_entity_list, name='master-partnership-entity-list'),
     path('master-partnership-entities/<int:pk>/', master_partnership_entity_detail, name='master-partnership-entity-detail'),
     path('spv/options/', get_spv_options, name='spv-options'),
+
+    # Lookup endpoints
+    path('lookups/company-stages/', list_company_stages, name='lookup-company-stages'),
+    path('lookups/incorporation-types/', list_incorporation_types, name='lookup-incorporation-types'),
+    path('lookups/instrument-types/', list_instrument_types, name='lookup-instrument-types'),
+    path('lookups/share-classes/', list_share_classes, name='lookup-share-classes'),
+    path('lookups/rounds/', list_rounds, name='lookup-rounds'),
+    path('lookups/master-partnership-entities/', list_master_partnership_entities, name='lookup-master-partnership-entities'),
 ]
 
