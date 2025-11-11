@@ -39,22 +39,22 @@ portfolio_company_detail = PortfolioCompanyViewSet.as_view({
     'delete': 'destroy'
 })
 
-company_stage_list = CompanyStageViewSet.as_view({'get': 'list'})
+company_stage_list = CompanyStageViewSet.as_view({'get': 'list', 'post': 'create'})
 company_stage_detail = CompanyStageViewSet.as_view({'get': 'retrieve'})
 
-incorporation_type_list = IncorporationTypeViewSet.as_view({'get': 'list'})
+incorporation_type_list = IncorporationTypeViewSet.as_view({'get': 'list', 'post': 'create'})
 incorporation_type_detail = IncorporationTypeViewSet.as_view({'get': 'retrieve'})
 
-instrument_type_list = InstrumentTypeViewSet.as_view({'get': 'list'})
+instrument_type_list = InstrumentTypeViewSet.as_view({'get': 'list', 'post': 'create'})
 instrument_type_detail = InstrumentTypeViewSet.as_view({'get': 'retrieve'})
 
-share_class_list = ShareClassViewSet.as_view({'get': 'list'})
+share_class_list = ShareClassViewSet.as_view({'get': 'list', 'post': 'create'})
 share_class_detail = ShareClassViewSet.as_view({'get': 'retrieve'})
 
-round_list = RoundViewSet.as_view({'get': 'list'})
+round_list = RoundViewSet.as_view({'get': 'list', 'post': 'create'})
 round_detail = RoundViewSet.as_view({'get': 'retrieve'})
 
-master_partnership_entity_list = MasterPartnershipEntityViewSet.as_view({'get': 'list'})
+master_partnership_entity_list = MasterPartnershipEntityViewSet.as_view({'get': 'list', 'post': 'create'})
 master_partnership_entity_detail = MasterPartnershipEntityViewSet.as_view({'get': 'retrieve'})
 
 urlpatterns = [
