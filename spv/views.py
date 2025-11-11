@@ -1,6 +1,15 @@
+from datetime import timedelta
+from decimal import Decimal, ROUND_HALF_UP
+
+from django.db.models import Sum, Count
+from django.utils import timezone
+
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
+
+from kyc.models import KYC
+
 from .models import (
     SPV, PortfolioCompany, CompanyStage, IncorporationType,
     InstrumentType, ShareClass, Round, MasterPartnershipEntity
@@ -388,3 +397,170 @@ def list_master_partnership_entities(request):
         MasterPartnershipEntitySerializer,
         MasterPartnershipEntity.objects.all()
     )
+
+
+def _safe_decimal(value):
+    if value is None:
+        return Decimal('0')
+    if isinstance(value, Decimal):
+        return value
+    return Decimal(str(value))
+
+
+def _decimal_to_float(value, precision='0.01'):
+    value = _safe_decimal(value)
+    quantizer = Decimal(precision)
+    return float(value.quantize(quantizer, rounding=ROUND_HALF_UP)) if quantizer != 0 else float(value)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def spv_dashboard_summary(request):
+    """
+    Dashboard summary for syndicate managers.
+    GET /api/spv/dashboard/
+    """
+    user = request.user
+    if user.is_staff or getattr(user, 'role', '') == 'admin':
+        queryset = SPV.objects.all()
+    else:
+        queryset = SPV.objects.filter(created_by=user)
+
+    queryset = queryset.select_related('company_stage', 'round')
+    spvs = list(queryset)
+
+    totals = queryset.aggregate(
+        total_allocation=Sum('allocation'),
+        total_round_size=Sum('round_size'),
+        spv_count=Count('id')
+    )
+
+    total_aum = _safe_decimal(totals.get('total_allocation'))
+    total_target = _safe_decimal(totals.get('total_round_size'))
+    spv_count = totals.get('spv_count', 0) or 0
+
+    active_investors = sum(len(spv.lp_invite_emails or []) for spv in spvs)
+    average_investment = Decimal('0')
+    if active_investors:
+        average_investment = (total_aum / active_investors).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    my_spv_cards = []
+    total_progress = Decimal('0')
+    for spv in spvs:
+        my_commitment = _safe_decimal(spv.allocation)
+        target_amount = _safe_decimal(spv.round_size)
+        progress_percent = Decimal('0')
+        if target_amount > 0:
+            progress_percent = (my_commitment / target_amount) * Decimal('100')
+        progress_percent = min(progress_percent, Decimal('100'))
+        total_progress += progress_percent
+
+        my_spv_cards.append({
+            'id': spv.id,
+            'code': f"SPV-{spv.id:03d}",
+            'name': spv.display_name,
+            'status': spv.status,
+            'status_label': spv.get_status_display(),
+            'my_commitment': _decimal_to_float(my_commitment),
+            'target_amount': _decimal_to_float(target_amount),
+            'target_currency': 'USD',
+            'investor_count': len(spv.lp_invite_emails or []),
+            'round': spv.round.name if spv.round else None,
+            'stage': spv.company_stage.name if spv.company_stage else None,
+            'progress_percent': float(progress_percent.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)),
+            'created_at': spv.created_at.isoformat(),
+            'updated_at': spv.updated_at.isoformat(),
+        })
+
+    average_progress = float((total_progress / spv_count).quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)) if spv_count else 0.0
+
+    # Pending actions (KYC, document upload, review statuses)
+    pending_actions = []
+    kyc_record = KYC.objects.filter(user=user).order_by('-id').first()
+    if not kyc_record or kyc_record.status != 'Approved':
+        pending_actions.append({
+            'id': 'kyc-verification',
+            'title': 'Complete Your Business Verification',
+            'description': 'To continue creating SPVs and managing investors, please verify your business details.',
+            'status': kyc_record.status if kyc_record else 'missing',
+            'action_required': 'kyc_verification',
+            'updated_at': kyc_record.updated_at.isoformat() if kyc_record and hasattr(kyc_record, 'updated_at') and kyc_record.updated_at else None
+        })
+
+    now = timezone.now().date()
+    for spv in spvs:
+        if spv.status == 'pending_review':
+            pending_actions.append({
+                'id': f'spv-review-{spv.id}',
+                'title': f'{spv.display_name} pending review',
+                'description': 'Review and approve deal terms to continue fundraising.',
+                'status': spv.status,
+                'action_required': 'review_spv',
+                'spv_id': spv.id,
+                'updated_at': spv.updated_at.isoformat(),
+            })
+        if not spv.pitch_deck or not spv.supporting_document:
+            pending_actions.append({
+                'id': f'spv-docs-{spv.id}',
+                'title': f'Upload documents for {spv.display_name}',
+                'description': 'Pitch deck or supporting documents are missing.',
+                'status': 'documents_pending',
+                'action_required': 'upload_documents',
+                'spv_id': spv.id,
+                'updated_at': spv.updated_at.isoformat(),
+            })
+        if spv.target_closing_date and spv.target_closing_date <= now + timedelta(days=14) and spv.status not in ('closed', 'cancelled'):
+            pending_actions.append({
+                'id': f'spv-closing-{spv.id}',
+                'title': f'{spv.display_name} closing soon',
+                'description': f'Target closing date {spv.target_closing_date.isoformat()} is approaching.',
+                'status': 'closing_soon',
+                'action_required': 'close_out_spv',
+                'spv_id': spv.id,
+                'updated_at': spv.updated_at.isoformat(),
+            })
+
+    status_breakdown = []
+    status_totals = queryset.values('status').annotate(
+        count=Count('id'),
+        total_allocation=Sum('allocation')
+    )
+    status_labels = dict(SPV.STATUS_CHOICES)
+    for entry in status_totals:
+        status_breakdown.append({
+            'status': entry['status'],
+            'label': status_labels.get(entry['status'], entry['status']),
+            'count': entry['count'],
+            'total_allocation': _decimal_to_float(entry['total_allocation']),
+        })
+
+    analytics = {
+        'performance_overview': {
+            'total_funds_raised': _decimal_to_float(total_aum),
+            'total_target': _decimal_to_float(total_target),
+            'average_progress_percent': average_progress,
+            'success_rate_percent': float(
+                ((total_aum / total_target) * Decimal('100')).quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)
+            ) if total_target > 0 else 0.0,
+        },
+        'status_breakdown': status_breakdown,
+        'active_investors': active_investors,
+    }
+
+    response_data = {
+        'summary': {
+            'my_spvs_count': spv_count,
+            'total_aum': _decimal_to_float(total_aum),
+            'total_target': _decimal_to_float(total_target),
+            'active_investors': active_investors,
+            'average_investment': _decimal_to_float(average_investment),
+            'last_updated': timezone.now().isoformat(),
+        },
+        'sections': {
+            'my_spvs': my_spv_cards,
+            'pending_actions': pending_actions,
+            'analytics': analytics,
+        }
+    }
+
+    return Response(response_data)
