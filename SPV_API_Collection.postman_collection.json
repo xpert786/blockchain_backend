@@ -1,1151 +1,251 @@
 {
-	"info": {
-		"_postman_id": "spv-api-collection-2024",
-		"name": "SPV API Collection",
-		"description": "Complete API collection for SPV (Special Purpose Vehicle) management endpoints",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-	},
-	"item": [
-		{
-			"name": "Authentication",
-			"item": [
-				{
-					"name": "Obtain JWT Token",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"if (pm.response.code === 200) {",
-									"    var jsonData = pm.response.json();",
-									"    pm.collectionVariables.set(\"access_token\", jsonData.access);",
-									"    pm.collectionVariables.set(\"refresh_token\", jsonData.refresh);",
-									"}"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"username\": \"your_username\",\n    \"password\": \"your_password\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/blockchain-backend/api/token/",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"blockchain-backend",
-								"api",
-								"token",
-								""
-							]
-						},
-						"description": "Obtain JWT access and refresh tokens"
-					},
-					"response": []
-				},
-				{
-					"name": "Refresh JWT Token",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"refresh\": \"{{refresh_token}}\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/blockchain-backend/api/token/refresh/",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"blockchain-backend",
-								"api",
-								"token",
-								"refresh",
-								""
-							]
-						},
-						"description": "Refresh JWT access token using refresh token"
-					},
-					"response": []
-				},
-				{
-					"name": "Verify JWT Token",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"token\": \"{{access_token}}\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/blockchain-backend/api/token/verify/",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"blockchain-backend",
-								"api",
-								"token",
-								"verify",
-								""
-							]
-						},
-						"description": "Verify JWT token validity"
-					},
-					"response": []
-				}
-			],
-			"description": "JWT authentication endpoints"
-		},
-		{
-			"name": "SPV Management",
-			"item": [
-				{
-					"name": "Get All SPVs",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}",
-								"type": "text"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/blockchain-backend/api/spv/",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"blockchain-backend",
-								"api",
-								"spv",
-								""
-							]
-						},
-						"description": "Get list of all SPVs (filtered by user role)"
-					},
-					"response": []
-				},
-				{
-					"name": "Get My SPVs",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}",
-								"type": "text"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/blockchain-backend/api/spv/my_spvs/",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"blockchain-backend",
-								"api",
-								"spv",
-								"my_spvs",
-								""
-							]
-						},
-						"description": "Get current user's SPV records"
-					},
-					"response": []
-				},
-				{
-					"name": "Get SPV by ID",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}",
-								"type": "text"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/blockchain-backend/api/spv/:id/",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"blockchain-backend",
-								"api",
-								"spv",
-								":id",
-								""
-							],
-							"variable": [
-								{
-									"key": "id",
-									"value": "1"
-								}
-							]
-						},
-						"description": "Get detailed SPV information by ID"
-					},
-					"response": []
-				},
-				{
-					"name": "Create SPV",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}",
-								"type": "text"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"display_name\": \"TechCorp Series A SPV\",\n    \"portfolio_company\": null,\n    \"portfolio_company_name\": \"TechCorp Inc.\",\n    \"company_stage\": 1,\n    \"country_of_incorporation\": \"United States\",\n    \"incorporation_type\": 1,\n    \"founder_email\": \"founder@techcorp.com\",\n    \"transaction_type\": \"primary\",\n    \"instrument_type\": 1,\n    \"valuation_type\": \"pre_money\",\n    \"share_class\": 1,\n    \"round\": 1,\n    \"round_size\": \"5000000.00\",\n    \"allocation\": \"100000.00\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/blockchain-backend/api/spv/",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"blockchain-backend",
-								"api",
-								"spv",
-								""
-							]
-						},
-						"description": "Create a new SPV deal"
-					},
-					"response": []
-				},
-				{
-					"name": "Update SPV",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}",
-								"type": "text"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"display_name\": \"Updated SPV Name\",\n    \"portfolio_company_name\": \"Updated Company Name\",\n    \"founder_email\": \"updated@example.com\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/blockchain-backend/api/spv/:id/",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"blockchain-backend",
-								"api",
-								"spv",
-								":id",
-								""
-							],
-							"variable": [
-								{
-									"key": "id",
-									"value": "1"
-								}
-							]
-						},
-						"description": "Update SPV (full update)"
-					},
-					"response": []
-				},
-				{
-					"name": "Partial Update SPV",
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}",
-								"type": "text"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"display_name\": \"Updated Display Name\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/blockchain-backend/api/spv/:id/",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"blockchain-backend",
-								"api",
-								"spv",
-								":id",
-								""
-							],
-							"variable": [
-								{
-									"key": "id",
-									"value": "1"
-								}
-							]
-						},
-						"description": "Partially update SPV fields"
-					},
-					"response": []
-				},
-				{
-					"name": "Delete SPV",
-					"request": {
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}",
-								"type": "text"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/blockchain-backend/api/spv/:id/",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"blockchain-backend",
-								"api",
-								"spv",
-								":id",
-								""
-							],
-							"variable": [
-								{
-									"key": "id",
-									"value": "1"
-								}
-							]
-						},
-						"description": "Delete an SPV (Admin only)"
-					},
-					"response": []
-				}
-			],
-			"description": "SPV CRUD operations"
-		},
-		{
-			"name": "SPV Steps",
-			"item": [
-				{
-					"name": "Update Step 2 - Terms",
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}",
-								"type": "text"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"transaction_type\": \"primary\",\n    \"instrument_type\": 1,\n    \"valuation_type\": \"pre_money\",\n    \"share_class\": 1,\n    \"round\": 1,\n    \"round_size\": \"5000000.00\",\n    \"allocation\": \"100000.00\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/blockchain-backend/api/spv/:id/update_step2/",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"blockchain-backend",
-								"api",
-								"spv",
-								":id",
-								"update_step2",
-								""
-							],
-							"variable": [
-								{
-									"key": "id",
-									"value": "1"
-								}
-							]
-						},
-						"description": "Update SPV Step 2 (Terms) fields: transaction_type, instrument_type, valuation_type, share_class, round, round_size, allocation"
-					},
-					"response": []
-				},
-				{
-					"name": "Update Step 3 - Adviser & Legal Structure",
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}",
-								"type": "text"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"adviser_entity\": \"platform_advisers\",\n    \"master_partnership_entity\": 1,\n    \"fund_lead\": 1\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/blockchain-backend/api/spv/:id/update_step3/",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"blockchain-backend",
-								"api",
-								"spv",
-								":id",
-								"update_step3",
-								""
-							],
-							"variable": [
-								{
-									"key": "id",
-									"value": "1"
-								}
-							]
-						},
-						"description": "Update SPV Step 3 (Adviser & Legal Structure) fields: adviser_entity, master_partnership_entity, fund_lead"
-					},
-					"response": []
-				},
-				{
-					"name": "Update SPV Status",
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}",
-								"type": "text"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"status\": \"approved\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/blockchain-backend/api/spv/:id/update_status/",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"blockchain-backend",
-								"api",
-								"spv",
-								":id",
-								"update_status",
-								""
-							],
-							"variable": [
-								{
-									"key": "id",
-									"value": "1"
-								}
-							]
-						},
-						"description": "Update SPV status (Admin only). Status options: draft, pending_review, approved, active, closed, cancelled"
-					},
-					"response": []
-				}
-			],
-			"description": "SPV step-specific update endpoints"
-		},
-		{
-			"name": "SPV Options",
-			"item": [
-				{
-					"name": "Get SPV Options",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}",
-								"type": "text"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/blockchain-backend/api/spv/options/",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"blockchain-backend",
-								"api",
-								"spv",
-								"options",
-								""
-							]
-						},
-						"description": "Get all options needed for SPV creation form: company_stages, incorporation_types, portfolio_companies, instrument_types, share_classes, rounds, master_partnership_entities, transaction_types, valuation_types, adviser_entities"
-					},
-					"response": []
-				}
-			],
-			"description": "SPV form options and dropdown data"
-		},
-		{
-			"name": "Reference Data",
-			"item": [
-				{
-					"name": "Company Stages",
-					"item": [
-						{
-							"name": "Get All Company Stages",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{access_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/blockchain-backend/api/company-stages/",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"blockchain-backend",
-										"api",
-										"company-stages",
-										""
-									]
-								},
-								"description": "Get all company stages"
-							},
-							"response": []
-						},
-						{
-							"name": "Get Company Stage by ID",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{access_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/blockchain-backend/api/company-stages/:id/",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"blockchain-backend",
-										"api",
-										"company-stages",
-										":id",
-										""
-									],
-									"variable": [
-										{
-											"key": "id",
-											"value": "1"
-										}
-									]
-								},
-								"description": "Get company stage by ID"
-							},
-							"response": []
-						}
-					],
-					"description": "Company stage endpoints"
-				},
-				{
-					"name": "Incorporation Types",
-					"item": [
-						{
-							"name": "Get All Incorporation Types",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{access_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/blockchain-backend/api/incorporation-types/",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"blockchain-backend",
-										"api",
-										"incorporation-types",
-										""
-									]
-								},
-								"description": "Get all incorporation types"
-							},
-							"response": []
-						},
-						{
-							"name": "Get Incorporation Type by ID",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{access_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/blockchain-backend/api/incorporation-types/:id/",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"blockchain-backend",
-										"api",
-										"incorporation-types",
-										":id",
-										""
-									],
-									"variable": [
-										{
-											"key": "id",
-											"value": "1"
-										}
-									]
-								},
-								"description": "Get incorporation type by ID"
-							},
-							"response": []
-						}
-					],
-					"description": "Incorporation type endpoints"
-				},
-				{
-					"name": "Instrument Types",
-					"item": [
-						{
-							"name": "Get All Instrument Types",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{access_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/blockchain-backend/api/instrument-types/",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"blockchain-backend",
-										"api",
-										"instrument-types",
-										""
-									]
-								},
-								"description": "Get all instrument types"
-							},
-							"response": []
-						},
-						{
-							"name": "Get Instrument Type by ID",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{access_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/blockchain-backend/api/instrument-types/:id/",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"blockchain-backend",
-										"api",
-										"instrument-types",
-										":id",
-										""
-									],
-									"variable": [
-										{
-											"key": "id",
-											"value": "1"
-										}
-									]
-								},
-								"description": "Get instrument type by ID"
-							},
-							"response": []
-						}
-					],
-					"description": "Instrument type endpoints"
-				},
-				{
-					"name": "Share Classes",
-					"item": [
-						{
-							"name": "Get All Share Classes",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{access_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/blockchain-backend/api/share-classes/",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"blockchain-backend",
-										"api",
-										"share-classes",
-										""
-									]
-								},
-								"description": "Get all share classes"
-							},
-							"response": []
-						},
-						{
-							"name": "Get Share Class by ID",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{access_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/blockchain-backend/api/share-classes/:id/",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"blockchain-backend",
-										"api",
-										"share-classes",
-										":id",
-										""
-									],
-									"variable": [
-										{
-											"key": "id",
-											"value": "1"
-										}
-									]
-								},
-								"description": "Get share class by ID"
-							},
-							"response": []
-						}
-					],
-					"description": "Share class endpoints"
-				},
-				{
-					"name": "Rounds",
-					"item": [
-						{
-							"name": "Get All Rounds",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{access_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/blockchain-backend/api/rounds/",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"blockchain-backend",
-										"api",
-										"rounds",
-										""
-									]
-								},
-								"description": "Get all funding rounds"
-							},
-							"response": []
-						},
-						{
-							"name": "Get Round by ID",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{access_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/blockchain-backend/api/rounds/:id/",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"blockchain-backend",
-										"api",
-										"rounds",
-										":id",
-										""
-									],
-									"variable": [
-										{
-											"key": "id",
-											"value": "1"
-										}
-									]
-								},
-								"description": "Get round by ID"
-							},
-							"response": []
-						}
-					],
-					"description": "Round endpoints"
-				},
-				{
-					"name": "Master Partnership Entities",
-					"item": [
-						{
-							"name": "Get All Master Partnership Entities",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{access_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/blockchain-backend/api/master-partnership-entities/",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"blockchain-backend",
-										"api",
-										"master-partnership-entities",
-										""
-									]
-								},
-								"description": "Get all master partnership entities"
-							},
-							"response": []
-						},
-						{
-							"name": "Get Master Partnership Entity by ID",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{access_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/blockchain-backend/api/master-partnership-entities/:id/",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"blockchain-backend",
-										"api",
-										"master-partnership-entities",
-										":id",
-										""
-									],
-									"variable": [
-										{
-											"key": "id",
-											"value": "1"
-										}
-									]
-								},
-								"description": "Get master partnership entity by ID"
-							},
-							"response": []
-						}
-					],
-					"description": "Master partnership entity endpoints"
-				},
-				{
-					"name": "Portfolio Companies",
-					"item": [
-						{
-							"name": "Get All Portfolio Companies",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{access_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/blockchain-backend/api/portfolio-companies/?search=tech",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"blockchain-backend",
-										"api",
-										"portfolio-companies",
-										""
-									],
-									"query": [
-										{
-											"key": "search",
-											"value": "tech",
-											"description": "Optional search parameter"
-										}
-									]
-								},
-								"description": "Get all portfolio companies (with optional search)"
-							},
-							"response": []
-						},
-						{
-							"name": "Get Portfolio Company by ID",
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{access_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/blockchain-backend/api/portfolio-companies/:id/",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"blockchain-backend",
-										"api",
-										"portfolio-companies",
-										":id",
-										""
-									],
-									"variable": [
-										{
-											"key": "id",
-											"value": "1"
-										}
-									]
-								},
-								"description": "Get portfolio company by ID"
-							},
-							"response": []
-						},
-						{
-							"name": "Create Portfolio Company",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{access_token}}",
-										"type": "text"
-									},
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"name\": \"TechCorp Inc.\",\n    \"description\": \"A leading technology company\"\n}"
-								},
-								"url": {
-									"raw": "{{base_url}}/blockchain-backend/api/portfolio-companies/",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"blockchain-backend",
-										"api",
-										"portfolio-companies",
-										""
-									]
-								},
-								"description": "Create a new portfolio company"
-							},
-							"response": []
-						},
-						{
-							"name": "Update Portfolio Company",
-							"request": {
-								"method": "PUT",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{access_token}}",
-										"type": "text"
-									},
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"name\": \"Updated Company Name\",\n    \"description\": \"Updated description\"\n}"
-								},
-								"url": {
-									"raw": "{{base_url}}/blockchain-backend/api/portfolio-companies/:id/",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"blockchain-backend",
-										"api",
-										"portfolio-companies",
-										":id",
-										""
-									],
-									"variable": [
-										{
-											"key": "id",
-											"value": "1"
-										}
-									]
-								},
-								"description": "Update portfolio company"
-							},
-							"response": []
-						},
-						{
-							"name": "Delete Portfolio Company",
-							"request": {
-								"method": "DELETE",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{access_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/blockchain-backend/api/portfolio-companies/:id/",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"blockchain-backend",
-										"api",
-										"portfolio-companies",
-										":id",
-										""
-									],
-									"variable": [
-										{
-											"key": "id",
-											"value": "1"
-										}
-									]
-								},
-								"description": "Delete portfolio company"
-							},
-							"response": []
-						}
-					],
-					"description": "Portfolio company endpoints"
-				}
-			],
-			"description": "Reference data endpoints for dropdowns and selections"
-		}
-	],
-	"variable": [
-		{
-			"key": "base_url",
-			"value": "http://localhost:8000",
-			"type": "string"
-		},
-		{
-			"key": "access_token",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "refresh_token",
-			"value": "",
-			"type": "string"
-		}
-	]
+  "info": {
+    "_postman_id": "b0378f3f-1d3f-4a0d-836a-3f0a232b8b9a",
+    "name": "Unlocksley SPV API",
+    "description": "End-to-end SPV workflow including step updates and reference data lookups.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "SPV",
+      "item": [
+        {
+          "name": "List SPVs",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }
+            ],
+            "url": "{{base_url}}/api/spv/"
+          }
+        },
+        {
+          "name": "Create SPV",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_name\": \"Unlocksley Alpha Fund\",\n  \"portfolio_company\": 1,\n  \"portfolio_company_name\": \"Acme Robotics\",\n  \"company_stage\": 1,\n  \"country_of_incorporation\": \"United States\",\n  \"incorporation_type\": 1,\n  \"founder_email\": \"founder@acme.com\",\n  \"transaction_type\": \"primary\",\n  \"instrument_type\": 1,\n  \"valuation_type\": \"pre_money\",\n  \"share_class\": 1,\n  \"round\": 1,\n  \"round_size\": \"5000000.00\",\n  \"allocation\": \"750000.00\",\n  \"adviser_entity\": \"platform_advisers\",\n  \"master_partnership_entity\": 1,\n  \"fund_lead\": 1,\n  \"jurisdiction\": \"Delaware\",\n  \"entity_type\": \"LLC\",\n  \"minimum_lp_investment\": \"25000.00\",\n  \"target_closing_date\": \"2025-01-15\",\n  \"total_carry_percentage\": \"20.00\",\n  \"carry_recipient\": \"Unlocksley GP LLC\",\n  \"gp_commitment\": \"50000.00\",\n  \"deal_partners\": \"Acme Ventures, Future Capital\",\n  \"deal_name\": \"Unlocksley Alpha SPV\",\n  \"access_mode\": \"private\",\n  \"lp_invite_emails\": [\"investor1@example.com\", \"investor2@example.com\"],\n  \"lp_invite_message\": \"Excited to invite you to this SPV.\",\n  \"lead_carry_percentage\": \"5.00\",\n  \"investment_visibility\": \"hidden\",\n  \"auto_invite_active_spvs\": false,\n  \"invite_private_note\": \"Priority allocation for existing LPs.\",\n  \"invite_tags\": [\"top_lp\", \"priority\"],\n  \"deal_tags\": [\"fintech\", \"north-america\"],\n  \"syndicate_selection\": \"Unlocksley Syndicate\",\n  \"deal_memo\": \"Deal memo text here...\"\n}"
+            },
+            "url": "{{base_url}}/api/spv/"
+          }
+        },
+        {
+          "name": "Retrieve SPV",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }
+            ],
+            "url": "{{base_url}}/api/spv/{{spv_id}}/"
+          }
+        },
+        {
+          "name": "Update SPV (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_name\": \"Unlocksley Alpha Fund - Updated\"\n}"
+            },
+            "url": "{{base_url}}/api/spv/{{spv_id}}/"
+          }
+        },
+        {
+          "name": "Delete SPV",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }
+            ],
+            "url": "{{base_url}}/api/spv/{{spv_id}}/"
+          }
+        },
+        {
+          "name": "My SPVs",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }
+            ],
+            "url": "{{base_url}}/api/spv/my_spvs/"
+          }
+        },
+        {
+          "name": "Update Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"approved\"\n}"
+            },
+            "url": "{{base_url}}/api/spv/{{spv_id}}/update_status/"
+          }
+        },
+        {
+          "name": "Update Step 2 (Terms)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transaction_type\": \"secondary\",\n  \"instrument_type\": 2,\n  \"valuation_type\": \"post_money\",\n  \"share_class\": 1,\n  \"round\": 2,\n  \"round_size\": \"8000000.00\",\n  \"allocation\": \"1000000.00\"\n}"
+            },
+            "url": "{{base_url}}/api/spv/{{spv_id}}/update_step2/"
+          }
+        },
+        {
+          "name": "Update Step 3 (Adviser & Legal)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adviser_entity\": \"self_advised\",\n  \"master_partnership_entity\": 2,\n  \"fund_lead\": 3\n}"
+            },
+            "url": "{{base_url}}/api/spv/{{spv_id}}/update_step3/"
+          }
+        },
+        {
+          "name": "Update Step 4 (Fundraising)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jurisdiction\": \"Cayman Islands\",\n  \"entity_type\": \"L.P.\",\n  \"minimum_lp_investment\": \"50000.00\",\n  \"target_closing_date\": \"2025-02-01\",\n  \"total_carry_percentage\": \"22.50\",\n  \"carry_recipient\": \"Unlocksley GP Ltd\",\n  \"gp_commitment\": \"60000.00\",\n  \"deal_partners\": \"Global Ventures\",\n  \"deal_name\": \"Unlocksley Beta SPV\",\n  \"access_mode\": \"visible\"\n}"
+            },
+            "url": "{{base_url}}/api/spv/{{spv_id}}/update_step4/"
+          }
+        },
+        {
+          "name": "Update Step 5 (Invite LPs)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lp_invite_emails\": [\"investorA@example.com\"],\n  \"lp_invite_message\": \"Welcome to the round\",\n  \"lead_carry_percentage\": \"7.50\",\n  \"investment_visibility\": \"visible\",\n  \"auto_invite_active_spvs\": true,\n  \"invite_private_note\": \"Top priority\",\n  \"invite_tags\": [\"top_lp\"],\n  \"deal_tags\": [\"ai\", \"robotics\"],\n  \"syndicate_selection\": \"Unlocksley Syndicate\",\n  \"deal_memo\": \"Latest draft memo\"\n}"
+            },
+            "url": "{{base_url}}/api/spv/{{spv_id}}/update_step5/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Lookups",
+      "item": [
+        {
+          "name": "SPV Options",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }
+            ],
+            "url": "{{base_url}}/api/spv/options/"
+          }
+        },
+        {
+          "name": "Company Stages",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }
+            ],
+            "url": "{{base_url}}/api/company-stages/"
+          }
+        },
+        {
+          "name": "Incorporation Types",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }
+            ],
+            "url": "{{base_url}}/api/incorporation-types/"
+          }
+        },
+        {
+          "name": "Instrument Types",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }
+            ],
+            "url": "{{base_url}}/api/instrument-types/"
+          }
+        },
+        {
+          "name": "Share Classes",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }
+            ],
+            "url": "{{base_url}}/api/share-classes/"
+          }
+        },
+        {
+          "name": "Rounds",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }
+            ],
+            "url": "{{base_url}}/api/rounds/"
+          }
+        },
+        {
+          "name": "Master Partnership Entities",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }
+            ],
+            "url": "{{base_url}}/api/master-partnership-entities/"
+          }
+        },
+        {
+          "name": "Portfolio Companies",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }
+            ],
+            "url": "{{base_url}}/api/portfolio-companies/"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000" },
+    { "key": "token", "value": "<JWT_TO_COPY>" },
+    { "key": "spv_id", "value": "1" }
+  ]
 }
 
