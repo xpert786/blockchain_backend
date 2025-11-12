@@ -403,6 +403,12 @@ class SPVListSerializer(serializers.ModelSerializer):
             'created_at',
         ]
         read_only_fields = ['id', 'created_at']
+    
+    def get_created_by_name(self, obj):
+        """Get creator's full name or username"""
+        if obj.created_by:
+            return obj.created_by.get_full_name() or obj.created_by.username or obj.created_by.email
+        return None
 
 
 class SPVStep1Serializer(serializers.ModelSerializer):
