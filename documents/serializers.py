@@ -311,6 +311,12 @@ class DocumentGenerationRequestSerializer(serializers.Serializer):
         allow_null=True,
         help_text="Associated Syndicate ID (optional)"
     )
+    signatories = serializers.ListField(
+        child=serializers.DictField(),
+        required=False,
+        allow_empty=True,
+        help_text="List of signatories. Format: [{'user_id': 1, 'role': 'Investor'}, ...]"
+    )
     
     def validate_template_id(self, value):
         """Validate template exists and is active"""

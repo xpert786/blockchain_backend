@@ -85,6 +85,41 @@
 					"response": []
 				},
 				{
+					"name": "Get Template Required Fields",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/blockchain-backend/api/document-templates/:id/required_fields/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"blockchain-backend",
+								"api",
+								"document-templates",
+								":id",
+								"required_fields",
+								""
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Get required fields for a template. Use this to see what fields are needed when generating a document from this template."
+					},
+					"response": []
+				},
+				{
 					"name": "Create Template",
 					"request": {
 						"method": "POST",
@@ -295,7 +330,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"template_id\": 1,\n    \"field_data\": {\n        \"investor_name\": \"Alice Investor\",\n        \"spv_name\": \"SPV-001\",\n        \"investment_amount\": 100000,\n        \"shares\": 1000,\n        \"percentage\": 5.0\n    },\n    \"enable_digital_signature\": true,\n    \"title\": \"Investment Agreement - Alice Investor\",\n    \"description\": \"Investment agreement for SPV-001\",\n    \"spv_id\": 1\n}"
+							"raw": "{\n    \"template_id\": 1,\n    \"field_data\": {\n        \"investor_name\": \"Alice Investor\",\n        \"spv_name\": \"SPV-001\",\n        \"investment_amount\": 100000,\n        \"shares\": 1000,\n        \"percentage\": 5.0\n    },\n    \"enable_digital_signature\": true,\n    \"title\": \"Investment Agreement - Alice Investor\",\n    \"description\": \"Investment agreement for SPV-001\",\n    \"spv_id\": 1,\n    \"signatories\": [\n        {\n            \"user_id\": 2,\n            \"role\": \"Investor\"\n        },\n        {\n            \"user_id\": 3,\n            \"role\": \"Manager\"\n        }\n    ]\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/blockchain-backend/api/documents/generate-from-template/",
@@ -310,7 +345,7 @@
 								""
 							]
 						},
-						"description": "Generate a document from a template. Field data must include all required fields defined in the template."
+						"description": "Generate a document from a template. Field data must include all required fields defined in the template. Optionally include signatories array to automatically add signatories to the document."
 					},
 					"response": []
 				},

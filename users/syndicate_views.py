@@ -70,12 +70,14 @@ def create_syndicate_profile(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['POST'])
+@api_view(['GET', 'POST', 'PATCH'])
 @permission_classes([permissions.IsAuthenticated])
 def syndicate_step1(request):
     """
     Step 1: Lead Info - Personal and accreditation details
-    POST /api/syndicate/step1/
+    GET /api/syndicate/step1/ - Get step 1 data
+    POST /api/syndicate/step1/ - Create or update step 1
+    PATCH /api/syndicate/step1/ - Update step 1 (for editing when going back)
     """
     user = request.user
     
@@ -88,6 +90,19 @@ def syndicate_step1(request):
     # Get or create syndicate profile
     profile, created = SyndicateProfile.objects.get_or_create(user=user)
     
+    # Handle GET request
+    if request.method == 'GET':
+        step1_serializer = SyndicateStep1Serializer(profile)
+        profile_serializer = SyndicateProfileSerializer(profile)
+        return Response({
+            'success': True,
+            'step_data': step1_serializer.data,
+            'profile': profile_serializer.data,
+            'step_completed': profile.step1_completed,
+            'next_step': 'step2' if profile.step1_completed else 'step1'
+        }, status=status.HTTP_200_OK)
+    
+    # Handle POST/PATCH request
     serializer = SyndicateStep1Serializer(profile, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()
@@ -104,12 +119,14 @@ def syndicate_step1(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['POST'])
+@api_view(['GET', 'POST', 'PATCH'])
 @permission_classes([permissions.IsAuthenticated])
 def syndicate_step2(request):
     """
     Step 2: Entity Profile - Company information and structure
-    POST /api/syndicate/step2/
+    GET /api/syndicate/step2/ - Get step 2 data
+    POST /api/syndicate/step2/ - Create or update step 2
+    PATCH /api/syndicate/step2/ - Update step 2 (for editing when going back)
     """
     user = request.user
     
@@ -126,12 +143,25 @@ def syndicate_step2(request):
             'error': 'Syndicate profile not found. Please complete Step 1 first.'
         }, status=status.HTTP_404_NOT_FOUND)
     
-    # Check if Step 1 is completed
-    if not profile.step1_completed:
+    # Check if Step 1 is completed (only for POST/PATCH, allow GET even if step1 not completed)
+    if request.method != 'GET' and not profile.step1_completed:
         return Response({
             'error': 'Step 1 must be completed before proceeding to Step 2'
         }, status=status.HTTP_400_BAD_REQUEST)
     
+    # Handle GET request
+    if request.method == 'GET':
+        step2_serializer = SyndicateStep2Serializer(profile)
+        profile_serializer = SyndicateProfileSerializer(profile)
+        return Response({
+            'success': True,
+            'step_data': step2_serializer.data,
+            'profile': profile_serializer.data,
+            'step_completed': profile.step2_completed,
+            'next_step': 'step3' if profile.step2_completed else 'step2'
+        }, status=status.HTTP_200_OK)
+    
+    # Handle POST/PATCH request
     serializer = SyndicateStep2Serializer(profile, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()
@@ -148,27 +178,18 @@ def syndicate_step2(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['POST'])
+@api_view(['GET', 'POST', 'PATCH'])
 @permission_classes([permissions.IsAuthenticated])
 def syndicate_step3(request):
     """
     Step 3: Compliance & Attestation - Regulatory requirements
-    POST /api/syndicate/step3/
+    GET /api/syndicate/step3/ - Get step 3 data
+    POST /api/syndicate/step3/ - Create or update step 3
+    PATCH /api/syndicate/step3/ - Update step 3 (for editing when going back)
     
     Supports both JSON and multipart/form-data for file uploads.
     When uploading files (additional_compliance_policies), use multipart/form-data.
     """
-    # Handle parser selection based on Content-Type
-    content_type = request.content_type or request.META.get('CONTENT_TYPE', '')
-    
-    # If Content-Type is JSON but request has files, provide helpful error
-    if 'application/json' in content_type and hasattr(request, 'FILES') and request.FILES:
-        return Response({
-            'detail': 'File uploads require Content-Type: multipart/form-data, not application/json. '
-                     'Please remove the Content-Type: application/json header when uploading files, '
-                     'or use multipart/form-data instead.'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
     user = request.user
     
     # Check if user has syndicate role
@@ -184,10 +205,33 @@ def syndicate_step3(request):
             'error': 'Syndicate profile not found. Please complete previous steps first.'
         }, status=status.HTTP_404_NOT_FOUND)
     
-    # Check if Step 2 is completed
-    if not profile.step2_completed:
+    # Check if Step 2 is completed (only for POST/PATCH, allow GET even if step2 not completed)
+    if request.method != 'GET' and not profile.step2_completed:
         return Response({
             'error': 'Step 2 must be completed before proceeding to Step 3'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Handle GET request
+    if request.method == 'GET':
+        step3_serializer = SyndicateStep3Serializer(profile, context={'request': request})
+        profile_serializer = SyndicateProfileSerializer(profile)
+        return Response({
+            'success': True,
+            'step_data': step3_serializer.data,
+            'profile': profile_serializer.data,
+            'step_completed': profile.step3_completed,
+            'next_step': 'step4' if profile.step3_completed else 'step3'
+        }, status=status.HTTP_200_OK)
+    
+    # Handle parser selection based on Content-Type for POST/PATCH
+    content_type = request.content_type or request.META.get('CONTENT_TYPE', '')
+    
+    # If Content-Type is JSON but request has files, provide helpful error
+    if 'application/json' in content_type and hasattr(request, 'FILES') and request.FILES:
+        return Response({
+            'detail': 'File uploads require Content-Type: multipart/form-data, not application/json. '
+                     'Please remove the Content-Type: application/json header when uploading files, '
+                     'or use multipart/form-data instead.'
         }, status=status.HTTP_400_BAD_REQUEST)
     
     # Handle file upload if present (do this first to avoid pickling issues)
@@ -250,12 +294,14 @@ def syndicate_step3(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['POST'])
+@api_view(['GET', 'POST', 'PATCH'])
 @permission_classes([permissions.IsAuthenticated])
 def syndicate_step4(request):
     """
     Step 4: Final Review & Submit - Submit application for review
-    POST /api/syndicate/step4/
+    GET /api/syndicate/step4/ - Get step 4 data
+    POST /api/syndicate/step4/ - Create or update step 4
+    PATCH /api/syndicate/step4/ - Update step 4 (for editing when going back)
     """
     user = request.user
     
@@ -272,12 +318,26 @@ def syndicate_step4(request):
             'error': 'Syndicate profile not found. Please complete previous steps first.'
         }, status=status.HTTP_404_NOT_FOUND)
     
-    # Check if Step 3 is completed
-    if not profile.step3_completed:
+    # Check if Step 3 is completed (only for POST/PATCH, allow GET even if step3 not completed)
+    if request.method != 'GET' and not profile.step3_completed:
         return Response({
             'error': 'Step 3 must be completed before proceeding to Step 4'
         }, status=status.HTTP_400_BAD_REQUEST)
     
+    # Handle GET request
+    if request.method == 'GET':
+        step4_serializer = SyndicateStep4Serializer(profile)
+        profile_serializer = SyndicateProfileSerializer(profile)
+        return Response({
+            'success': True,
+            'step_data': step4_serializer.data,
+            'profile': profile_serializer.data,
+            'step_completed': profile.step4_completed,
+            'application_status': profile.application_status,
+            'submitted_at': profile.submitted_at
+        }, status=status.HTTP_200_OK)
+    
+    # Handle POST/PATCH request
     serializer = SyndicateStep4Serializer(profile, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()

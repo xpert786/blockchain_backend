@@ -3,6 +3,7 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django.db.models import Q, Count, Case, When, IntegerField
 from django.http import FileResponse
+from users.models import CustomUser
 from .models import Document, DocumentSignatory, DocumentTemplate, DocumentGeneration
 from .serializers import (
     DocumentSerializer,
@@ -317,6 +318,20 @@ class DocumentTemplateViewSet(viewsets.ModelViewSet):
         """Set creator when creating template"""
         serializer.save(created_by=self.request.user)
     
+    @action(detail=True, methods=['get'])
+    def required_fields(self, request, pk=None):
+        """
+        Get required fields for a template
+        GET /api/document-templates/{id}/required_fields/
+        """
+        template = self.get_object()
+        return Response({
+            'template_id': template.id,
+            'template_name': template.name,
+            'required_fields': template.required_fields or [],
+            'enable_digital_signature': template.enable_digital_signature,
+        }, status=status.HTTP_200_OK)
+    
     @action(detail=True, methods=['post'])
     def duplicate(self, request, pk=None):
         """
@@ -410,10 +425,33 @@ def generate_document_from_template(request):
         enable_digital_signature=enable_digital_signature,
     )
     
+    # Handle signatories if provided
+    signatories_data = serializer.validated_data.get('signatories', [])
+    if signatories_data:
+        for signatory_data in signatories_data:
+            user_id = signatory_data.get('user_id')
+            role = signatory_data.get('role', '')
+            
+            try:
+                signatory_user = CustomUser.objects.get(id=user_id)
+                DocumentSignatory.objects.get_or_create(
+                    document=document,
+                    user=signatory_user,
+                    defaults={
+                        'role': role,
+                        'invited_by': request.user,
+                    }
+                )
+            except CustomUser.DoesNotExist:
+                pass  # Skip invalid user IDs
+    
     # If digital signature is enabled, set status to pending_signatures
     if enable_digital_signature:
         document.status = 'pending_signatures'
         document.save()
+    
+    # Refresh document to get updated signatories
+    document.refresh_from_db()
     
     return Response({
         'message': 'Document generated successfully',

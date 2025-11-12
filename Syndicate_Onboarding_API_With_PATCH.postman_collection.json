@@ -1,0 +1,920 @@
+{
+	"info": {
+		"_postman_id": "syndicate-onboarding-patch-collection",
+		"name": "Syndicate Onboarding API - With PATCH Support",
+		"description": "Complete API collection for Syndicate Onboarding flow with all 4 steps. Now includes PATCH methods for editing when going back in the step form.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "🔐 Registration Flow (Prerequisites)",
+			"item": [
+				{
+					"name": "1. User Registration (Syndicate Role)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"syndicate.lead@example.com\",\n    \"password\": \"SecurePassword123!\",\n    \"confirm_password\": \"SecurePassword123!\",\n    \"full_name\": \"John Syndicate Lead\",\n    \"phone_number\": \"+1234567890\",\n    \"role\": \"syndicate\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/registration-flow/register/",
+							"host": ["{{base_url}}"],
+							"path": ["registration-flow", "register", ""]
+						},
+						"description": "Step 1: Register user with syndicate role. This is required before starting syndicate onboarding."
+					},
+					"response": []
+				},
+				{
+					"name": "2. Complete Registration Flow",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"method\": \"email\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/registration-flow/choose_verification_method/",
+							"host": ["{{base_url}}"],
+							"path": ["registration-flow", "choose_verification_method", ""]
+						},
+						"description": "Step 2: Choose verification method (email or SMS)"
+					},
+					"response": []
+				},
+				{
+					"name": "3. Verify OTP Code",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"123456\",\n    \"method\": \"email\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/registration-flow/verify_code/",
+							"host": ["{{base_url}}"],
+							"path": ["registration-flow", "verify_code", ""]
+						},
+						"description": "Step 3: Verify the OTP code received via email or SMS"
+					},
+					"response": []
+				},
+				{
+					"name": "4. Accept Terms of Service",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"terms\": [\n        {\n            \"terms_type\": \"general_terms\",\n            \"accepted\": true\n        },\n        {\n            \"terms_type\": \"investing_banking_terms\",\n            \"accepted\": true\n        },\n        {\n            \"terms_type\": \"e_sign_consent\",\n            \"accepted\": true\n        },\n        {\n            \"terms_type\": \"infrafi_deposit\",\n            \"accepted\": true\n        },\n        {\n            \"terms_type\": \"cookie_consent\",\n            \"accepted\": true\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/registration-flow/accept_terms/",
+							"host": ["{{base_url}}"],
+							"path": ["registration-flow", "accept_terms", ""]
+						},
+						"description": "Step 4: Accept all terms of service"
+					},
+					"response": []
+				},
+				{
+					"name": "5. Complete Registration",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/registration-flow/complete_registration/",
+							"host": ["{{base_url}}"],
+							"path": ["registration-flow", "complete_registration", ""]
+						},
+						"description": "Step 5: Complete the registration process"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🏢 Syndicate Onboarding Flow",
+			"item": [
+				{
+					"name": "Get Available Sectors & Geographies",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/syndicate/sectors-geographies/",
+							"host": ["{{base_url}}"],
+							"path": ["syndicate", "sectors-geographies", ""]
+						},
+						"description": "Get available sectors and geographies for syndicate onboarding"
+					},
+					"response": []
+				},
+				{
+					"name": "Step 1: Lead Info - Personal & Accreditation",
+					"item": [
+						{
+							"name": "GET - Get Step 1 Data",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/syndicate/step1/",
+									"host": ["{{base_url}}"],
+									"path": ["syndicate", "step1", ""]
+								},
+								"description": "GET: Retrieve current Step 1 data. Returns step_data, profile, and completion status."
+							},
+							"response": []
+						},
+						{
+							"name": "POST - Create/Update Step 1",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"is_accredited\": \"yes\",\n    \"understands_regulatory_requirements\": true,\n    \"sector_ids\": [1, 2, 3],\n    \"geography_ids\": [1, 2],\n    \"existing_lp_count\": \"11-25\",\n    \"enable_platform_lp_access\": true\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/syndicate/step1/",
+									"host": ["{{base_url}}"],
+									"path": ["syndicate", "step1", ""]
+								},
+								"description": "Step 1: Complete lead information including accreditation status, sector focus, geography focus, and LP network details"
+							},
+							"response": []
+						},
+						{
+							"name": "PATCH - Edit Step 1 (Go Back)",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"is_accredited\": \"yes\",\n    \"understands_regulatory_requirements\": true,\n    \"sector_ids\": [1, 2],\n    \"geography_ids\": [1],\n    \"existing_lp_count\": \"26-50\",\n    \"enable_platform_lp_access\": false\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/syndicate/step1/",
+									"host": ["{{base_url}}"],
+									"path": ["syndicate", "step1", ""]
+								},
+								"description": "PATCH: Edit Step 1 when going back in the form. You can send only the fields you want to update."
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Step 2: Entity Profile - Company Information",
+					"item": [
+						{
+							"name": "GET - Get Step 2 Data",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/syndicate/step2/",
+									"host": ["{{base_url}}"],
+									"path": ["syndicate", "step2", ""]
+								},
+								"description": "GET: Retrieve current Step 2 data. Returns step_data, profile, and completion status."
+							},
+							"response": []
+						},
+						{
+							"name": "POST - Create/Update Step 2",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"firm_name\": \"TechVentures Syndicate\",\n    \"description\": \"We are a technology-focused syndicate specializing in early-stage fintech and AI/ML startups. Our team has over 20 years of combined experience in venture capital and technology.\",\n    \"logo\": null\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/syndicate/step2/",
+									"host": ["{{base_url}}"],
+									"path": ["syndicate", "step2", ""]
+								},
+								"description": "Step 2: Complete entity profile with firm name, description, and logo upload"
+							},
+							"response": []
+						},
+						{
+							"name": "PATCH - Edit Step 2 (Go Back)",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"firm_name\": \"TechVentures Syndicate Updated\",\n    \"description\": \"Updated description of our syndicate.\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/syndicate/step2/",
+									"host": ["{{base_url}}"],
+									"path": ["syndicate", "step2", ""]
+								},
+								"description": "PATCH: Edit Step 2 when going back in the form. You can send only the fields you want to update."
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Step 3: KYC/KYB Verification",
+					"item": [
+						{
+							"name": "POST - Create KYC Record",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "address_1",
+											"value": "123 Business Street",
+											"type": "text"
+										},
+										{
+											"key": "address_2",
+											"value": "Suite 100",
+											"type": "text"
+										},
+										{
+											"key": "city",
+											"value": "New York",
+											"type": "text"
+										},
+										{
+											"key": "zip_code",
+											"value": "10001",
+											"type": "text"
+										},
+										{
+											"key": "country",
+											"value": "United States",
+											"type": "text"
+										},
+										{
+											"key": "sie_eligibilty",
+											"value": "Mention",
+											"type": "text"
+										},
+										{
+											"key": "notary",
+											"value": "NO",
+											"type": "text"
+										},
+										{
+											"key": "Unlocksley_To_Sign_a_Deed_Of_adherence",
+											"value": "false",
+											"type": "text"
+										},
+										{
+											"key": "Investee_Company_Contact_Number",
+											"value": "+1234567890",
+											"type": "text"
+										},
+										{
+											"key": "Investee_Company_Email",
+											"value": "contact@company.com",
+											"type": "text"
+										},
+										{
+											"key": "I_Agree_To_Investee_Terms",
+											"value": "true",
+											"type": "text"
+										},
+										{
+											"key": "certificate_of_incorporation",
+											"type": "file",
+											"src": []
+										},
+										{
+											"key": "company_bank_statement",
+											"type": "file",
+											"src": []
+										},
+										{
+											"key": "company_proof_of_address",
+											"type": "file",
+											"src": []
+										},
+										{
+											"key": "owner_identity_doc",
+											"type": "file",
+											"src": []
+										},
+										{
+											"key": "owner_proof_of_address",
+											"type": "file",
+											"src": []
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/api/kyc/",
+									"host": ["{{base_url}}"],
+									"path": ["api", "kyc", ""]
+								},
+								"description": "Step 3: Submit KYB (Know Your Business) verification documents. Use multipart/form-data for file uploads."
+							},
+							"response": []
+						},
+						{
+							"name": "PATCH - Update KYC Record (Go Back)",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "address_1",
+											"value": "456 Updated Street",
+											"type": "text"
+										},
+										{
+											"key": "city",
+											"value": "San Francisco",
+											"type": "text"
+										},
+										{
+											"key": "zip_code",
+											"value": "94102",
+											"type": "text"
+										},
+										{
+											"key": "certificate_of_incorporation",
+											"type": "file",
+											"src": []
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/api/kyc/{{kyc_id}}/",
+									"host": ["{{base_url}}"],
+									"path": ["api", "kyc", "{{kyc_id}}", ""],
+									"variable": [
+										{
+											"key": "kyc_id",
+											"value": "1",
+											"description": "KYC record ID"
+										}
+									]
+								},
+								"description": "PATCH: Update KYC record when going back. You can send only the fields you want to update. Use multipart/form-data for file uploads."
+							},
+							"response": []
+						},
+						{
+							"name": "Get My KYC Status",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/kyc/my_kyc/",
+									"host": ["{{base_url}}"],
+									"path": ["api", "kyc", "my_kyc", ""]
+								},
+								"description": "Get current user's KYC records and verification status"
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Step 4: Compliance & Attestation",
+					"item": [
+						{
+							"name": "GET - Get Step 3 Data",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/syndicate/step3/",
+									"host": ["{{base_url}}"],
+									"path": ["syndicate", "step3", ""]
+								},
+								"description": "GET: Retrieve current Step 3 data. Returns step_data, profile, and completion status."
+							},
+							"response": []
+						},
+						{
+							"name": "POST - Create/Update Step 3 (Compliance)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"risk_regulatory_attestation\": true,\n    \"jurisdictional_compliance_acknowledged\": true,\n    \"additional_compliance_policies\": null\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/syndicate/step3/",
+									"host": ["{{base_url}}"],
+									"path": ["syndicate", "step3", ""]
+								},
+								"description": "Step 4: Complete compliance and attestation requirements. For file uploads, use multipart/form-data."
+							},
+							"response": []
+						},
+						{
+							"name": "POST - Step 3 with File Upload",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "risk_regulatory_attestation",
+											"value": "true",
+											"type": "text"
+										},
+										{
+											"key": "jurisdictional_compliance_acknowledged",
+											"value": "true",
+											"type": "text"
+										},
+										{
+											"key": "additional_compliance_policies",
+											"type": "file",
+											"src": []
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/syndicate/step3/",
+									"host": ["{{base_url}}"],
+									"path": ["syndicate", "step3", ""]
+								},
+								"description": "Step 3 with file upload. Use multipart/form-data when uploading additional_compliance_policies file."
+							},
+							"response": []
+						},
+						{
+							"name": "PATCH - Edit Step 3 (Go Back)",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"risk_regulatory_attestation\": true,\n    \"jurisdictional_compliance_acknowledged\": true\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/syndicate/step3/",
+									"host": ["{{base_url}}"],
+									"path": ["syndicate", "step3", ""]
+								},
+								"description": "PATCH: Edit Step 3 when going back. You can send only the fields you want to update. For file uploads, use multipart/form-data."
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Step 5: Final Review & Submit",
+					"item": [
+						{
+							"name": "GET - Get Step 4 Data",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/syndicate/step4/",
+									"host": ["{{base_url}}"],
+									"path": ["syndicate", "step4", ""]
+								},
+								"description": "GET: Retrieve current Step 4 data. Returns step_data, profile, application_status, and submission details."
+							},
+							"response": []
+						},
+						{
+							"name": "POST - Submit Step 4",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"application_submitted\": true\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/syndicate/step4/",
+									"host": ["{{base_url}}"],
+									"path": ["syndicate", "step4", ""]
+								},
+								"description": "Step 5: Submit syndicate application for review"
+							},
+							"response": []
+						},
+						{
+							"name": "PATCH - Edit Step 4 (Go Back)",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"application_submitted\": false\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/syndicate/step4/",
+									"host": ["{{base_url}}"],
+									"path": ["syndicate", "step4", ""]
+								},
+								"description": "PATCH: Edit Step 4 when going back. You can send only the fields you want to update."
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "📊 Syndicate Profile Management",
+			"item": [
+				{
+					"name": "Get Syndicate Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/syndicate/profile/",
+							"host": ["{{base_url}}"],
+							"path": ["syndicate", "profile", ""]
+						},
+						"description": "Get current user's syndicate profile with all steps and completion status"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Syndicate Profile",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"is_accredited\": \"yes\",\n    \"understands_regulatory_requirements\": true,\n    \"sector_ids\": [1, 2],\n    \"geography_ids\": [1],\n    \"existing_lp_count\": \"1-10\",\n    \"enable_platform_lp_access\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/syndicate/profile/create/",
+							"host": ["{{base_url}}"],
+							"path": ["syndicate", "profile", "create", ""]
+						},
+						"description": "Create a new syndicate profile (alternative to step-by-step approach)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Syndicate Progress",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/syndicate/progress/",
+							"host": ["{{base_url}}"],
+							"path": ["syndicate", "progress", ""]
+						},
+						"description": "Get syndicate onboarding progress and current step"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Syndicate Profile (Admin)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"profile_id\": 1,\n    \"application_status\": \"approved\",\n    \"risk_regulatory_attestation\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/syndicate/profile/update/",
+							"host": ["{{base_url}}"],
+							"path": ["syndicate", "profile", "update", ""]
+						},
+						"description": "Update syndicate profile (admin only) - change status, approve/reject applications"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🔍 Testing & Debug",
+			"item": [
+				{
+					"name": "Test Server Status",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/debug/server_status/",
+							"host": ["{{base_url}}"],
+							"path": ["debug", "server_status", ""]
+						},
+						"description": "Check server status"
+					},
+					"response": []
+				},
+				{
+					"name": "Test Database Status",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/debug/database_status/",
+							"host": ["{{base_url}}"],
+							"path": ["debug", "database_status", ""]
+						},
+						"description": "Check database status"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Users",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/users/",
+							"host": ["{{base_url}}"],
+							"path": ["users", ""]
+						},
+						"description": "Get list of all users (for testing)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Sectors",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/sectors/",
+							"host": ["{{base_url}}"],
+							"path": ["sectors", ""]
+						},
+						"description": "Get list of all sectors"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Geographies",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/geographies/",
+							"host": ["{{base_url}}"],
+							"path": ["geographies", ""]
+						},
+						"description": "Get list of all geographies"
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000/blockchain-backend",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "admin_access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "kyc_id",
+			"value": "1",
+			"type": "string"
+		}
+	]
+}
+
