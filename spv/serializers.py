@@ -405,6 +405,23 @@ class SPVListSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 
+class SPVStep1Serializer(serializers.ModelSerializer):
+    """Serializer for updating SPV Step 1 (Basic Information) fields only"""
+    
+    class Meta:
+        model = SPV
+        fields = [
+            'display_name',
+            'portfolio_company',
+            'portfolio_company_name',
+            'company_stage',
+            'country_of_incorporation',
+            'incorporation_type',
+            'founder_email',
+            'pitch_deck',
+        ]
+
+
 class SPVStep2Serializer(serializers.ModelSerializer):
     """Serializer for updating SPV Step 2 (Terms) fields only"""
     

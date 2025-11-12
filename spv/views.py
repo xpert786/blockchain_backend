@@ -18,6 +18,7 @@ from .serializers import (
     SPVSerializer,
     SPVCreateSerializer,
     SPVListSerializer,
+    SPVStep1Serializer,
     SPVStep2Serializer,
     SPVStep3Serializer,
     SPVStep4Serializer,
@@ -120,10 +121,50 @@ class SPVViewSet(viewsets.ModelViewSet):
             'data': SPVSerializer(spv).data
         }, status=status.HTTP_200_OK)
     
-    @action(detail=True, methods=['post', 'patch'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=True, methods=['get', 'post', 'patch'], permission_classes=[permissions.IsAuthenticated])
+    def update_step1(self, request, pk=None):
+        """
+        Get, Create or Update SPV Step 1 (Basic Information) fields
+        GET /api/spv/{id}/update_step1/ - Get step 1 data
+        POST /api/spv/{id}/update_step1/ - Create or update step 1
+        PATCH /api/spv/{id}/update_step1/ - Update step 1 (for editing when going back)
+        """
+        spv = self.get_object()
+        
+        # Check permissions
+        if not (request.user.is_staff or request.user.role == 'admin' or spv.created_by == request.user):
+            return Response({
+                'error': 'You do not have permission to access this SPV'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Handle GET request
+        if request.method == 'GET':
+            step1_serializer = SPVStep1Serializer(spv)
+            spv_serializer = SPVSerializer(spv)
+            return Response({
+                'success': True,
+                'step_data': step1_serializer.data,
+                'spv': spv_serializer.data,
+                'step': 1,
+                'step_name': 'Basic Information'
+            }, status=status.HTTP_200_OK)
+        
+        # Handle POST/PATCH request
+        serializer = SPVStep1Serializer(spv, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'message': 'SPV Step 1 (Basic Information) updated successfully',
+                'data': SPVSerializer(spv).data
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['get', 'post', 'patch'], permission_classes=[permissions.IsAuthenticated])
     def update_step2(self, request, pk=None):
         """
-        Create or Update SPV Step 2 (Terms) fields
+        Get, Create or Update SPV Step 2 (Terms) fields
+        GET /api/spv/{id}/update_step2/ - Get step 2 data
         POST /api/spv/{id}/update_step2/ - Create or update step 2
         PATCH /api/spv/{id}/update_step2/ - Update step 2 (for editing when going back)
         """
@@ -132,9 +173,22 @@ class SPVViewSet(viewsets.ModelViewSet):
         # Check permissions
         if not (request.user.is_staff or request.user.role == 'admin' or spv.created_by == request.user):
             return Response({
-                'error': 'You do not have permission to update this SPV'
+                'error': 'You do not have permission to access this SPV'
             }, status=status.HTTP_403_FORBIDDEN)
         
+        # Handle GET request
+        if request.method == 'GET':
+            step2_serializer = SPVStep2Serializer(spv)
+            spv_serializer = SPVSerializer(spv)
+            return Response({
+                'success': True,
+                'step_data': step2_serializer.data,
+                'spv': spv_serializer.data,
+                'step': 2,
+                'step_name': 'Terms'
+            }, status=status.HTTP_200_OK)
+        
+        # Handle POST/PATCH request
         serializer = SPVStep2Serializer(spv, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -145,10 +199,11 @@ class SPVViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=True, methods=['post', 'patch'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=True, methods=['get', 'post', 'patch'], permission_classes=[permissions.IsAuthenticated])
     def update_step3(self, request, pk=None):
         """
-        Create or Update SPV Step 3 (Adviser & Legal Structure) fields
+        Get, Create or Update SPV Step 3 (Adviser & Legal Structure) fields
+        GET /api/spv/{id}/update_step3/ - Get step 3 data
         POST /api/spv/{id}/update_step3/ - Create or update step 3
         PATCH /api/spv/{id}/update_step3/ - Update step 3 (for editing when going back)
         """
@@ -157,9 +212,22 @@ class SPVViewSet(viewsets.ModelViewSet):
         # Check permissions
         if not (request.user.is_staff or request.user.role == 'admin' or spv.created_by == request.user):
             return Response({
-                'error': 'You do not have permission to update this SPV'
+                'error': 'You do not have permission to access this SPV'
             }, status=status.HTTP_403_FORBIDDEN)
         
+        # Handle GET request
+        if request.method == 'GET':
+            step3_serializer = SPVStep3Serializer(spv)
+            spv_serializer = SPVSerializer(spv)
+            return Response({
+                'success': True,
+                'step_data': step3_serializer.data,
+                'spv': spv_serializer.data,
+                'step': 3,
+                'step_name': 'Adviser & Legal Structure'
+            }, status=status.HTTP_200_OK)
+        
+        # Handle POST/PATCH request
         serializer = SPVStep3Serializer(spv, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -170,10 +238,11 @@ class SPVViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=True, methods=['post', 'patch'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=True, methods=['get', 'post', 'patch'], permission_classes=[permissions.IsAuthenticated])
     def update_step4(self, request, pk=None):
         """
-        Create or Update SPV Step 4 (Fundraising & Jurisdiction) fields
+        Get, Create or Update SPV Step 4 (Fundraising & Jurisdiction) fields
+        GET /api/spv/{id}/update_step4/ - Get step 4 data
         POST /api/spv/{id}/update_step4/ - Create or update step 4
         PATCH /api/spv/{id}/update_step4/ - Update step 4 (for editing when going back)
         """
@@ -182,9 +251,22 @@ class SPVViewSet(viewsets.ModelViewSet):
         # Check permissions
         if not (request.user.is_staff or request.user.role == 'admin' or spv.created_by == request.user):
             return Response({
-                'error': 'You do not have permission to update this SPV'
+                'error': 'You do not have permission to access this SPV'
             }, status=status.HTTP_403_FORBIDDEN)
         
+        # Handle GET request
+        if request.method == 'GET':
+            step4_serializer = SPVStep4Serializer(spv)
+            spv_serializer = SPVSerializer(spv)
+            return Response({
+                'success': True,
+                'step_data': step4_serializer.data,
+                'spv': spv_serializer.data,
+                'step': 4,
+                'step_name': 'Fundraising & Jurisdiction'
+            }, status=status.HTTP_200_OK)
+        
+        # Handle POST/PATCH request
         serializer = SPVStep4Serializer(spv, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -195,10 +277,11 @@ class SPVViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=True, methods=['post', 'patch'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=True, methods=['get', 'post', 'patch'], permission_classes=[permissions.IsAuthenticated])
     def update_step5(self, request, pk=None):
         """
-        Create or Update SPV Step 5 (Invite LPs & Additional Information) fields
+        Get, Create or Update SPV Step 5 (Invite LPs & Additional Information) fields
+        GET /api/spv/{id}/update_step5/ - Get step 5 data
         POST /api/spv/{id}/update_step5/ - Create or update step 5
         PATCH /api/spv/{id}/update_step5/ - Update step 5 (for editing when going back)
         """
@@ -207,9 +290,22 @@ class SPVViewSet(viewsets.ModelViewSet):
         # Check permissions
         if not (request.user.is_staff or request.user.role == 'admin' or spv.created_by == request.user):
             return Response({
-                'error': 'You do not have permission to update this SPV'
+                'error': 'You do not have permission to access this SPV'
             }, status=status.HTTP_403_FORBIDDEN)
         
+        # Handle GET request
+        if request.method == 'GET':
+            step5_serializer = SPVStep5Serializer(spv)
+            spv_serializer = SPVSerializer(spv)
+            return Response({
+                'success': True,
+                'step_data': step5_serializer.data,
+                'spv': spv_serializer.data,
+                'step': 5,
+                'step_name': 'Invite LPs & Additional Information'
+            }, status=status.HTTP_200_OK)
+        
+        # Handle POST/PATCH request
         serializer = SPVStep5Serializer(spv, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()

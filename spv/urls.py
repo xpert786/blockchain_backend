@@ -28,10 +28,11 @@ spv_detail = SPVViewSet.as_view({
 })
 spv_my_spvs = SPVViewSet.as_view({'get': 'my_spvs'})
 spv_update_status = SPVViewSet.as_view({'patch': 'update_status'})
-spv_update_step2 = SPVViewSet.as_view({'post': 'update_step2', 'patch': 'update_step2'})
-spv_update_step3 = SPVViewSet.as_view({'post': 'update_step3', 'patch': 'update_step3'})
-spv_update_step4 = SPVViewSet.as_view({'post': 'update_step4', 'patch': 'update_step4'})
-spv_update_step5 = SPVViewSet.as_view({'post': 'update_step5', 'patch': 'update_step5'})
+spv_update_step1 = SPVViewSet.as_view({'get': 'update_step1', 'post': 'update_step1', 'patch': 'update_step1'})
+spv_update_step2 = SPVViewSet.as_view({'get': 'update_step2', 'post': 'update_step2', 'patch': 'update_step2'})
+spv_update_step3 = SPVViewSet.as_view({'get': 'update_step3', 'post': 'update_step3', 'patch': 'update_step3'})
+spv_update_step4 = SPVViewSet.as_view({'get': 'update_step4', 'post': 'update_step4', 'patch': 'update_step4'})
+spv_update_step5 = SPVViewSet.as_view({'get': 'update_step5', 'post': 'update_step5', 'patch': 'update_step5'})
 
 portfolio_company_list = PortfolioCompanyViewSet.as_view({'get': 'list', 'post': 'create'})
 portfolio_company_detail = PortfolioCompanyViewSet.as_view({
@@ -64,6 +65,7 @@ urlpatterns = [
     path('spv/<int:pk>/', spv_detail, name='spv-detail'),
     path('spv/my_spvs/', spv_my_spvs, name='spv-my-spvs'),
     path('spv/<int:pk>/update_status/', spv_update_status, name='spv-update-status'),
+    path('spv/<int:pk>/update_step1/', spv_update_step1, name='spv-update-step1'),
     path('spv/<int:pk>/update_step2/', spv_update_step2, name='spv-update-step2'),
     path('spv/<int:pk>/update_step3/', spv_update_step3, name='spv-update-step3'),
     path('spv/<int:pk>/update_step4/', spv_update_step4, name='spv-update-step4'),

@@ -400,11 +400,132 @@
 			]
 		},
 		{
-			"name": "📝 POST & PATCH - SPV Steps",
+			"name": "📝 GET, POST & PATCH - SPV Steps",
 			"item": [
+				{
+					"name": "Step 1: Basic Information",
+					"item": [
+						{
+							"name": "GET - Get Step 1 Data (Basic Information)",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step1/",
+									"host": ["{{base_url}}"],
+									"path": ["api", "spv", "{{spv_id}}", "update_step1", ""],
+									"variable": [
+										{
+											"key": "spv_id",
+											"value": "1"
+										}
+									]
+								},
+								"description": "GET: Retrieve SPV Step 1 (Basic Information) data for editing or viewing"
+							},
+							"response": []
+						},
+						{
+							"name": "POST - Create/Update Step 1 (Basic Information)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"display_name\": \"Tech Startup Fund Q4 2025\",\n    \"portfolio_company\": 1,\n    \"portfolio_company_name\": \"TechCorp Inc\",\n    \"company_stage\": 1,\n    \"country_of_incorporation\": \"United States\",\n    \"incorporation_type\": 1,\n    \"founder_email\": \"founder@techcorp.com\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step1/",
+									"host": ["{{base_url}}"],
+									"path": ["api", "spv", "{{spv_id}}", "update_step1", ""],
+									"variable": [
+										{
+											"key": "spv_id",
+											"value": "1"
+										}
+									]
+								},
+								"description": "POST: Create or update SPV Step 1 (Basic Information) fields. Note: For file uploads (pitch_deck), use multipart/form-data."
+							},
+							"response": []
+						},
+						{
+							"name": "PATCH - Edit Step 1 (Go Back)",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"display_name\": \"Updated SPV Name\",\n    \"country_of_incorporation\": \"Cayman Islands\",\n    \"founder_email\": \"newfounder@techcorp.com\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step1/",
+									"host": ["{{base_url}}"],
+									"path": ["api", "spv", "{{spv_id}}", "update_step1", ""],
+									"variable": [
+										{
+											"key": "spv_id",
+											"value": "1"
+										}
+									]
+								},
+								"description": "PATCH: Edit Step 1 when going back. You can send only the fields you want to update."
+							},
+							"response": []
+						}
+					]
+				},
 				{
 					"name": "Step 2: Terms",
 					"item": [
+						{
+							"name": "GET - Get Step 2 Data (Terms)",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step2/",
+									"host": ["{{base_url}}"],
+									"path": ["api", "spv", "{{spv_id}}", "update_step2", ""],
+									"variable": [
+										{
+											"key": "spv_id",
+											"value": "1"
+										}
+									]
+								},
+								"description": "GET: Retrieve SPV Step 2 (Terms) data for editing or viewing"
+							},
+							"response": []
+						},
 						{
 							"name": "POST - Create/Update Step 2 (Terms)",
 							"request": {
@@ -477,6 +598,31 @@
 					"name": "Step 3: Adviser & Legal",
 					"item": [
 						{
+							"name": "GET - Get Step 3 Data (Adviser & Legal)",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step3/",
+									"host": ["{{base_url}}"],
+									"path": ["api", "spv", "{{spv_id}}", "update_step3", ""],
+									"variable": [
+										{
+											"key": "spv_id",
+											"value": "1"
+										}
+									]
+								},
+								"description": "GET: Retrieve SPV Step 3 (Adviser & Legal Structure) data for editing or viewing"
+							},
+							"response": []
+						},
+						{
 							"name": "POST - Create/Update Step 3 (Adviser & Legal)",
 							"request": {
 								"method": "POST",
@@ -548,6 +694,31 @@
 					"name": "Step 4: Fundraising & Jurisdiction",
 					"item": [
 						{
+							"name": "GET - Get Step 4 Data (Fundraising)",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step4/",
+									"host": ["{{base_url}}"],
+									"path": ["api", "spv", "{{spv_id}}", "update_step4", ""],
+									"variable": [
+										{
+											"key": "spv_id",
+											"value": "1"
+										}
+									]
+								},
+								"description": "GET: Retrieve SPV Step 4 (Fundraising & Jurisdiction) data for editing or viewing"
+							},
+							"response": []
+						},
+						{
 							"name": "POST - Create/Update Step 4 (Fundraising)",
 							"request": {
 								"method": "POST",
@@ -618,6 +789,31 @@
 				{
 					"name": "Step 5: Invite LPs & Additional Info",
 					"item": [
+						{
+							"name": "GET - Get Step 5 Data (Invite LPs)",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step5/",
+									"host": ["{{base_url}}"],
+									"path": ["api", "spv", "{{spv_id}}", "update_step5", ""],
+									"variable": [
+										{
+											"key": "spv_id",
+											"value": "1"
+										}
+									]
+								},
+								"description": "GET: Retrieve SPV Step 5 (Invite LPs & Additional Information) data for editing or viewing"
+							},
+							"response": []
+						},
 						{
 							"name": "POST - Create/Update Step 5 (Invite LPs)",
 							"request": {
