@@ -120,11 +120,12 @@ class SPVViewSet(viewsets.ModelViewSet):
             'data': SPVSerializer(spv).data
         }, status=status.HTTP_200_OK)
     
-    @action(detail=True, methods=['patch'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=True, methods=['post', 'patch'], permission_classes=[permissions.IsAuthenticated])
     def update_step2(self, request, pk=None):
         """
-        Update SPV Step 2 (Terms) fields
-        PATCH /api/spv/{id}/update_step2/
+        Create or Update SPV Step 2 (Terms) fields
+        POST /api/spv/{id}/update_step2/ - Create or update step 2
+        PATCH /api/spv/{id}/update_step2/ - Update step 2 (for editing when going back)
         """
         spv = self.get_object()
         
@@ -144,11 +145,12 @@ class SPVViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=True, methods=['patch'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=True, methods=['post', 'patch'], permission_classes=[permissions.IsAuthenticated])
     def update_step3(self, request, pk=None):
         """
-        Update SPV Step 3 (Adviser & Legal Structure) fields
-        PATCH /api/spv/{id}/update_step3/
+        Create or Update SPV Step 3 (Adviser & Legal Structure) fields
+        POST /api/spv/{id}/update_step3/ - Create or update step 3
+        PATCH /api/spv/{id}/update_step3/ - Update step 3 (for editing when going back)
         """
         spv = self.get_object()
         
@@ -168,11 +170,12 @@ class SPVViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=True, methods=['patch'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=True, methods=['post', 'patch'], permission_classes=[permissions.IsAuthenticated])
     def update_step4(self, request, pk=None):
         """
-        Update SPV Step 4 (Fundraising & Jurisdiction) fields
-        PATCH /api/spv/{id}/update_step4/
+        Create or Update SPV Step 4 (Fundraising & Jurisdiction) fields
+        POST /api/spv/{id}/update_step4/ - Create or update step 4
+        PATCH /api/spv/{id}/update_step4/ - Update step 4 (for editing when going back)
         """
         spv = self.get_object()
         
@@ -192,11 +195,12 @@ class SPVViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=True, methods=['patch'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=True, methods=['post', 'patch'], permission_classes=[permissions.IsAuthenticated])
     def update_step5(self, request, pk=None):
         """
-        Update SPV Step 5 (Invite LPs & Additional Information) fields
-        PATCH /api/spv/{id}/update_step5/
+        Create or Update SPV Step 5 (Invite LPs & Additional Information) fields
+        POST /api/spv/{id}/update_step5/ - Create or update step 5
+        PATCH /api/spv/{id}/update_step5/ - Update step 5 (for editing when going back)
         """
         spv = self.get_object()
         

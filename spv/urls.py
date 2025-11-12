@@ -28,10 +28,10 @@ spv_detail = SPVViewSet.as_view({
 })
 spv_my_spvs = SPVViewSet.as_view({'get': 'my_spvs'})
 spv_update_status = SPVViewSet.as_view({'patch': 'update_status'})
-spv_update_step2 = SPVViewSet.as_view({'patch': 'update_step2'})
-spv_update_step3 = SPVViewSet.as_view({'patch': 'update_step3'})
-spv_update_step4 = SPVViewSet.as_view({'patch': 'update_step4'})
-spv_update_step5 = SPVViewSet.as_view({'patch': 'update_step5'})
+spv_update_step2 = SPVViewSet.as_view({'post': 'update_step2', 'patch': 'update_step2'})
+spv_update_step3 = SPVViewSet.as_view({'post': 'update_step3', 'patch': 'update_step3'})
+spv_update_step4 = SPVViewSet.as_view({'post': 'update_step4', 'patch': 'update_step4'})
+spv_update_step5 = SPVViewSet.as_view({'post': 'update_step5', 'patch': 'update_step5'})
 
 portfolio_company_list = PortfolioCompanyViewSet.as_view({'get': 'list', 'post': 'create'})
 portfolio_company_detail = PortfolioCompanyViewSet.as_view({
