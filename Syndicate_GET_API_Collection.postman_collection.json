@@ -1,0 +1,305 @@
+{
+	"info": {
+		"_postman_id": "syndicate-get-api-collection",
+		"name": "Syndicate GET API Collection",
+		"description": "Complete collection of all GET endpoints for Syndicate Onboarding - Retrieve data for all steps and profile information",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "📋 Syndicate Steps - GET Data",
+			"item": [
+				{
+					"name": "GET Step 1 - Lead Info",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/syndicate/step1/",
+							"host": ["{{base_url}}"],
+							"path": ["syndicate", "step1", ""]
+						},
+						"description": "Get Step 1 data: Lead Info - Personal and accreditation details. Returns step_data, profile, and completion status."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Step 2 - Entity Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/syndicate/step2/",
+							"host": ["{{base_url}}"],
+							"path": ["syndicate", "step2", ""]
+						},
+						"description": "Get Step 2 data: Entity Profile - Company information and structure. Returns step_data, profile, and completion status."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Step 3 - Compliance & Attestation",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/syndicate/step3/",
+							"host": ["{{base_url}}"],
+							"path": ["syndicate", "step3", ""]
+						},
+						"description": "Get Step 3 data: Compliance & Attestation - Regulatory requirements. Returns step_data, profile, and completion status."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Step 4 - Final Review & Submit",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/syndicate/step4/",
+							"host": ["{{base_url}}"],
+							"path": ["syndicate", "step4", ""]
+						},
+						"description": "Get Step 4 data: Final Review & Submit - Application submission status. Returns step_data, profile, application_status, and submitted_at."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "📊 Syndicate Profile & Progress",
+			"item": [
+				{
+					"name": "GET Syndicate Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/syndicate/profile/",
+							"host": ["{{base_url}}"],
+							"path": ["syndicate", "profile", ""]
+						},
+						"description": "Get current user's complete syndicate profile with all steps, completion status, and application details."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Syndicate Progress",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/syndicate/progress/",
+							"host": ["{{base_url}}"],
+							"path": ["syndicate", "progress", ""]
+						},
+						"description": "Get syndicate onboarding progress including step completion status, current step, and application status."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🔍 Reference Data",
+			"item": [
+				{
+					"name": "GET Sectors & Geographies",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/syndicate/sectors-geographies/",
+							"host": ["{{base_url}}"],
+							"path": ["syndicate", "sectors-geographies", ""]
+						},
+						"description": "Get available sectors and geographies for syndicate onboarding. Required for Step 1."
+					},
+					"response": []
+				},
+				{
+					"name": "GET All Sectors",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/sectors/",
+							"host": ["{{base_url}}"],
+							"path": ["sectors", ""]
+						},
+						"description": "Get list of all available sectors"
+					},
+					"response": []
+				},
+				{
+					"name": "GET All Geographies",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/geographies/",
+							"host": ["{{base_url}}"],
+							"path": ["geographies", ""]
+						},
+						"description": "Get list of all available geographies"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🔐 KYC/KYB - GET Data",
+			"item": [
+				{
+					"name": "GET My KYC Records",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/kyc/my_kyc/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "kyc", "my_kyc", ""]
+						},
+						"description": "Get current user's KYC records and verification status"
+					},
+					"response": []
+				},
+				{
+					"name": "GET KYC by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/kyc/{{kyc_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "kyc", "{{kyc_id}}", ""],
+							"variable": [
+								{
+									"key": "kyc_id",
+									"value": "1",
+									"description": "KYC record ID"
+								}
+							]
+						},
+						"description": "Get specific KYC record by ID"
+					},
+					"response": []
+				},
+				{
+					"name": "GET All KYC Records",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/kyc/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "kyc", ""]
+						},
+						"description": "Get all KYC records (filtered by user role - users see only their own, admins see all)"
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000/blockchain-backend",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string",
+			"description": "JWT access token for authentication"
+		},
+		{
+			"key": "kyc_id",
+			"value": "1",
+			"type": "string",
+			"description": "KYC record ID"
+		}
+	]
+}
+
