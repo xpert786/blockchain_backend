@@ -1,7 +1,8 @@
 from datetime import timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Q as DjangoQ
+from django.db import models
 from django.utils import timezone
 
 from rest_framework import viewsets, status, permissions
@@ -14,6 +15,8 @@ from .models import (
     SPV, PortfolioCompany, CompanyStage, IncorporationType,
     InstrumentType, ShareClass, Round, MasterPartnershipEntity
 )
+from users.models import CustomUser
+from users.serializers import CustomUserSerializer
 from .serializers import (
     SPVSerializer,
     SPVCreateSerializer,
@@ -23,6 +26,7 @@ from .serializers import (
     SPVStep3Serializer,
     SPVStep4Serializer,
     SPVStep5Serializer,
+    SPVStep6Serializer,
     PortfolioCompanySerializer,
     CompanyStageSerializer,
     IncorporationTypeSerializer,
@@ -67,6 +71,8 @@ class SPVViewSet(viewsets.ModelViewSet):
             return SPVStep4Serializer
         elif self.action == 'update_step5':
             return SPVStep5Serializer
+        elif self.action == 'update_step6':
+            return SPVStep6Serializer
         return SPVSerializer
     
     def get_queryset(self):
@@ -315,6 +321,105 @@ class SPVViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['get', 'post', 'patch'], permission_classes=[permissions.IsAuthenticated])
+    def update_step6(self, request, pk=None):
+        """
+        Get, Create or Update SPV Step 6 (Additional Information) fields
+        GET /api/spv/{id}/update_step6/ - Get step 6 data
+        POST /api/spv/{id}/update_step6/ - Create or update step 6
+        PATCH /api/spv/{id}/update_step6/ - Update step 6 (for editing when going back)
+        """
+        spv = self.get_object()
+        
+        # Check permissions
+        if not (request.user.is_staff or request.user.role == 'admin' or spv.created_by == request.user):
+            return Response({
+                'error': 'You do not have permission to access this SPV'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Handle GET request
+        if request.method == 'GET':
+            step6_serializer = SPVStep6Serializer(spv)
+            spv_serializer = SPVSerializer(spv)
+            return Response({
+                'success': True,
+                'step_data': step6_serializer.data,
+                'spv': spv_serializer.data,
+                'step': 6,
+                'step_name': 'Additional Information'
+            }, status=status.HTTP_200_OK)
+        
+        # Handle POST/PATCH request
+        serializer = SPVStep6Serializer(spv, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'message': 'SPV Step 6 (Additional Information) updated successfully',
+                'data': SPVSerializer(spv).data
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def final_review(self, request, pk=None):
+        """
+        Get all SPV data from all steps (1-6) for Final Review
+        GET /api/spv/{id}/final_review/
+        """
+        spv = self.get_object()
+        
+        # Check permissions
+        if not (request.user.is_staff or request.user.role == 'admin' or spv.created_by == request.user):
+            return Response({
+                'error': 'You do not have permission to access this SPV'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get data from all steps
+        step1_data = SPVStep1Serializer(spv).data
+        step2_data = SPVStep2Serializer(spv).data
+        step3_data = SPVStep3Serializer(spv).data
+        step4_data = SPVStep4Serializer(spv).data
+        step5_data = SPVStep5Serializer(spv).data
+        step6_data = SPVStep6Serializer(spv).data
+        
+        # Get full SPV data
+        full_spv_data = SPVSerializer(spv).data
+        
+        return Response({
+            'success': True,
+            'spv_id': spv.id,
+            'spv_status': spv.status,
+            'steps': {
+                'step_1': {
+                    'step_name': 'Basic Information',
+                    'data': step1_data
+                },
+                'step_2': {
+                    'step_name': 'Terms',
+                    'data': step2_data
+                },
+                'step_3': {
+                    'step_name': 'Adviser & Legal Structure',
+                    'data': step3_data
+                },
+                'step_4': {
+                    'step_name': 'Fundraising & Jurisdiction',
+                    'data': step4_data
+                },
+                'step_5': {
+                    'step_name': 'Invite LPs & Additional Information',
+                    'data': step5_data
+                },
+                'step_6': {
+                    'step_name': 'Additional Information',
+                    'data': step6_data
+                }
+            },
+            'full_spv_data': full_spv_data,
+            'created_at': spv.created_at.isoformat(),
+            'updated_at': spv.updated_at.isoformat(),
+        }, status=status.HTTP_200_OK)
 
 
 class PortfolioCompanyViewSet(viewsets.ModelViewSet):
@@ -418,6 +523,11 @@ def get_spv_options(request):
     Get all options needed for SPV creation form
     GET /api/spv/options/
     """
+    # Get fund leads - typically staff/admin users or users with specific roles
+    fund_leads = CustomUser.objects.filter(
+        DjangoQ(is_staff=True) | DjangoQ(role__in=['admin', 'syndicate'])
+    ).order_by('first_name', 'last_name', 'username')
+    
     return Response({
         'company_stages': CompanyStageSerializer(CompanyStage.objects.all(), many=True).data,
         'incorporation_types': IncorporationTypeSerializer(IncorporationType.objects.all(), many=True).data,
@@ -426,6 +536,15 @@ def get_spv_options(request):
         'share_classes': ShareClassSerializer(ShareClass.objects.all(), many=True).data,
         'rounds': RoundSerializer(Round.objects.all(), many=True).data,
         'master_partnership_entities': MasterPartnershipEntitySerializer(MasterPartnershipEntity.objects.all(), many=True).data,
+        'fund_leads': [
+            {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'full_name': user.get_full_name() or user.username,
+            }
+            for user in fund_leads
+        ],
         'transaction_types': [{'value': choice[0], 'label': choice[1]} for choice in SPV.TRANSACTION_TYPE_CHOICES],
         'valuation_types': [{'value': choice[0], 'label': choice[1]} for choice in SPV.VALUATION_TYPE_CHOICES],
         'adviser_entities': [{'value': choice[0], 'label': choice[1]} for choice in SPV.ADVISER_ENTITY_CHOICES],

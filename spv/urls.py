@@ -33,6 +33,8 @@ spv_update_step2 = SPVViewSet.as_view({'get': 'update_step2', 'post': 'update_st
 spv_update_step3 = SPVViewSet.as_view({'get': 'update_step3', 'post': 'update_step3', 'patch': 'update_step3'})
 spv_update_step4 = SPVViewSet.as_view({'get': 'update_step4', 'post': 'update_step4', 'patch': 'update_step4'})
 spv_update_step5 = SPVViewSet.as_view({'get': 'update_step5', 'post': 'update_step5', 'patch': 'update_step5'})
+spv_update_step6 = SPVViewSet.as_view({'get': 'update_step6', 'post': 'update_step6', 'patch': 'update_step6'})
+spv_final_review = SPVViewSet.as_view({'get': 'final_review'})
 
 portfolio_company_list = PortfolioCompanyViewSet.as_view({'get': 'list', 'post': 'create'})
 portfolio_company_detail = PortfolioCompanyViewSet.as_view({
@@ -70,6 +72,8 @@ urlpatterns = [
     path('spv/<int:pk>/update_step3/', spv_update_step3, name='spv-update-step3'),
     path('spv/<int:pk>/update_step4/', spv_update_step4, name='spv-update-step4'),
     path('spv/<int:pk>/update_step5/', spv_update_step5, name='spv-update-step5'),
+    path('spv/<int:pk>/update_step6/', spv_update_step6, name='spv-update-step6'),
+    path('spv/<int:pk>/final_review/', spv_final_review, name='spv-final-review'),
     path('spv/dashboard/', spv_dashboard_summary, name='spv-dashboard'),
     path('spv/management/', spv_management_overview, name='spv-management'),
     path('portfolio-companies/', portfolio_company_list, name='portfolio-company-list'),

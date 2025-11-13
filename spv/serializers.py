@@ -516,3 +516,14 @@ class SPVStep5Serializer(serializers.ModelSerializer):
             'access_mode',
         ]
 
+
+class SPVStep6Serializer(serializers.ModelSerializer):
+    """Serializer for updating SPV Step 6 (Additional Information) fields"""
+    
+    class Meta:
+        model = SPV
+        fields = [
+            'deal_name',
+            'syndicate_selection',
+            'supporting_document',
+        ]
