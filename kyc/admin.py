@@ -25,7 +25,7 @@ class KYCAdmin(admin.ModelAdmin):
     form = KYCAdminForm
     list_display = ('id', 'user', 'status', 'city', 'country', 'submitted_at', 'file_links')
     list_filter = ('status', 'country', 'submitted_at')
-    search_fields = ('user__username', 'user__email', 'city', 'country', 'Investee_Company_Email')
+    search_fields = ('user__username', 'user__email', 'company_legal_name', 'your_position', 'city', 'country', 'Investee_Company_Email')
     readonly_fields = (
         'submitted_at', 
         'file_preview_certificate',
@@ -39,6 +39,9 @@ class KYCAdmin(admin.ModelAdmin):
     fieldsets = (
         ('User Information', {
             'fields': ('user', 'status', 'submitted_at')
+        }),
+        ('Company Information', {
+            'fields': ('company_legal_name', 'your_position')
         }),
         ('Company Address Information', {
             'fields': ('address_1', 'address_2', 'city', 'zip_code', 'country')

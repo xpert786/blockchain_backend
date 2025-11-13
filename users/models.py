@@ -152,6 +152,10 @@ class SyndicateProfile(models.Model):
     firm_name = models.CharField(max_length=255, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
     logo = models.ImageField(upload_to='syndicate_logos/', blank=True, null=True)
+    enable_role_based_access_controls = models.BooleanField(
+        default=False, 
+        help_text="When enabled, permissions will be automatically assigned based on team member roles and can be overridden individually"
+    )
     
     # Step 3: Compliance & Attestation
     risk_regulatory_attestation = models.BooleanField(default=False)

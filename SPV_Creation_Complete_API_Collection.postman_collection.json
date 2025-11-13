@@ -1,0 +1,648 @@
+{
+	"info": {
+		"_postman_id": "spv-creation-complete-api-collection",
+		"name": "SPV Creation Complete API Collection",
+		"description": "Complete API collection for SPV creation workflow including all steps (1-7), dropdown options, and final review",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "📋 Step 0: Reference Data & Options",
+			"item": [
+				{
+					"name": "GET SPV Options (All Reference Data + Fund Leads)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/spv/options/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "options", ""]
+						},
+						"description": "Get all options needed for SPV creation form including:\n- Company stages\n- Incorporation types\n- Portfolio companies\n- Instrument types\n- Share classes\n- Rounds\n- Master partnership entities\n- **Fund Leads** (NEW)\n- Transaction types\n- Valuation types\n- Adviser entities\n- Access modes\n- Investment visibility options"
+					},
+					"response": []
+				},
+				{
+					"name": "GET Master Partnership Entities",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/lookups/master-partnership-entities/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "lookups", "master-partnership-entities", ""]
+						},
+						"description": "Get all master partnership entities for Step 3 dropdown"
+					},
+					"response": []
+				},
+				{
+					"name": "GET Fund Leads",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/spv/options/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "options", ""]
+						},
+						"description": "Get fund leads from the options endpoint. Fund leads are users with is_staff=True or role in ['admin', 'syndicate']"
+					},
+					"response": []
+				},
+				{
+					"name": "GET Portfolio Companies",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/portfolio-companies/?search=tech",
+							"host": ["{{base_url}}"],
+							"path": ["api", "portfolio-companies", ""],
+							"query": [
+								{
+									"key": "search",
+									"value": "tech",
+									"description": "Search portfolio companies by name",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get list of portfolio companies. Supports optional search parameter."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "📝 Step 1: Basic Information",
+			"item": [
+				{
+					"name": "GET Step 1 Data",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step1/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "{{spv_id}}", "update_step1", ""]
+						},
+						"description": "Get Step 1 (Basic Information) data for an existing SPV"
+					},
+					"response": []
+				},
+				{
+					"name": "POST/PATCH Step 1 - Create/Update",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"display_name\": \"Unlocksley Alpha Fund\",\n    \"portfolio_company\": 1,\n    \"portfolio_company_name\": \"Acme Robotics\",\n    \"company_stage\": 1,\n    \"country_of_incorporation\": \"United States\",\n    \"incorporation_type\": 1,\n    \"founder_email\": \"founder@acme.com\",\n    \"pitch_deck\": null\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step1/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "{{spv_id}}", "update_step1", ""]
+						},
+						"description": "Create or update Step 1 (Basic Information) fields"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "📝 Step 2: Terms",
+			"item": [
+				{
+					"name": "GET Step 2 Data",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step2/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "{{spv_id}}", "update_step2", ""]
+						},
+						"description": "Get Step 2 (Terms) data for an existing SPV"
+					},
+					"response": []
+				},
+				{
+					"name": "POST/PATCH Step 2 - Create/Update",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"transaction_type\": \"primary\",\n    \"instrument_type\": 1,\n    \"valuation_type\": \"pre_money\",\n    \"share_class\": 1,\n    \"round\": 1,\n    \"round_size\": \"5000000.00\",\n    \"allocation\": \"750000.00\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step2/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "{{spv_id}}", "update_step2", ""]
+						},
+						"description": "Create or update Step 2 (Terms) fields"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "📝 Step 3: Adviser & Legal Structure",
+			"item": [
+				{
+					"name": "GET Step 3 Data",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step3/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "{{spv_id}}", "update_step3", ""]
+						},
+						"description": "Get Step 3 (Adviser & Legal Structure) data for an existing SPV"
+					},
+					"response": []
+				},
+				{
+					"name": "POST/PATCH Step 3 - Create/Update",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"adviser_entity\": \"platform_advisers\",\n    \"master_partnership_entity\": 1,\n    \"fund_lead\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step3/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "{{spv_id}}", "update_step3", ""]
+						},
+						"description": "Create or update Step 3 (Adviser & Legal Structure) fields.\n\n**Dropdown Fields:**\n- `master_partnership_entity`: ID from `/api/spv/options/` → `master_partnership_entities`\n- `fund_lead`: ID from `/api/spv/options/` → `fund_leads` (NEW)"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "📝 Step 4: Fundraising & Jurisdiction",
+			"item": [
+				{
+					"name": "GET Step 4 Data",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step4/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "{{spv_id}}", "update_step4", ""]
+						},
+						"description": "Get Step 4 (Fundraising & Jurisdiction) data for an existing SPV"
+					},
+					"response": []
+				},
+				{
+					"name": "POST/PATCH Step 4 - Create/Update",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"jurisdiction\": \"Delaware\",\n    \"entity_type\": \"LLC\",\n    \"minimum_lp_investment\": \"25000.00\",\n    \"target_closing_date\": \"2025-01-15\",\n    \"total_carry_percentage\": \"20.00\",\n    \"carry_recipient\": \"Unlocksley GP LLC\",\n    \"gp_commitment\": \"50000.00\",\n    \"deal_partners\": \"Partner A, Partner B\",\n    \"deal_name\": \"Acme Robotics Series A\",\n    \"access_mode\": \"private\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step4/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "{{spv_id}}", "update_step4", ""]
+						},
+						"description": "Create or update Step 4 (Fundraising & Jurisdiction) fields"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "📝 Step 5: Invite LPs & Additional Information",
+			"item": [
+				{
+					"name": "GET Step 5 Data",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step5/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "{{spv_id}}", "update_step5", ""]
+						},
+						"description": "Get Step 5 (Invite LPs & Additional Information) data for an existing SPV"
+					},
+					"response": []
+				},
+				{
+					"name": "POST/PATCH Step 5 - Create/Update",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"lp_invite_emails\": [\"investor1@example.com\", \"investor2@example.com\"],\n    \"lp_invite_message\": \"Welcome to this investment opportunity\",\n    \"lead_carry_percentage\": \"15.00\",\n    \"investment_visibility\": \"hidden\",\n    \"auto_invite_active_spvs\": false,\n    \"invite_private_note\": \"Internal notes here\",\n    \"invite_tags\": [\"accredited\", \"angel\"],\n    \"deal_tags\": [\"AI\", \"Robotics\"],\n    \"syndicate_selection\": \"Tech Syndicate\",\n    \"deal_memo\": \"This is a great investment opportunity...\",\n    \"access_mode\": \"private\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step5/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "{{spv_id}}", "update_step5", ""]
+						},
+						"description": "Create or update Step 5 (Invite LPs & Additional Information) fields"
+					},
+					"response": []
+				},
+				{
+					"name": "POST Step 5 - Upload Supporting Document",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "supporting_document",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "deal_memo",
+									"value": "Additional deal information",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step5/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "{{spv_id}}", "update_step5", ""]
+						},
+						"description": "Upload supporting document for Step 5. Use multipart/form-data."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "📝 Step 6: Additional Information (NEW)",
+			"item": [
+				{
+					"name": "GET Step 6 Data",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step6/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "{{spv_id}}", "update_step6", ""]
+						},
+						"description": "Get Step 6 (Additional Information) data for an existing SPV.\n\n**Fields:**\n- `deal_name`: Deal name for investor-facing materials\n- `syndicate_selection`: Selected syndicate\n- `supporting_document`: Document upload"
+					},
+					"response": []
+				},
+				{
+					"name": "POST/PATCH Step 6 - Create/Update",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"deal_name\": \"Acme Robotics Series A Investment\",\n    \"syndicate_selection\": \"Tech Ventures Syndicate\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step6/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "{{spv_id}}", "update_step6", ""]
+						},
+						"description": "Create or update Step 6 (Additional Information) fields.\n\n**Fields:**\n- `deal_name`: Deal name (NEW - moved from Step 4)\n- `syndicate_selection`: Syndicate selector (NEW)\n- `supporting_document`: Document upload (available via multipart/form-data)"
+					},
+					"response": []
+				},
+				{
+					"name": "POST Step 6 - Upload Supporting Document",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "supporting_document",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "deal_name",
+									"value": "Acme Robotics Series A Investment",
+									"type": "text"
+								},
+								{
+									"key": "syndicate_selection",
+									"value": "Tech Ventures Syndicate",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/spv/{{spv_id}}/update_step6/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "{{spv_id}}", "update_step6", ""]
+						},
+						"description": "Upload supporting document for Step 6. Use multipart/form-data to include file upload along with other fields."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "✅ Step 7: Final Review (NEW)",
+			"item": [
+				{
+					"name": "GET Final Review - All Steps Data",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/spv/{{spv_id}}/final_review/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "{{spv_id}}", "final_review", ""]
+						},
+						"description": "Get all SPV data from all previous steps (1-6) for Final Review.\n\n**Response includes:**\n- Step-by-step data for each step (step_1 through step_6)\n- Full SPV data with all related objects\n- SPV status and metadata\n- Created/updated timestamps"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🔧 SPV Management",
+			"item": [
+				{
+					"name": "Create SPV (Complete)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"display_name\": \"Unlocksley Alpha Fund\",\n    \"portfolio_company_name\": \"Acme Robotics\",\n    \"company_stage_name\": \"Seed\",\n    \"country_of_incorporation\": \"United States\",\n    \"incorporation_type_name\": \"Limited Liability Company\",\n    \"founder_email\": \"founder@acme.com\",\n    \"transaction_type\": \"primary\",\n    \"instrument_type_name\": \"SAFE\",\n    \"valuation_type\": \"pre_money\",\n    \"share_class_name\": \"Series A Preferred\",\n    \"round_name\": \"Series A\",\n    \"round_size\": \"5000000.00\",\n    \"allocation\": \"750000.00\",\n    \"adviser_entity\": \"platform_advisers\",\n    \"master_partnership_entity_name\": \"Unlocksley Master LP\",\n    \"fund_lead\": 1,\n    \"jurisdiction\": \"Delaware\",\n    \"entity_type\": \"LLC\",\n    \"minimum_lp_investment\": \"25000.00\",\n    \"target_closing_date\": \"2025-01-15\",\n    \"total_carry_percentage\": \"20.00\",\n    \"carry_recipient\": \"Unlocksley GP LLC\",\n    \"gp_commitment\": \"50000.00\",\n    \"deal_partners\": \"Partner A, Partner B\",\n    \"deal_name\": \"Acme Robotics Series A\",\n    \"access_mode\": \"private\",\n    \"lp_invite_emails\": [\"investor1@example.com\"],\n    \"deal_tags\": [\"AI\", \"Robotics\"],\n    \"syndicate_selection\": \"Tech Ventures Syndicate\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/spv/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", ""]
+						},
+						"description": "Create a complete SPV with all fields in one request"
+					},
+					"response": []
+				},
+				{
+					"name": "GET SPV Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/spv/{{spv_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "{{spv_id}}", ""]
+						},
+						"description": "Get full SPV details with all related data"
+					},
+					"response": []
+				},
+				{
+					"name": "GET My SPVs",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/spv/my_spvs/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "my_spvs", ""]
+						},
+						"description": "Get all SPVs created by the current user"
+					},
+					"response": []
+				},
+				{
+					"name": "PATCH Update SPV Status",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"approved\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/spv/{{spv_id}}/update_status/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "spv", "{{spv_id}}", "update_status", ""]
+						},
+						"description": "Update SPV status (Admin only). Status options: draft, pending_review, approved, active, closed, cancelled"
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "spv_id",
+			"value": "1",
+			"type": "string"
+		}
+	]
+}
+

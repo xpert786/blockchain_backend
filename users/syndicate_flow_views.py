@@ -71,12 +71,61 @@ class SyndicateFlowViewSet(viewsets.ViewSet):
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['get', 'post'])
     def step2_entity_profile(self, request):
         """
         Step 2: Entity Profile - Firm details and team members
-        POST /api/syndicate-flow/step2_entity_profile/
+        GET /api/syndicate-flow/step2_entity_profile/?syndicate_id=1 - Get step 2 data
+        POST /api/syndicate-flow/step2_entity_profile/ - Create or update step 2
         """
+        if request.method == 'GET':
+            syndicate_id = request.query_params.get('syndicate_id')
+            
+            if not syndicate_id:
+                return Response({
+                    'error': 'syndicate_id query parameter is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            try:
+                syndicate = Syndicate.objects.get(id=syndicate_id, manager=request.user)
+            except Syndicate.DoesNotExist:
+                return Response({
+                    'error': 'Syndicate not found or access denied'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Get team members with permissions
+            team_members = SyndicateTeamMember.objects.filter(syndicate=syndicate)
+            team_members_data = [
+                {
+                    'id': member.id,
+                    'name': member.name,
+                    'email': member.email,
+                    'role': member.role,
+                    'description': member.description,
+                    'linkedin_profile': member.linkedin_profile,
+                    'permissions': {
+                        'can_create_deals': member.can_create_deals,
+                        'can_messaging': member.can_messaging,
+                        'can_access_cap_tables': member.can_access_cap_tables,
+                        'can_access_up_data': member.can_access_up_data,
+                    },
+                    'added_at': member.added_at.isoformat() if member.added_at else None
+                }
+                for member in team_members
+            ]
+            
+            return Response({
+                'success': True,
+                'syndicate_id': syndicate.id,
+                'firm_name': syndicate.firm_name,
+                'description': syndicate.description,
+                'logo': syndicate.logo.url if syndicate.logo else None,
+                'enable_role_based_access_controls': getattr(syndicate, 'enable_role_based_access_controls', False),
+                'team_members': team_members_data,
+                'team_members_count': len(team_members_data)
+            }, status=status.HTTP_200_OK)
+        
+        # POST request
         syndicate_id = request.data.get('syndicate_id')
         
         if not syndicate_id:
@@ -95,6 +144,10 @@ class SyndicateFlowViewSet(viewsets.ViewSet):
             # Update syndicate with entity profile data
             if 'firm_name' in request.data:
                 syndicate.firm_name = request.data['firm_name']
+            if 'description' in request.data:
+                syndicate.description = request.data['description']
+            if 'enable_role_based_access_controls' in request.data:
+                syndicate.enable_role_based_access_controls = request.data['enable_role_based_access_controls']
             
             # Handle syndicate logo upload
             if 'syndicate_logo' in request.FILES:
@@ -116,11 +169,28 @@ class SyndicateFlowViewSet(viewsets.ViewSet):
             
             # Handle team members
             if 'team_members' in request.data:
+                # Parse team_members if it's a string (from form data)
+                team_members_data = request.data.get('team_members')
+                if isinstance(team_members_data, str):
+                    import json
+                    team_members_data = json.loads(team_members_data)
+                
                 # Clear existing team members
                 SyndicateTeamMember.objects.filter(syndicate=syndicate).delete()
                 
-                # Add new team members
-                for member_data in request.data['team_members']:
+                # Add new team members with permissions
+                for member_data in team_members_data:
+                    # Handle permissions - can be nested or flat
+                    permissions = member_data.get('permissions', {})
+                    if not permissions:
+                        # If permissions are at the root level
+                        permissions = {
+                            'can_create_deals': member_data.get('can_create_deals', False),
+                            'can_messaging': member_data.get('can_messaging', False),
+                            'can_access_cap_tables': member_data.get('can_access_cap_tables', False),
+                            'can_access_up_data': member_data.get('can_access_up_data', False),
+                        }
+                    
                     SyndicateTeamMember.objects.create(
                         syndicate=syndicate,
                         name=member_data['name'],
@@ -128,13 +198,41 @@ class SyndicateFlowViewSet(viewsets.ViewSet):
                         role=member_data['role'],
                         description=member_data.get('description', ''),
                         linkedin_profile=member_data.get('linkedin_profile', ''),
+                        can_create_deals=permissions.get('can_create_deals', False),
+                        can_messaging=permissions.get('can_messaging', False),
+                        can_access_cap_tables=permissions.get('can_access_cap_tables', False),
+                        can_access_up_data=permissions.get('can_access_up_data', False),
                         added_by=request.user
                     )
+            
+            # Get updated team members for response
+            team_members = SyndicateTeamMember.objects.filter(syndicate=syndicate)
+            team_members_data = [
+                {
+                    'id': member.id,
+                    'name': member.name,
+                    'email': member.email,
+                    'role': member.role,
+                    'description': member.description,
+                    'linkedin_profile': member.linkedin_profile,
+                    'permissions': {
+                        'can_create_deals': member.can_create_deals,
+                        'can_messaging': member.can_messaging,
+                        'can_access_cap_tables': member.can_access_cap_tables,
+                        'can_access_up_data': member.can_access_up_data,
+                    }
+                }
+                for member in team_members
+            ]
             
             return Response({
                 'success': True,
                 'message': 'Step 2 completed successfully',
                 'syndicate_id': syndicate.id,
+                'firm_name': syndicate.firm_name,
+                'description': syndicate.description,
+                'enable_role_based_access_controls': getattr(syndicate, 'enable_role_based_access_controls', False),
+                'team_members': team_members_data,
                 'syndicate': SyndicateSerializer(syndicate).data,
                 'next_step': 'step3_kyb_verification'
             }, status=status.HTTP_200_OK)
@@ -335,13 +433,20 @@ class SyndicateFlowViewSet(viewsets.ViewSet):
             # Prepare final review data
             review_data = {
                 'syndicate': SyndicateSerializer(syndicate).data,
+                'enable_role_based_access_controls': getattr(syndicate, 'enable_role_based_access_controls', False),
                 'team_members': [
                     {
                         'name': member.name,
                         'email': member.email,
                         'role': member.role,
                         'description': member.description,
-                        'linkedin_profile': member.linkedin_profile
+                        'linkedin_profile': member.linkedin_profile,
+                        'permissions': {
+                            'can_create_deals': member.can_create_deals,
+                            'can_messaging': member.can_messaging,
+                            'can_access_cap_tables': member.can_access_cap_tables,
+                            'can_access_up_data': member.can_access_up_data,
+                        }
                     } for member in team_members
                 ],
                 'beneficiaries': [

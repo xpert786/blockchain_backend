@@ -15,6 +15,8 @@ class KYC(models.Model):
     )
 
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    company_legal_name = models.CharField(max_length=255, blank=True, null=True, help_text="Company Legal Name")
+    your_position = models.CharField(max_length=255, blank=True, null=True, help_text="Your Position in the company")
     certificate_of_incorporation = models.FileField(upload_to=kyc_upload_path, blank=True, null=True)
     company_bank_statement = models.FileField(upload_to=kyc_upload_path, blank=True, null=True)
     address_1 = models.TextField(blank=True, null=True)

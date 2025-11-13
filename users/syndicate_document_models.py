@@ -61,6 +61,11 @@ class SyndicateTeamMember(models.Model):
     role = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
     linkedin_profile = models.URLField(blank=True, null=True)
+    # Permissions
+    can_create_deals = models.BooleanField(default=False, help_text="Permission to create deals")
+    can_messaging = models.BooleanField(default=False, help_text="Permission for messaging")
+    can_access_cap_tables = models.BooleanField(default=False, help_text="Permission to access cap tables")
+    can_access_up_data = models.BooleanField(default=False, help_text="Permission to access UP data")
     added_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     added_at = models.DateTimeField(auto_now_add=True)
     
