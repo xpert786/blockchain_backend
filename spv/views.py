@@ -387,7 +387,7 @@ class SPVViewSet(viewsets.ModelViewSet):
         full_spv_data = SPVSerializer(spv).data
         
         return Response({
-            'success': True,
+            'success': True,    
             'spv_id': spv.id,
             'spv_status': spv.status,
             'steps': {
@@ -420,6 +420,53 @@ class SPVViewSet(viewsets.ModelViewSet):
             'created_at': spv.created_at.isoformat(),
             'updated_at': spv.updated_at.isoformat(),
         }, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def final_submit(self, request, pk=None):
+        """
+        Final submit the SPV after completing all 6 steps.
+        Saves the SPV and changes status to 'pending_review'.
+        POST /api/spv/{id}/final_submit/
+        """
+        spv = self.get_object()
+
+        # Permission check
+        if not (request.user.is_staff or request.user.role == 'admin' or spv.created_by == request.user):
+            return Response({
+                'error': 'You do not have permission to submit this SPV'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # validation added
+        serializer = SPVStep6Serializer(spv, data=request.data, partial=True,context={'final_submit': True})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+
+        # REQUIRED FIELDS CHECK (based on all steps)
+        required_fields = [
+            'deal_name',
+            'syndicate_selection',
+            'jurisdiction',
+            'entity_type',
+            'minimum_lp_investment'
+        ]
+
+        missing = [f for f in required_fields if not getattr(spv, f)]
+        if missing:
+            return Response({
+                'error': 'Cannot submit SPV. Missing required fields.',
+                'missing_fields': missing
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update status
+        spv.status = 'pending_review'
+        spv.save()
+
+        return Response({
+            'message': 'SPV submitted successfully and is now pending admin review.',
+            'spv': SPVSerializer(spv).data
+        }, status=status.HTTP_200_OK)
+
 
 
 class PortfolioCompanyViewSet(viewsets.ModelViewSet):

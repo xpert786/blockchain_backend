@@ -526,4 +526,26 @@ class SPVStep6Serializer(serializers.ModelSerializer):
             'deal_name',
             'syndicate_selection',
             'supporting_document',
+
+            # Final Submission Legal Confirmations
+            'legal_review_confirmed',
+            'terms_accepted',
+            'electronic_signature_confirmed',
         ]
+    def validate(self, attrs):
+
+        # Only validate if user is submitting final step
+        # (optional: but recommended)
+        if self.context.get("final_submit", False):
+
+            if not attrs.get("legal_review_confirmed"):
+                raise serializers.ValidationError("You must confirm the legal review.")
+
+            if not attrs.get("terms_accepted"):
+                raise serializers.ValidationError("You must accept the terms and conditions.")
+
+            if not attrs.get("electronic_signature_confirmed"):
+                raise serializers.ValidationError("You must provide electronic signature.")
+
+        return attrs
+
