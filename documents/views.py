@@ -28,7 +28,7 @@ class IsOwnerOrAdmin(permissions.BasePermission):
         # Users can only access their own documents or documents they need to sign
         return obj.created_by == request.user or obj.signatories.filter(user=request.user).exists()
 
-
+# create document ,listing document
 class DocumentViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing documents
@@ -254,6 +254,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         return ip
 
 
+# List all signatories of a document, Add signatories
 class DocumentSignatoryViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing document signatories
@@ -280,7 +281,7 @@ class DocumentSignatoryViewSet(viewsets.ModelViewSet):
         
         return queryset.select_related('document', 'user', 'invited_by')
 
-
+# List all templates, Retrieve a single template,Create/update/delete a template
 class DocumentTemplateViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing document templates
@@ -360,6 +361,7 @@ class DocumentTemplateViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_201_CREATED)
 
 
+# takes a document template/Creates a new Document record
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def generate_document_from_template(request):
@@ -462,6 +464,7 @@ def generate_document_from_template(request):
     }, status=status.HTTP_201_CREATED)
 
 
+# returns a list of all documents that were generated from templates.like an audit log.
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def get_generated_documents(request):

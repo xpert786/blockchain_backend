@@ -48,9 +48,9 @@ class Document(models.Model):
         validators=[FileExtensionValidator(allowed_extensions=['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'])],
         help_text="Document file"
     )
-    original_filename = models.CharField(max_length=255, help_text="Original filename")
-    file_size = models.BigIntegerField(help_text="File size in bytes")
-    mime_type = models.CharField(max_length=100, help_text="MIME type of the file")
+    original_filename = models.CharField(max_length=255, blank=True, null=True,help_text="Original filename")
+    file_size = models.BigIntegerField(null=True, blank=True ,help_text="File size in bytes")
+    mime_type = models.CharField(max_length=100, null=True, blank=True ,help_text="MIME type of the file")
     
     # Version Control
     version = models.CharField(max_length=20, default='1.0', help_text="Document version")
@@ -299,4 +299,6 @@ class DocumentGeneration(models.Model):
     
     def __str__(self):
         return f"{self.template.name} -> {self.generated_document.document_id}"
+
+
 

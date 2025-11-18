@@ -238,3 +238,4 @@ class SPV(models.Model):
         if self.portfolio_company:
             return self.portfolio_company.name
         return self.portfolio_company_name
+
