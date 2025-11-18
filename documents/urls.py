@@ -14,8 +14,10 @@ router.register(r'document-signatories', DocumentSignatoryViewSet, basename='doc
 router.register(r'document-templates', DocumentTemplateViewSet, basename='document-template')
 
 urlpatterns = [
+    path('documents/generate-from-template/', generate_document_from_template),
+    path('documents/generated-documents/', get_generated_documents),
     path('', include(router.urls)),
-    path('documents/generate-from-template/', generate_document_from_template, name='generate-from-template'),
-    path('documents/generated-documents/', get_generated_documents, name='generated-documents'),
+    # path('documents/generate-from-template/', generate_document_from_template, name='generate-from-template'),
+    # path('documents/generated-documents/', get_generated_documents, name='generated-documents'),
 ]
 

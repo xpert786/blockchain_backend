@@ -44,7 +44,7 @@ class Document(models.Model):
     
     # File Information
     file = models.FileField(
-        upload_to=document_upload_path,
+        upload_to=document_upload_path, null=True, blank=True,
         validators=[FileExtensionValidator(allowed_extensions=['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'])],
         help_text="Document file"
     )

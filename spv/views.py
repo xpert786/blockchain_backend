@@ -21,6 +21,7 @@ from .serializers import (
     SPVSerializer,
     SPVCreateSerializer,
     SPVListSerializer,
+    SPVStep1CreateSerializer,
     SPVStep1Serializer,
     SPVStep2Serializer,
     SPVStep3Serializer,
@@ -126,6 +127,23 @@ class SPVViewSet(viewsets.ModelViewSet):
             'message': 'SPV status updated successfully',
             'data': SPVSerializer(spv).data
         }, status=status.HTTP_200_OK)
+    
+
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def create_step1(self, request):
+        serializer = SPVStep1CreateSerializer(data=request.data, context={'request': request})
+
+        if serializer.is_valid():
+            spv = serializer.save()
+            return Response({
+                "message": "SPV Step 1 created successfully",
+                "data": SPVSerializer(spv).data,
+                "step": 1
+            }, status=201)
+
+        return Response(serializer.errors, status=400)
+
+
     
     @action(detail=True, methods=['get', 'post', 'patch'], permission_classes=[permissions.IsAuthenticated])
     def update_step1(self, request, pk=None):

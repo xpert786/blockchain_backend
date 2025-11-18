@@ -68,6 +68,7 @@ urlpatterns = [
     path('spv/', spv_list, name='spv-list'),
     path('spv/<int:pk>/', spv_detail, name='spv-detail'),
     path('spv/my_spvs/', spv_my_spvs, name='spv-my-spvs'),
+    path('spv/create_step1/', SPVViewSet.as_view({'post': 'create_step1'}), name='spv-create-step1'),
     path('spv/<int:pk>/update_status/', spv_update_status, name='spv-update-status'),
     path('spv/<int:pk>/update_step1/', spv_update_step1, name='spv-update-step1'),
     path('spv/<int:pk>/update_step2/', spv_update_step2, name='spv-update-step2'),

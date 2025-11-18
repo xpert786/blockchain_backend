@@ -409,6 +409,26 @@ class SPVListSerializer(serializers.ModelSerializer):
         if obj.created_by:
             return obj.created_by.get_full_name() or obj.created_by.username or obj.created_by.email
         return None
+    
+class SPVStep1CreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SPV
+        fields = [
+            'display_name',
+            'portfolio_company',
+            'portfolio_company_name',
+            'company_stage',
+            'country_of_incorporation',
+            'incorporation_type',
+            'founder_email',
+            'pitch_deck'
+        ]
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        return SPV.objects.create(created_by=request.user, **validated_data)
+
+
 
 
 class SPVStep1Serializer(serializers.ModelSerializer):
