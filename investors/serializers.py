@@ -152,13 +152,22 @@ class InvestorProfileStep2Serializer(serializers.ModelSerializer):
     
     def validate(self, data):
         """Validate Step 2 fields"""
-        # Only require government_id if not already uploaded
-        if not data.get('government_id') and not self.instance.government_id:
-            raise serializers.ValidationError({"government_id": "Government ID is required"})
-        if not data.get('date_of_birth') and not self.instance.date_of_birth:
-            raise serializers.ValidationError({"date_of_birth": "Date of birth is required"})
-        if not data.get('street_address') and not self.instance.street_address:
-            raise serializers.ValidationError({"street_address": "Street address is required"})
+        # Only require government_id if not already uploaded AND instance exists
+        if self.instance:
+            # On PATCH/update, allow skipping file if already uploaded
+            if not data.get('government_id') and not self.instance.government_id:
+                raise serializers.ValidationError({"government_id": "Government ID is required"})
+        else:
+            # On create, require the file
+            if not data.get('government_id'):
+                raise serializers.ValidationError({"government_id": "Government ID is required"})
+        
+        # Validate other required fields only if not already set
+        if self.instance:
+            if not data.get('date_of_birth') and not self.instance.date_of_birth:
+                raise serializers.ValidationError({"date_of_birth": "Date of birth is required"})
+            if not data.get('street_address') and not self.instance.street_address:
+                raise serializers.ValidationError({"street_address": "Street address is required"})
         return data
 
 
@@ -195,15 +204,17 @@ class InvestorProfileStep3Serializer(serializers.ModelSerializer):
     
     def validate(self, data):
         """Validate Step 3 fields"""
-        # Only require proof if not already uploaded
-        if not data.get('proof_of_bank_ownership') and not self.instance.proof_of_bank_ownership:
-            raise serializers.ValidationError({"proof_of_bank_ownership": "Bank ownership proof is required"})
-        if not data.get('bank_account_number') and not self.instance.bank_account_number:
-            raise serializers.ValidationError({"bank_account_number": "Bank account number is required"})
-        if not data.get('bank_name') and not self.instance.bank_name:
-            raise serializers.ValidationError({"bank_name": "Bank name is required"})
-        if not data.get('account_holder_name') and not self.instance.account_holder_name:
-            raise serializers.ValidationError({"account_holder_name": "Account holder name is required"})
+        # On PATCH/update, allow skipping fields if already set
+        if self.instance:
+            # Only require proof if not already uploaded
+            if not data.get('proof_of_bank_ownership') and not self.instance.proof_of_bank_ownership:
+                raise serializers.ValidationError({"proof_of_bank_ownership": "Bank ownership proof is required"})
+            if not data.get('bank_account_number') and not self.instance.bank_account_number:
+                raise serializers.ValidationError({"bank_account_number": "Bank account number is required"})
+            if not data.get('bank_name') and not self.instance.bank_name:
+                raise serializers.ValidationError({"bank_name": "Bank name is required"})
+            if not data.get('account_holder_name') and not self.instance.account_holder_name:
+                raise serializers.ValidationError({"account_holder_name": "Account holder name is required"})
         return data
 
 
