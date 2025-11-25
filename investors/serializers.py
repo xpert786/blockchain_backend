@@ -257,9 +257,20 @@ class InvestorProfileStep4Serializer(serializers.ModelSerializer):
     
     def validate(self, data):
         """Validate Step 4 fields - Optional step"""
-        # If user claims to be accredited, require proof
-        if data.get('is_accredited_investor') and not data.get('proof_of_income_net_worth'):
-            raise serializers.ValidationError("Proof of income or net worth is required for accredited investors")
+        # On PATCH/update, allow skipping file if already set
+        if self.instance:
+            # If user claims to be accredited, require proof (only if not already uploaded)
+            if data.get('is_accredited_investor'):
+                if not data.get('proof_of_income_net_worth') and not self.instance.proof_of_income_net_worth:
+                    raise serializers.ValidationError({
+                        "proof_of_income_net_worth": "Proof of income or net worth is required for accredited investors"
+                    })
+        else:
+            # On create, require proof if claiming to be accredited
+            if data.get('is_accredited_investor') and not data.get('proof_of_income_net_worth'):
+                raise serializers.ValidationError({
+                    "proof_of_income_net_worth": "Proof of income or net worth is required for accredited investors"
+                })
         return data
 
 
