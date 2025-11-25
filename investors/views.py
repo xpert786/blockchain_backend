@@ -77,18 +77,47 @@ class InvestorProfileViewSet(viewsets.ModelViewSet):
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
     
-    @action(detail=False, methods=['get'])
+    def update(self, request, *args, **kwargs):
+        """Update investor profile"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        
+        return Response({
+            'message': 'Profile updated successfully',
+            'profile': serializer.data
+        })
+    
+    def partial_update(self, request, *args, **kwargs):
+        """Partially update investor profile"""
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+    
+    @action(detail=False, methods=['get', 'patch'])
     def my_profile(self, request):
-        """Get the current user's investor profile"""
+        """Get or Update the current user's investor profile"""
         try:
             profile = InvestorProfile.objects.get(user=request.user)
-            serializer = self.get_serializer(profile)
-            return Response(serializer.data)
         except InvestorProfile.DoesNotExist:
             return Response(
                 {'detail': 'Investor profile not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+        
+        if request.method == 'GET':
+            serializer = self.get_serializer(profile)
+            return Response(serializer.data)
+        
+        # PATCH method
+        serializer = self.get_serializer(profile, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({
+            'message': 'Profile updated successfully',
+            'profile': serializer.data
+        })
     
     @action(detail=True, methods=['get', 'patch'])
     def update_step1(self, request, pk=None):
