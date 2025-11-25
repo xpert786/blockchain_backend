@@ -9,6 +9,7 @@ from . import syndicate_views
 
 urlpatterns = [
     # User management endpoints
+    path('', views.welcome_message, name='user-welcome'),
     path('users/', views.user_list, name='user-list'),
     path('users/<int:pk>/', views.user_detail, name='user-detail'),
     path('users/register/', views.user_register, name='user-register'),

@@ -79,12 +79,17 @@ class SPVViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Filter SPVs based on user role"""
         user = self.request.user
-        if user.is_staff or user.role == 'admin':
+        print(user, "--------user info ---------")
+        if user.role == 'admin':
             # Admins can see all SPVs
-            return SPV.objects.all()
+            spv_data = SPV.objects.all()
+            print(spv_data, "-------all spv data------")
+            return spv_data
         else:
             # Users can only see their own SPVs
-            return SPV.objects.filter(created_by=user)
+            user_spvs = SPV.objects.filter(created_by=user)
+            print(user_spvs, "-------user spv data------")
+            return user_spvs
     
     def perform_create(self, serializer):
         """Set the creator to current user when creating SPV"""
@@ -107,7 +112,7 @@ class SPVViewSet(viewsets.ModelViewSet):
         PATCH /api/spv/{id}/update_status/
         """
         # Check if user is admin
-        if not (request.user.is_staff or request.user.role == 'admin'):
+        if not (request.user.role == 'admin'):
             return Response({
                 'error': 'Only admins can update SPV status'
             }, status=status.HTTP_403_FORBIDDEN)

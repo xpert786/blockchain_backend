@@ -429,8 +429,6 @@ class SPVStep1CreateSerializer(serializers.ModelSerializer):
         return SPV.objects.create(created_by=request.user, **validated_data)
 
 
-
-
 class SPVStep1Serializer(serializers.ModelSerializer):
     """Serializer for updating SPV Step 1 (Basic Information) fields only"""
     

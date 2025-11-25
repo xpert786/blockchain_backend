@@ -22,6 +22,18 @@ from .serializers import (
 )
 
 
+
+# ================== Welcome Message ==================
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def welcome_message(request):
+    """
+    Welcome message
+    GET /api/users/welcome/
+    """
+    return Response({"message": "Welcome to the User Management API!"}, status=status.HTTP_200_OK)
+
 # ==================== USER MANAGEMENT ====================
 
 @api_view(['GET'])
