@@ -86,6 +86,10 @@ class InvestorProfileAdmin(admin.ModelAdmin):
         }),
         ('Step 4: Accreditation (If Applicable)', {
             'fields': (
+                'investor_type',
+                'full_legal_name',
+                'legal_place_of_residence',
+                'accreditation_method',
                 'proof_of_income_net_worth',
                 'is_accredited_investor',
                 'meets_local_investment_thresholds',

@@ -24,10 +24,16 @@ Authorization: Bearer <your_jwt_token>
 | GET | `/choices/` | Get all dropdown options |
 | POST | `/` | Create investor profile (Step 1) |
 | GET | `/my_profile/` | Get authenticated user's profile |
+| PATCH | `/my_profile/` | Update authenticated user's profile |
+| GET | `/{id}/update_step1/` | Get Step 1 data |
 | PATCH | `/{id}/update_step1/` | Update Step 1: Basic Information |
+| GET | `/{id}/update_step2/` | Get Step 2 data with file status |
 | PATCH | `/{id}/update_step2/` | Update Step 2: KYC / Identity Verification |
+| GET | `/{id}/update_step3/` | Get Step 3 data with file status |
 | PATCH | `/{id}/update_step3/` | Update Step 3: Bank Details / Payment Setup |
+| GET | `/{id}/update_step4/` | Get Step 4 data with file status |
 | PATCH | `/{id}/update_step4/` | Update Step 4: Accreditation (Optional) |
+| GET | `/{id}/update_step5/` | Get Step 5 data |
 | PATCH | `/{id}/update_step5/` | Update Step 5: Accept Agreements |
 | GET | `/{id}/final_review/` | Step 6: Final Review |
 | POST | `/{id}/submit_application/` | Submit completed application |
@@ -64,7 +70,53 @@ Authorization: Bearer <your_jwt_token>
 
 ---
 
-### 2. Update Step 2: KYC / Identity Verification
+### 2. Get Step 1 Data
+
+**Endpoint:** `GET /blockchain-backend/api/profiles/{id}/update_step1/`
+
+**Response:**
+```json
+{
+    "step": 1,
+    "step_name": "Basic Information",
+    "completed": true,
+    "data": {
+        "full_name": "John Doe",
+        "email_address": "john@example.com",
+        "phone_number": "+1-555-0000",
+        "country_of_residence": "United States"
+    }
+}
+```
+
+### 3. Get Step 2 Data
+
+**Endpoint:** `GET /blockchain-backend/api/profiles/{id}/update_step2/`
+
+**Response:**
+```json
+{
+    "step": 2,
+    "step_name": "KYC / Identity Verification",
+    "completed": true,
+    "can_access": true,
+    "data": {
+        "government_id": "/media/investor_documents/1/id.pdf",
+        "government_id_url": "http://localhost:8000/media/investor_documents/1/id.pdf",
+        "has_government_id": true,
+        "date_of_birth": "1990-01-15",
+        "street_address": "123 Main St",
+        "city": "New York",
+        "state_province": "NY",
+        "zip_postal_code": "10001",
+        "country": "United States"
+    }
+}
+```
+
+**Note:** `has_government_id` indicates if file is already uploaded. Use `government_id_url` to display/download existing file.
+
+### 4. Update Step 2: KYC / Identity Verification
 
 **Endpoint:** `PATCH /blockchain-backend/api/profiles/{id}/update_step2/`
 
@@ -99,7 +151,30 @@ fetch('/blockchain-backend/api/profiles/1/update_step2/', {
 
 ---
 
-### 3. Update Step 3: Bank Details / Payment Setup
+### 5. Get Step 3 Data
+
+**Endpoint:** `GET /blockchain-backend/api/profiles/{id}/update_step3/`
+
+**Response:**
+```json
+{
+    "step": 3,
+    "step_name": "Bank Details / Payment Setup",
+    "completed": true,
+    "can_access": true,
+    "data": {
+        "bank_account_number": "1234567890",
+        "bank_name": "Chase Bank",
+        "account_holder_name": "John Doe",
+        "swift_ifsc_code": "CHASUS33",
+        "proof_of_bank_ownership": "/media/investor_documents/1/bank_proof.pdf",
+        "proof_of_bank_ownership_url": "http://localhost:8000/media/...",
+        "has_proof_of_bank_ownership": true
+    }
+}
+```
+
+### 6. Update Step 3: Bank Details / Payment Setup
 
 **Endpoint:** `PATCH /blockchain-backend/api/profiles/{id}/update_step3/`
 
@@ -110,24 +185,106 @@ fetch('/blockchain-backend/api/profiles/1/update_step2/', {
 - `bank_name`: String
 - `account_holder_name`: String
 - `swift_ifsc_code`: String
-- `proof_of_bank_ownership`: File (PDF, JPG)
+- `proof_of_bank_ownership`: File (optional if already uploaded - PDF, JPG)
+
+**Note:** File is optional if already uploaded. You can update bank details without re-uploading the document.
 
 ---
 
-### 4. Update Step 4: Accreditation (Optional)
+### 4. Get Step 4 Data
+
+**Endpoint:** `GET /blockchain-backend/api/profiles/{id}/update_step4/`
+
+**Response:**
+```json
+{
+    "step": 4,
+    "step_name": "Accreditation (If Applicable)",
+    "completed": false,
+    "can_access": true,
+    "optional": true,
+    "data": {
+        "investor_type": "individual",
+        "full_legal_name": "John Doe",
+        "legal_place_of_residence": "United States",
+        "accreditation_method": "income_200k",
+        "proof_of_income_net_worth": "/media/investor_documents/1/proof.pdf",
+        "proof_of_income_net_worth_url": "http://localhost:8000/media/...",
+        "has_proof_of_income_net_worth": true,
+        "is_accredited_investor": true,
+        "meets_local_investment_thresholds": true
+    }
+}
+```
+
+### 5. Update Step 4: Accreditation (Optional)
 
 **Endpoint:** `PATCH /blockchain-backend/api/profiles/{id}/update_step4/`
 
 **Content-Type:** `multipart/form-data`
 
 **Form Fields:**
+- `investor_type`: String (choices: 'individual', 'trust', 'firm_or_fund')
+- `full_legal_name`: String (full legal name)
+- `legal_place_of_residence`: String (country)
+- `accreditation_method`: String (choices below)
+- `proof_of_income_net_worth`: File (optional - PDF, JPG, PNG)
 - `is_accredited_investor`: Boolean
 - `meets_local_investment_thresholds`: Boolean
-- `proof_of_income_net_worth`: File (optional)
+
+**Accreditation Method Choices:**
+- `at_least_5m` - I have at least $5M in investment
+- `between_2.2m_5m` - I have between $2.2M and $5M in assets
+- `between_1m_2.2m` - I have between $1M and $2.2M in assets
+- `income_200k` - I have income of $200k (or $300k jointly with spouse) for the past 2 years
+- `series_7_65_82` - I am a Series 7, 65 or 82 holder with active license
+- `not_accredited` - I'm not accredited yet
+
+**JavaScript Example:**
+```javascript
+const formData = new FormData();
+formData.append('investor_type', 'individual');
+formData.append('full_legal_name', 'John Doe');
+formData.append('legal_place_of_residence', 'United States');
+formData.append('accreditation_method', 'income_200k');
+if (proofFile) {
+    formData.append('proof_of_income_net_worth', proofFile);
+}
+formData.append('is_accredited_investor', 'true');
+formData.append('meets_local_investment_thresholds', 'true');
+
+fetch('/blockchain-backend/api/profiles/1/update_step4/', {
+    method: 'PATCH',
+    headers: {'Authorization': 'Bearer ' + token},
+    body: formData
+});
+```
+
+**Note:** File is optional if already uploaded. You can update other fields without re-uploading the document
 
 ---
 
-### 5. Update Step 5: Accept Agreements
+### 6. Get Step 5 Data
+
+**Endpoint:** `GET /blockchain-backend/api/profiles/{id}/update_step5/`
+
+**Response:**
+```json
+{
+    "step": 5,
+    "step_name": "Accept Agreements",
+    "completed": false,
+    "can_access": true,
+    "data": {
+        "terms_and_conditions_accepted": false,
+        "risk_disclosure_accepted": false,
+        "privacy_policy_accepted": false,
+        "confirmation_of_true_information": false
+    }
+}
+```
+
+### 7. Update Step 5: Accept Agreements
 
 **Endpoint:** `PATCH /blockchain-backend/api/profiles/{id}/update_step5/`
 
@@ -145,15 +302,34 @@ fetch('/blockchain-backend/api/profiles/1/update_step2/', {
 
 ---
 
-### 6. Final Review
+### 8. Final Review
 
 **Endpoint:** `GET /blockchain-backend/api/profiles/{id}/final_review/`
 
 Returns complete profile for review before submission.
 
+**Response:**
+```json
+{
+    "message": "Review your information before submitting",
+    "ready_to_submit": true,
+    "profile": {
+        "id": 1,
+        "full_name": "John Doe",
+        "email_address": "john@example.com",
+        "current_step": 6,
+        "step1_completed": true,
+        "step2_completed": true,
+        "step3_completed": true,
+        "step4_completed": true,
+        "step5_completed": true
+    }
+}
+```
+
 ---
 
-### 7. Submit Application
+### 9. Submit Application
 
 **Endpoint:** `POST /blockchain-backend/api/profiles/{id}/submit_application/`
 
@@ -171,7 +347,7 @@ Returns complete profile for review before submission.
 
 ---
 
-### 8. Get Progress
+### 10. Get Progress
 
 **Endpoint:** `GET /blockchain-backend/api/profiles/{id}/progress/`
 

@@ -117,6 +117,10 @@ class InvestorProfile(models.Model):
     proof_of_bank_ownership = models.FileField(upload_to=investor_upload_path, blank=True, null=True, help_text="Upload Proof of Bank Ownership")
     
     # Step 4: Accreditation (If Applicable)
+    investor_type = models.CharField(max_length=20, choices=INVESTOR_TYPE_CHOICES, blank=True, null=True, help_text="Will you be investing money as an Individual, a Trust, or a Firm or Fund?")
+    full_legal_name = models.CharField(max_length=255, blank=True, null=True, help_text="What is your full legal name?")
+    legal_place_of_residence = models.CharField(max_length=100, blank=True, null=True, help_text="Where is your legal place of residence?")
+    accreditation_method = models.CharField(max_length=100, choices=ACCREDITATION_METHOD_CHOICES, blank=True, null=True, help_text="How are you accredited?")
     proof_of_income_net_worth = models.FileField(upload_to=investor_upload_path, blank=True, null=True, help_text="Upload Proof of Income or Net Worth")
     is_accredited_investor = models.BooleanField(default=False, help_text="Are you an accredited investor?")
     meets_local_investment_thresholds = models.BooleanField(default=False, help_text="Do you meet your local investment thresholds?")

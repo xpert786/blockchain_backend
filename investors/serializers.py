@@ -43,6 +43,10 @@ class InvestorProfileSerializer(serializers.ModelSerializer):
             'swift_ifsc_code',
             'proof_of_bank_ownership',
             # Step 4: Accreditation (If Applicable)
+            'investor_type',
+            'full_legal_name',
+            'legal_place_of_residence',
+            'accreditation_method',
             'proof_of_income_net_worth',
             'is_accredited_investor',
             'meets_local_investment_thresholds',
@@ -227,6 +231,10 @@ class InvestorProfileStep4Serializer(serializers.ModelSerializer):
     class Meta:
         model = InvestorProfile
         fields = [
+            'investor_type',
+            'full_legal_name',
+            'legal_place_of_residence',
+            'accreditation_method',
             'proof_of_income_net_worth',
             'proof_of_income_net_worth_url',
             'has_proof_of_income_net_worth',
