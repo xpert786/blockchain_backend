@@ -65,7 +65,7 @@ class DashboardViewSet(viewsets.ViewSet):
             'total_notifications': total_notifications,
             'unread_notifications': unread_count,
             'action_required_notifications': action_required_count,
-            'recent_investments': InvestmentSerializer(recent_investments, many=True).data,
+            'recent_investments': recent_investments,
         }
         
         serializer = DashboardOverviewSerializer(data)

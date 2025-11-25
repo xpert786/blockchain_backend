@@ -120,10 +120,15 @@ class InvestorProfileStep1Serializer(serializers.ModelSerializer):
 class InvestorProfileStep2Serializer(serializers.ModelSerializer):
     """Serializer for Step 2: KYC / Identity Verification"""
     
+    government_id_url = serializers.SerializerMethodField(read_only=True)
+    has_government_id = serializers.SerializerMethodField(read_only=True)
+    
     class Meta:
         model = InvestorProfile
         fields = [
             'government_id',
+            'government_id_url',
+            'has_government_id',
             'date_of_birth',
             'street_address',
             'city',
@@ -132,19 +137,36 @@ class InvestorProfileStep2Serializer(serializers.ModelSerializer):
             'country',
         ]
     
+    def get_government_id_url(self, obj):
+        """Get government ID file URL"""
+        if obj.government_id:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.government_id.url)
+            return obj.government_id.url
+        return None
+    
+    def get_has_government_id(self, obj):
+        """Check if government ID is uploaded"""
+        return bool(obj.government_id)
+    
     def validate(self, data):
         """Validate Step 2 fields"""
-        if not data.get('government_id'):
-            raise serializers.ValidationError("Government ID is required")
-        if not data.get('date_of_birth'):
-            raise serializers.ValidationError("Date of birth is required")
-        if not data.get('street_address'):
-            raise serializers.ValidationError("Street address is required")
+        # Only require government_id if not already uploaded
+        if not data.get('government_id') and not self.instance.government_id:
+            raise serializers.ValidationError({"government_id": "Government ID is required"})
+        if not data.get('date_of_birth') and not self.instance.date_of_birth:
+            raise serializers.ValidationError({"date_of_birth": "Date of birth is required"})
+        if not data.get('street_address') and not self.instance.street_address:
+            raise serializers.ValidationError({"street_address": "Street address is required"})
         return data
 
 
 class InvestorProfileStep3Serializer(serializers.ModelSerializer):
     """Serializer for Step 3: Bank Details / Payment Setup"""
+    
+    proof_of_bank_ownership_url = serializers.SerializerMethodField(read_only=True)
+    has_proof_of_bank_ownership = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = InvestorProfile
@@ -154,29 +176,65 @@ class InvestorProfileStep3Serializer(serializers.ModelSerializer):
             'account_holder_name',
             'swift_ifsc_code',
             'proof_of_bank_ownership',
+            'proof_of_bank_ownership_url',
+            'has_proof_of_bank_ownership',
         ]
+    
+    def get_proof_of_bank_ownership_url(self, obj):
+        """Get bank proof file URL"""
+        if obj.proof_of_bank_ownership:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.proof_of_bank_ownership.url)
+            return obj.proof_of_bank_ownership.url
+        return None
+    
+    def get_has_proof_of_bank_ownership(self, obj):
+        """Check if bank proof is uploaded"""
+        return bool(obj.proof_of_bank_ownership)
     
     def validate(self, data):
         """Validate Step 3 fields"""
-        if not data.get('bank_account_number'):
-            raise serializers.ValidationError("Bank account number is required")
-        if not data.get('bank_name'):
-            raise serializers.ValidationError("Bank name is required")
-        if not data.get('account_holder_name'):
-            raise serializers.ValidationError("Account holder name is required")
+        # Only require proof if not already uploaded
+        if not data.get('proof_of_bank_ownership') and not self.instance.proof_of_bank_ownership:
+            raise serializers.ValidationError({"proof_of_bank_ownership": "Bank ownership proof is required"})
+        if not data.get('bank_account_number') and not self.instance.bank_account_number:
+            raise serializers.ValidationError({"bank_account_number": "Bank account number is required"})
+        if not data.get('bank_name') and not self.instance.bank_name:
+            raise serializers.ValidationError({"bank_name": "Bank name is required"})
+        if not data.get('account_holder_name') and not self.instance.account_holder_name:
+            raise serializers.ValidationError({"account_holder_name": "Account holder name is required"})
         return data
 
 
 class InvestorProfileStep4Serializer(serializers.ModelSerializer):
     """Serializer for Step 4: Accreditation (If Applicable)"""
     
+    proof_of_income_net_worth_url = serializers.SerializerMethodField(read_only=True)
+    has_proof_of_income_net_worth = serializers.SerializerMethodField(read_only=True)
+    
     class Meta:
         model = InvestorProfile
         fields = [
             'proof_of_income_net_worth',
+            'proof_of_income_net_worth_url',
+            'has_proof_of_income_net_worth',
             'is_accredited_investor',
             'meets_local_investment_thresholds',
         ]
+    
+    def get_proof_of_income_net_worth_url(self, obj):
+        """Get income/net worth proof file URL"""
+        if obj.proof_of_income_net_worth:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.proof_of_income_net_worth.url)
+            return obj.proof_of_income_net_worth.url
+        return None
+    
+    def get_has_proof_of_income_net_worth(self, obj):
+        """Check if proof is uploaded"""
+        return bool(obj.proof_of_income_net_worth)
     
     def validate(self, data):
         """Validate Step 4 fields - Optional step"""

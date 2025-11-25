@@ -119,12 +119,14 @@ class Investment(models.Model):
     @property
     def gain_loss(self):
         """Calculate gain/loss for this investment"""
-        return self.current_value - self.invested_amount
+        if self.current_value is not None and self.invested_amount is not None:
+            return self.current_value - self.invested_amount
+        return 0.00
     
     @property
     def gain_loss_percentage(self):
         """Calculate gain/loss percentage"""
-        if self.invested_amount > 0:
+        if self.invested_amount and self.invested_amount > 0 and self.current_value is not None:
             return round(((self.current_value - self.invested_amount) / self.invested_amount) * 100, 2)
         return 0.00
 
