@@ -90,10 +90,21 @@ class InvestorProfileViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
     
-    @action(detail=True, methods=['patch'])
+    @action(detail=True, methods=['get', 'patch'])
     def update_step1(self, request, pk=None):
-        """Update Step 1: Basic Information"""
+        """Get or Update Step 1: Basic Information"""
         profile = self.get_object()
+        
+        if request.method == 'GET':
+            serializer = self.get_serializer(profile)
+            return Response({
+                'step': 1,
+                'step_name': 'Basic Information',
+                'completed': profile.step1_completed,
+                'data': serializer.data
+            })
+        
+        # PATCH method
         serializer = self.get_serializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -105,11 +116,22 @@ class InvestorProfileViewSet(viewsets.ModelViewSet):
             'profile': full_serializer.data
         })
     
-    @action(detail=True, methods=['patch'])
+    @action(detail=True, methods=['get', 'patch'])
     def update_step2(self, request, pk=None):
-        """Update Step 2: KYC / Identity Verification"""
+        """Get or Update Step 2: KYC / Identity Verification"""
         profile = self.get_object()
         
+        if request.method == 'GET':
+            serializer = self.get_serializer(profile)
+            return Response({
+                'step': 2,
+                'step_name': 'KYC / Identity Verification',
+                'completed': profile.step2_completed,
+                'can_access': profile.step1_completed,
+                'data': serializer.data
+            })
+        
+        # PATCH method
         # Ensure Step 1 is completed
         if not profile.step1_completed:
             return Response(
@@ -128,11 +150,22 @@ class InvestorProfileViewSet(viewsets.ModelViewSet):
             'profile': full_serializer.data
         })
     
-    @action(detail=True, methods=['patch'])
+    @action(detail=True, methods=['get', 'patch'])
     def update_step3(self, request, pk=None):
-        """Update Step 3: Bank Details / Payment Setup"""
+        """Get or Update Step 3: Bank Details / Payment Setup"""
         profile = self.get_object()
         
+        if request.method == 'GET':
+            serializer = self.get_serializer(profile)
+            return Response({
+                'step': 3,
+                'step_name': 'Bank Details / Payment Setup',
+                'completed': profile.step3_completed,
+                'can_access': profile.step1_completed and profile.step2_completed,
+                'data': serializer.data
+            })
+        
+        # PATCH method
         # Ensure previous steps are completed
         if not profile.step1_completed:
             return Response(
@@ -156,11 +189,23 @@ class InvestorProfileViewSet(viewsets.ModelViewSet):
             'profile': full_serializer.data
         })
     
-    @action(detail=True, methods=['patch'])
+    @action(detail=True, methods=['get', 'patch'])
     def update_step4(self, request, pk=None):
-        """Update Step 4: Accreditation (If Applicable)"""
+        """Get or Update Step 4: Accreditation (If Applicable)"""
         profile = self.get_object()
         
+        if request.method == 'GET':
+            serializer = self.get_serializer(profile)
+            return Response({
+                'step': 4,
+                'step_name': 'Accreditation (If Applicable)',
+                'completed': profile.step4_completed,
+                'can_access': profile.step1_completed and profile.step2_completed and profile.step3_completed,
+                'optional': True,
+                'data': serializer.data
+            })
+        
+        # PATCH method
         # Ensure previous steps are completed
         if not profile.step1_completed or not profile.step2_completed or not profile.step3_completed:
             return Response(
@@ -179,11 +224,22 @@ class InvestorProfileViewSet(viewsets.ModelViewSet):
             'profile': full_serializer.data
         })
     
-    @action(detail=True, methods=['patch'])
+    @action(detail=True, methods=['get', 'patch'])
     def update_step5(self, request, pk=None):
-        """Update Step 5: Accept Agreements"""
+        """Get or Update Step 5: Accept Agreements"""
         profile = self.get_object()
         
+        if request.method == 'GET':
+            serializer = self.get_serializer(profile)
+            return Response({
+                'step': 5,
+                'step_name': 'Accept Agreements',
+                'completed': profile.step5_completed,
+                'can_access': profile.step1_completed and profile.step2_completed and profile.step3_completed,
+                'data': serializer.data
+            })
+        
+        # PATCH method
         # Ensure previous steps are completed
         if not profile.step1_completed or not profile.step2_completed or not profile.step3_completed:
             return Response(

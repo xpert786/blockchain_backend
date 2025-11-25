@@ -229,3 +229,7 @@ class InvestorProfile(models.Model):
             return 6
         else:
             return 7  # Completed
+
+
+# Import dashboard models
+from .dashboard_models import Portfolio, Investment, Notification, KYCStatus
