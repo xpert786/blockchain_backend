@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CustomUser, Sector, Geography, EmailVerification, TwoFactorAuth, TermsAcceptance, SyndicateProfile
+from .models import CustomUser, Sector, Geography, EmailVerification, TwoFactorAuth, TermsAcceptance, SyndicateProfile, TeamMember
 from .email_utils import send_verification_email, send_sms_verification
 from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
@@ -455,4 +455,187 @@ class SyndicateStep4Serializer(serializers.ModelSerializer):
             instance.application_status = 'submitted'
             instance.save()
         return instance
+
+
+# Settings Serializers
+
+class SyndicateSettingsGeneralInfoSerializer(serializers.ModelSerializer):
+    """Serializer for Settings: General Information"""
+    
+    class Meta:
+        model = SyndicateProfile
+        fields = ['first_name', 'last_name', 'bio', 'link', 'logo']
+        extra_kwargs = {
+            'logo': {'required': False}
+        }
+
+
+class SyndicateSettingsKYBVerificationSerializer(serializers.ModelSerializer):
+    """Serializer for Settings: KYB Verification"""
+    
+    class Meta:
+        model = SyndicateProfile
+        fields = [
+            'firm_name', 'description',
+            'risk_regulatory_attestation',
+            'jurisdictional_compliance_acknowledged',
+            'additional_compliance_policies'
+        ]
+        extra_kwargs = {
+            'additional_compliance_policies': {'required': False, 'read_only': True}
+        }
+
+
+class SyndicateSettingsComplianceSerializer(serializers.ModelSerializer):
+    """Serializer for Settings: Compliance & Accreditation documents"""
+    
+    class Meta:
+        model = SyndicateProfile
+        fields = [
+            'risk_regulatory_attestation',
+            'jurisdictional_compliance_acknowledged',
+            'additional_compliance_policies'
+        ]
+        extra_kwargs = {
+            'additional_compliance_policies': {'required': False, 'read_only': True}
+        }
+
+
+# Team Member Serializers
+
+class TeamMemberSerializer(serializers.ModelSerializer):
+    """Serializer for TeamMember with full details"""
+    user_detail = CustomUserSerializer(source='user', read_only=True)
+    added_by_detail = CustomUserSerializer(source='added_by', read_only=True)
+    permissions = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TeamMember
+        fields = [
+            'id', 'syndicate', 'user', 'user_detail', 'name', 'email',
+            'role', 'permissions',
+            'can_access_dashboard', 'can_manage_spvs', 'can_manage_documents',
+            'can_manage_investors', 'can_view_reports', 'can_manage_transfers',
+            'can_manage_team', 'can_manage_settings',
+            'invitation_sent', 'invitation_accepted', 'is_active', 'is_registered',
+            'added_by', 'added_by_detail', 'added_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'user_detail', 'added_by_detail', 'is_registered',
+            'invitation_sent', 'invitation_accepted', 'added_at', 'updated_at'
+        ]
+    
+    def get_permissions(self, obj):
+        """Get permissions as a dictionary"""
+        return obj.get_permissions()
+
+
+class TeamMemberListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for team member list"""
+    user_detail = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TeamMember
+        fields = [
+            'id', 'name', 'email', 'role', 'user_detail',
+            'can_access_dashboard', 'is_active', 'is_registered',
+            'added_at'
+        ]
+    
+    def get_user_detail(self, obj):
+        """Get user details if registered"""
+        if obj.user:
+            return {
+                'id': obj.user.id,
+                'username': obj.user.username,
+                'email': obj.user.email,
+                'first_name': obj.user.first_name,
+                'last_name': obj.user.last_name
+            }
+        return None
+
+
+class TeamMemberCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating team members"""
+    
+    class Meta:
+        model = TeamMember
+        fields = [
+            'name', 'email', 'role',
+            'can_access_dashboard', 'can_manage_spvs', 'can_manage_documents',
+            'can_manage_investors', 'can_view_reports', 'can_manage_transfers',
+            'can_manage_team', 'can_manage_settings'
+        ]
+    
+    def validate_email(self, value):
+        """Validate email is not already a team member"""
+        syndicate = self.context.get('syndicate')
+        if syndicate and TeamMember.objects.filter(syndicate=syndicate, email=value).exists():
+            raise serializers.ValidationError("A team member with this email already exists.")
+        return value
+    
+    def create(self, validated_data):
+        """Create team member and apply role permissions if enabled"""
+        syndicate = self.context.get('syndicate')
+        added_by = self.context.get('added_by')
+        
+        team_member = TeamMember.objects.create(
+            syndicate=syndicate,
+            added_by=added_by,
+            **validated_data
+        )
+        
+        # Apply role-based permissions if enabled
+        if syndicate.enable_role_based_access_controls:
+            team_member.apply_role_permissions()
+            team_member.save()
+        
+        return team_member
+
+
+class TeamMemberUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating team member role and permissions"""
+    
+    class Meta:
+        model = TeamMember
+        fields = [
+            'role',
+            'can_access_dashboard', 'can_manage_spvs', 'can_manage_documents',
+            'can_manage_investors', 'can_view_reports', 'can_manage_transfers',
+            'can_manage_team', 'can_manage_settings',
+            'is_active'
+        ]
+    
+    def update(self, instance, validated_data):
+        """Update team member and apply role permissions if role changed"""
+        role_changed = 'role' in validated_data and validated_data['role'] != instance.role
+        
+        # Update fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        # Apply role-based permissions if role changed and RBAC is enabled
+        if role_changed and instance.syndicate.enable_role_based_access_controls:
+            instance.apply_role_permissions()
+        
+        instance.save()
+        return instance
+
+
+class TeamMemberRoleUpdateSerializer(serializers.Serializer):
+    """Serializer for updating only the role"""
+    role = serializers.ChoiceField(choices=TeamMember.ROLE_CHOICES)
+    apply_role_permissions = serializers.BooleanField(default=True)
+
+
+class TeamMemberPermissionsUpdateSerializer(serializers.Serializer):
+    """Serializer for updating only permissions"""
+    can_access_dashboard = serializers.BooleanField(required=False)
+    can_manage_spvs = serializers.BooleanField(required=False)
+    can_manage_documents = serializers.BooleanField(required=False)
+    can_manage_investors = serializers.BooleanField(required=False)
+    can_view_reports = serializers.BooleanField(required=False)
+    can_manage_transfers = serializers.BooleanField(required=False)
+    can_manage_team = serializers.BooleanField(required=False)
+    can_manage_settings = serializers.BooleanField(required=False)
 

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
-from .models import CustomUser, Sector, Geography, TwoFactorAuth, EmailVerification, TermsAcceptance, SyndicateProfile
+from .models import CustomUser, Sector, Geography, TwoFactorAuth, EmailVerification, TermsAcceptance, SyndicateProfile, TeamMember
 
 # Register CustomUser with Django admin
 @admin.register(CustomUser)
@@ -73,4 +73,54 @@ class SyndicateProfileAdmin(admin.ModelAdmin):
     def current_step(self, obj):
         return obj.current_step
     current_step.short_description = 'Current Step'
+
+
+@admin.register(TeamMember)
+class TeamMemberAdmin(admin.ModelAdmin):
+    """Admin interface for TeamMember"""
+    list_display = (
+        'id', 'name', 'email', 'syndicate_name', 'role',
+        'is_registered', 'is_active', 'added_at'
+    )
+    list_filter = ('role', 'is_active', 'invitation_sent', 'invitation_accepted', 'added_at')
+    search_fields = ('name', 'email', 'syndicate__firm_name', 'user__username', 'user__email')
+    readonly_fields = ('added_at', 'updated_at', 'is_registered')
+    ordering = ('-added_at',)
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('syndicate', 'user', 'name', 'email')
+        }),
+        ('Role & Permissions', {
+            'fields': (
+                'role',
+                'can_access_dashboard', 'can_manage_spvs', 'can_manage_documents',
+                'can_manage_investors', 'can_view_reports', 'can_manage_transfers',
+                'can_manage_team', 'can_manage_settings'
+            )
+        }),
+        ('Status', {
+            'fields': ('is_active', 'invitation_sent', 'invitation_accepted', 'is_registered')
+        }),
+        ('Metadata', {
+            'fields': ('added_by', 'added_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def syndicate_name(self, obj):
+        """Display syndicate firm name"""
+        return obj.syndicate.firm_name or f"Syndicate {obj.syndicate.id}"
+    syndicate_name.short_description = 'Syndicate'
+    
+    def is_registered(self, obj):
+        """Display registration status with colored indicator"""
+        if obj.is_registered:
+            return format_html(
+                '<span style="color: green; font-weight: bold;">✓ Registered</span>'
+            )
+        return format_html(
+            '<span style="color: orange;">○ Invited</span>'
+        )
+    is_registered.short_description = 'Status'
     

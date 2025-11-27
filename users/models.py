@@ -157,6 +157,12 @@ class SyndicateProfile(models.Model):
         help_text="When enabled, permissions will be automatically assigned based on team member roles and can be overridden individually"
     )
     
+    # Settings: General Info
+    first_name = models.CharField(max_length=100, blank=True, null=True)
+    last_name = models.CharField(max_length=100, blank=True, null=True)
+    bio = models.TextField(blank=True, null=True)
+    link = models.URLField(max_length=500, blank=True, null=True)
+    
     # Step 3: Compliance & Attestation
     risk_regulatory_attestation = models.BooleanField(default=False)
     jurisdictional_compliance_acknowledged = models.BooleanField(default=False)
@@ -240,3 +246,161 @@ class Syndicate(SyndicateProfile):
         proxy = True
         verbose_name = 'syndicate'
         verbose_name_plural = 'syndicates'
+
+
+# Team Management Models
+
+class TeamMember(models.Model):
+    """Model for syndicate team members"""
+    
+    ROLE_CHOICES = [
+        ('manager', 'Manager'),
+        ('analyst', 'Analyst'),
+        ('associate', 'Associate'),
+        ('partner', 'Partner'),
+        ('admin', 'Admin'),
+        ('viewer', 'Viewer'),
+    ]
+    
+    syndicate = models.ForeignKey(
+        SyndicateProfile,
+        on_delete=models.CASCADE,
+        related_name='team_members'
+    )
+    user = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='team_memberships',
+        null=True,
+        blank=True,
+        help_text="User account if they are registered, otherwise null for invited members"
+    )
+    
+    # Member info (for invited members who haven't registered yet)
+    name = models.CharField(max_length=255)
+    email = models.EmailField()
+    
+    # Role and permissions
+    role = models.CharField(max_length=50, choices=ROLE_CHOICES, default='viewer')
+    
+    # Individual permissions (can override role-based permissions)
+    can_access_dashboard = models.BooleanField(default=True)
+    can_manage_spvs = models.BooleanField(default=False)
+    can_manage_documents = models.BooleanField(default=False)
+    can_manage_investors = models.BooleanField(default=False)
+    can_view_reports = models.BooleanField(default=True)
+    can_manage_transfers = models.BooleanField(default=False)
+    can_manage_team = models.BooleanField(default=False)
+    can_manage_settings = models.BooleanField(default=False)
+    
+    # Invitation and status
+    invitation_sent = models.BooleanField(default=False)
+    invitation_token = models.CharField(max_length=100, blank=True, null=True)
+    invitation_accepted = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    
+    # Metadata
+    added_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='team_members_added'
+    )
+    added_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'team member'
+        verbose_name_plural = 'team members'
+        ordering = ['-added_at']
+        unique_together = ['syndicate', 'email']
+    
+    def __str__(self):
+        return f"{self.name} - {self.syndicate.firm_name or 'Syndicate'}"
+    
+    @property
+    def is_registered(self):
+        """Check if team member has registered user account"""
+        return self.user is not None
+    
+    def get_permissions(self):
+        """Get all permissions as dictionary"""
+        return {
+            'can_access_dashboard': self.can_access_dashboard,
+            'can_manage_spvs': self.can_manage_spvs,
+            'can_manage_documents': self.can_manage_documents,
+            'can_manage_investors': self.can_manage_investors,
+            'can_view_reports': self.can_view_reports,
+            'can_manage_transfers': self.can_manage_transfers,
+            'can_manage_team': self.can_manage_team,
+            'can_manage_settings': self.can_manage_settings,
+        }
+    
+    def apply_role_permissions(self):
+        """Apply default permissions based on role"""
+        role_permissions = {
+            'manager': {
+                'can_access_dashboard': True,
+                'can_manage_spvs': True,
+                'can_manage_documents': True,
+                'can_manage_investors': True,
+                'can_view_reports': True,
+                'can_manage_transfers': True,
+                'can_manage_team': True,
+                'can_manage_settings': True,
+            },
+            'partner': {
+                'can_access_dashboard': True,
+                'can_manage_spvs': True,
+                'can_manage_documents': True,
+                'can_manage_investors': True,
+                'can_view_reports': True,
+                'can_manage_transfers': True,
+                'can_manage_team': False,
+                'can_manage_settings': False,
+            },
+            'analyst': {
+                'can_access_dashboard': True,
+                'can_manage_spvs': False,
+                'can_manage_documents': True,
+                'can_manage_investors': False,
+                'can_view_reports': True,
+                'can_manage_transfers': False,
+                'can_manage_team': False,
+                'can_manage_settings': False,
+            },
+            'associate': {
+                'can_access_dashboard': True,
+                'can_manage_spvs': False,
+                'can_manage_documents': True,
+                'can_manage_investors': True,
+                'can_view_reports': True,
+                'can_manage_transfers': False,
+                'can_manage_team': False,
+                'can_manage_settings': False,
+            },
+            'admin': {
+                'can_access_dashboard': True,
+                'can_manage_spvs': True,
+                'can_manage_documents': True,
+                'can_manage_investors': True,
+                'can_view_reports': True,
+                'can_manage_transfers': True,
+                'can_manage_team': True,
+                'can_manage_settings': True,
+            },
+            'viewer': {
+                'can_access_dashboard': True,
+                'can_manage_spvs': False,
+                'can_manage_documents': False,
+                'can_manage_investors': False,
+                'can_view_reports': True,
+                'can_manage_transfers': False,
+                'can_manage_team': False,
+                'can_manage_settings': False,
+            }
+        }
+        
+        permissions = role_permissions.get(self.role, role_permissions['viewer'])
+        for key, value in permissions.items():
+            setattr(self, key, value)

@@ -1,4 +1,5 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from . import views
 from . import simple_auth_views
 from . import registration_views
@@ -6,6 +7,12 @@ from . import test_views
 from . import debug_views
 from . import cors_views
 from . import syndicate_views
+from . import syndicate_settings_views
+from . import team_management_views
+
+# Create router for ViewSets
+router = DefaultRouter()
+router.register(r'team-members', team_management_views.TeamMemberViewSet, basename='team-member')
 
 urlpatterns = [
     # User management endpoints
@@ -78,6 +85,21 @@ urlpatterns = [
     path('syndicate/sectors-geographies/', syndicate_views.get_sectors_and_geographies, name='get-sectors-geographies'),
     path('syndicate/profile/update/', syndicate_views.update_syndicate_profile, name='update-syndicate-profile'),
     
+    # Syndicate settings endpoints
+    path('syndicate/settings/overview/', syndicate_settings_views.syndicate_settings_overview, name='syndicate-settings-overview'),
+    path('syndicate/settings/general-info/', syndicate_settings_views.syndicate_settings_general_info, name='syndicate-settings-general-info'),
+    path('syndicate/settings/team-management/', syndicate_settings_views.syndicate_settings_team_management, name='syndicate-settings-team-management'),
+    path('syndicate/settings/kyb-verification/', syndicate_settings_views.syndicate_settings_kyb_verification, name='syndicate-settings-kyb-verification'),
+    path('syndicate/settings/compliance/', syndicate_settings_views.syndicate_settings_compliance, name='syndicate-settings-compliance'),
+    path('syndicate/settings/jurisdictional/', syndicate_settings_views.syndicate_settings_jurisdictional, name='syndicate-settings-jurisdictional'),
+    path('syndicate/settings/portfolio/', syndicate_settings_views.syndicate_settings_portfolio, name='syndicate-settings-portfolio'),
+    path('syndicate/settings/notifications/', syndicate_settings_views.syndicate_settings_notifications, name='syndicate-settings-notifications'),
+    path('syndicate/settings/fee-recipient/', syndicate_settings_views.syndicate_settings_fee_recipient, name='syndicate-settings-fee-recipient'),
+    path('syndicate/settings/bank-details/', syndicate_settings_views.syndicate_settings_bank_details, name='syndicate-settings-bank-details'),
+    
     # CORS preflight handler
     path('cors-preflight/', cors_views.cors_preflight, name='cors-preflight'),
+    
+    # Include router URLs for ViewSets
+    path('', include(router.urls)),
 ]
