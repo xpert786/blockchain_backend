@@ -6,7 +6,7 @@ router = DefaultRouter()
 router.register(r'conversations', ConversationViewSet, basename='conversation')
 router.register(r'messages', MessageViewSet, basename='message')
 router.register(r'notifications', NotificationViewSet, basename='notification')
-
+    
 urlpatterns = [
     path('', include(router.urls)),
 ]
