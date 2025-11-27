@@ -4,7 +4,9 @@ from django.db.models import Count, Q, Sum
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
 from decimal import Decimal
+from datetime import datetime, timedelta
 
 from .dashboard_models import Portfolio, Investment, Notification, KYCStatus
 from .dashboard_serializers import (
@@ -18,6 +20,14 @@ from .dashboard_serializers import (
     DashboardOverviewSerializer,
     KYCStatusSerializer
 )
+from spv.models import SPV
+from spv.serializers import SPVSerializer
+
+
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 
 class DashboardViewSet(viewsets.ViewSet):
@@ -28,7 +38,7 @@ class DashboardViewSet(viewsets.ViewSet):
     
     @action(detail=False, methods=['get'])
     def overview(self, request):
-        """Get complete dashboard overview"""
+        """Get complete dashboard overview with all cards data"""
         user = request.user
         
         # Get or create portfolio
@@ -51,25 +61,27 @@ class DashboardViewSet(viewsets.ViewSet):
         unread_count = notifications.filter(status='unread').count()
         action_required_count = notifications.filter(action_required=True, status='unread').count()
         
+        # Count active SPVs (investments)
+        active_spvs = Investment.objects.filter(investor=user, status='active').count()
+        
         # Get recent investments
         recent_investments = Investment.objects.filter(investor=user).order_by('-created_at')[:5]
         
         data = {
             'kyc_status': kyc_status_value,
             'kyc_verified': kyc_verified,
-            'total_investments': portfolio.total_investments_count,
-            'portfolio_value': portfolio.current_value,
-            'total_invested': portfolio.total_invested,
-            'unrealized_gain': portfolio.unrealized_gain,
+            'total_investments': active_spvs,
+            'portfolio_value': str(portfolio.current_value),
+            'total_invested': str(portfolio.total_invested),
+            'unrealized_gain': str(portfolio.unrealized_gain),
             'portfolio_growth': portfolio.portfolio_growth_percentage,
             'total_notifications': total_notifications,
             'unread_notifications': unread_count,
             'action_required_notifications': action_required_count,
-            'recent_investments': recent_investments,
+            'recent_investments': InvestmentSerializer(recent_investments, many=True).data,
         }
         
-        serializer = DashboardOverviewSerializer(data)
-        return Response(serializer.data)
+        return Response(data)
     
     @action(detail=False, methods=['get'])
     def stats(self, request):
@@ -106,6 +118,267 @@ class DashboardViewSet(viewsets.ViewSet):
         }
         
         return Response(stats)
+    
+    @action(detail=False, methods=['get'])
+    def discover_deals(self, request):
+        """Get available syndicate deals for discovery"""
+        # Get active SPVs that are open for investment
+        spvs = SPV.objects.filter(
+            status__in=['active', 'approved']
+        ).order_by('-created_at')
+        
+        # Apply filters if provided
+        sector = request.query_params.get('sector', None)
+        if sector:
+            spvs = spvs.filter(portfolio_company__sector__icontains=sector)
+        
+        min_investment = request.query_params.get('min_investment', None)
+        if min_investment:
+            spvs = spvs.filter(allocation__gte=min_investment)
+        
+        # Paginate results
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(spvs, request)
+        
+        # Convert to investment-like format for frontend
+        deals = []
+        for spv in page:
+            # Calculate days left if there's a deadline
+            days_left = 22  # Default
+            
+            deals.append({
+                'id': spv.id,
+                'syndicate_name': spv.display_name,
+                'company_name': spv.portfolio_company_name,
+                'sector': getattr(spv.portfolio_company, 'sector', 'Technology') if spv.portfolio_company else 'Technology',
+                'stage': str(spv.company_stage) if spv.company_stage else 'Series B',
+                'allocated': Investment.objects.filter(spv=spv).aggregate(Sum('invested_amount'))['invested_amount__sum'] or 0,
+                'raised': Investment.objects.filter(spv=spv, status='active').aggregate(Sum('invested_amount'))['invested_amount__sum'] or 0,
+                'target': spv.allocation or 0,
+                'min_investment': 25000,  # Default minimum
+                'days_left': days_left,
+                'status': 'Raising',
+                'investment_type': 'syndicate_deal',
+                'spv_id': spv.id,
+            })
+        
+        return paginator.get_paginated_response(deals)
+    
+    @action(detail=False, methods=['get'])
+    def top_syndicates(self, request):
+        """Get top performing syndicates"""
+        # Get SPVs with high track record or performance
+        spvs = SPV.objects.filter(
+            status__in=['active', 'approved', 'closed']
+        ).order_by('-created_at')
+        
+        # Paginate results
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(spvs, request)
+        
+        syndicates = []
+        for spv in page:
+            # Get existing investments in this SPV
+            investments = Investment.objects.filter(spv=spv)
+            total_allocated = investments.count()
+            total_raised = investments.aggregate(Sum('invested_amount'))['invested_amount__sum'] or 0
+            
+            syndicates.append({
+                'id': spv.id,
+                'syndicate_name': spv.display_name,
+                'sector': getattr(spv.portfolio_company, 'sector', 'Technology') if spv.portfolio_company else 'Technology',
+                'allocated': total_allocated,
+                'raised': total_raised,
+                'target': spv.allocation or 0,
+                'min_investment': 85000,
+                'track_record': '+23.4% IRR',  # Mock data
+                'status': 'Raising',
+                'investment_type': 'top_syndicate',
+                'spv_id': spv.id,
+            })
+        
+        return paginator.get_paginated_response(syndicates)
+    
+    @action(detail=False, methods=['get'])
+    def invites(self, request):
+        """Get investment invites for the user"""
+        user = request.user
+        
+        # Get notifications that are invites
+        invite_notifications = Notification.objects.filter(
+            user=user,
+            notification_type='investment',
+            action_required=True,
+            status='unread'
+        ).order_by('-created_at')
+        
+        invites = []
+        for notification in invite_notifications:
+            # Get related SPV if available
+            spv = notification.related_spv
+            if spv:
+                # Calculate deadline
+                deadline_days = 7  # Default
+                if notification.expires_at:
+                    deadline_days = (notification.expires_at.date() - timezone.now().date()).days
+                
+                invites.append({
+                    'id': notification.id,
+                    'syndicate_name': spv.display_name,
+                    'led_by': f"{spv.created_by.first_name} {spv.created_by.last_name}" if spv.created_by.first_name else spv.created_by.username,
+                    'description': notification.message,
+                    'sector': getattr(spv.portfolio_company, 'sector', 'Technology') if spv.portfolio_company else 'Technology',
+                    'stage': str(spv.company_stage) if spv.company_stage else 'Series C',
+                    'allocated': 40,  # Mock
+                    'raised': spv.allocation or 0,
+                    'target': spv.round_size or 0,
+                    'min_investment': 25000,
+                    'deadline': deadline_days,
+                    'status': 'Expired' if deadline_days <= 0 else 'Active',
+                    'investment_type': 'invite',
+                    'spv_id': spv.id,
+                    'notification_id': notification.id,
+                })
+        
+        return Response(invites)
+    
+    @action(detail=False, methods=['post'])
+    def invest_in_syndicate(self, request):
+        """Invest in a syndicate/SPV"""
+        spv_id = request.data.get('spv_id')
+        amount = request.data.get('amount')
+        
+        if not spv_id or not amount:
+            return Response(
+                {'error': 'spv_id and amount are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            spv = SPV.objects.get(id=spv_id)
+        except SPV.DoesNotExist:
+            return Response(
+                {'error': 'SPV not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Create investment
+        investment = Investment.objects.create(
+            investor=request.user,
+            spv=spv,
+            syndicate_name=spv.display_name,
+            sector=getattr(spv.portfolio_company, 'sector', 'Technology') if spv.portfolio_company else 'Technology',
+            stage=str(spv.company_stage) if spv.company_stage else 'Series B',
+            investment_type=request.data.get('investment_type', 'syndicate_deal'),
+            invested_amount=amount,
+            current_value=amount,  # Initial value same as invested
+            allocated=0,
+            raised=spv.allocation or 0,
+            target=spv.round_size or 0,
+            min_investment=25000,
+            status='pending',
+        )
+        
+        # Update portfolio
+        portfolio, _ = Portfolio.objects.get_or_create(user=request.user)
+        portfolio.recalculate()
+        
+        # Create notification
+        Notification.objects.create(
+            user=request.user,
+            notification_type='investment',
+            title='Investment Submitted',
+            message=f'Your investment of ${amount} in {spv.display_name} has been submitted for processing.',
+            status='unread'
+        )
+        
+        return Response({
+            'message': 'Investment submitted successfully',
+            'investment': InvestmentSerializer(investment).data
+        }, status=status.HTTP_201_CREATED)
+    
+    @action(detail=False, methods=['post'])
+    def accept_invite(self, request):
+        """Accept an investment invite"""
+        notification_id = request.data.get('notification_id')
+        amount = request.data.get('amount')
+        
+        if not notification_id:
+            return Response(
+                {'error': 'notification_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            notification = Notification.objects.get(id=notification_id, user=request.user)
+        except Notification.DoesNotExist:
+            return Response(
+                {'error': 'Notification not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        spv = notification.related_spv
+        if not spv:
+            return Response(
+                {'error': 'No SPV associated with this invite'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create investment
+        investment = Investment.objects.create(
+            investor=request.user,
+            spv=spv,
+            syndicate_name=spv.display_name,
+            sector=getattr(spv.portfolio_company, 'sector', 'Technology') if spv.portfolio_company else 'Technology',
+            stage=str(spv.company_stage) if spv.company_stage else 'Series C',
+            investment_type='invite',
+            invested_amount=amount,
+            current_value=amount,
+            allocated=0,
+            raised=spv.allocation or 0,
+            target=spv.round_size or 0,
+            min_investment=25000,
+            status='pending',
+        )
+        
+        # Mark notification as read
+        notification.mark_as_read()
+        
+        # Update portfolio
+        portfolio, _ = Portfolio.objects.get_or_create(user=request.user)
+        portfolio.recalculate()
+        
+        return Response({
+            'message': 'Invite accepted and investment created',
+            'investment': InvestmentSerializer(investment).data
+        }, status=status.HTTP_201_CREATED)
+    
+    @action(detail=False, methods=['post'])
+    def decline_invite(self, request):
+        """Decline an investment invite"""
+        notification_id = request.data.get('notification_id')
+        
+        if not notification_id:
+            return Response(
+                {'error': 'notification_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            notification = Notification.objects.get(id=notification_id, user=request.user)
+        except Notification.DoesNotExist:
+            return Response(
+                {'error': 'Notification not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Mark notification as read and archived
+        notification.status = 'archived'
+        notification.save()
+        
+        return Response({
+            'message': 'Invite declined successfully'
+        })
 
 
 class PortfolioViewSet(viewsets.ModelViewSet):
@@ -149,22 +422,33 @@ class PortfolioViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def snapshot(self, request):
-        """Get portfolio snapshot with performance data"""
+        """Get portfolio snapshot with performance data matching Figma design"""
         portfolio, created = Portfolio.objects.get_or_create(user=request.user)
         portfolio.recalculate()
         
-        # Get performance data (for chart)
-        # This would typically pull from historical data
+        # Generate performance chart data (mock data showing growth)
+        # In production, this would pull from historical portfolio values
+        today = timezone.now().date()
+        performance_history = []
+        
+        # Generate data points for the last 6 months
+        for i in range(6):
+            date = today - timedelta(days=30 * (5 - i))
+            # Simulate growth from invested to current value
+            progress = (i + 1) / 6
+            value = float(portfolio.total_invested) + (float(portfolio.unrealized_gain) * progress)
+            performance_history.append({
+                'date': date.strftime('%Y-%m-%d'),
+                'value': round(value, 2)
+            })
+        
         snapshot_data = {
-            'total_invested': portfolio.total_invested,
-            'current_value': portfolio.current_value,
-            'unrealized_gain': portfolio.unrealized_gain,
+            'total_invested': str(portfolio.total_invested),
+            'current_value': str(portfolio.current_value),
+            'unrealized_gain': str(portfolio.unrealized_gain),
             'portfolio_growth': portfolio.portfolio_growth_percentage,
-            'performance_history': [
-                # Mock data - replace with actual historical data
-                {'date': '2025-01-01', 'value': portfolio.total_invested},
-                {'date': '2025-11-25', 'value': portfolio.current_value},
-            ]
+            'portfolio_growth_label': f"{portfolio.portfolio_growth_percentage}% Portfolio Growth",
+            'performance_history': performance_history
         }
         
         return Response(snapshot_data)
