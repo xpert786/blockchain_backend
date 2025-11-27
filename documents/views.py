@@ -326,10 +326,20 @@ class DocumentTemplateViewSet(viewsets.ModelViewSet):
         GET /api/document-templates/{id}/required_fields/
         """
         template = self.get_object()
+        
+        # Ensure required_fields is a list
+        required_fields = template.required_fields or []
+        if isinstance(required_fields, str):
+            import json
+            try:
+                required_fields = json.loads(required_fields)
+            except json.JSONDecodeError:
+                required_fields = []
+        
         return Response({
             'template_id': template.id,
             'template_name': template.name,
-            'required_fields': template.required_fields or [],
+            'required_fields': required_fields,
             'enable_digital_signature': template.enable_digital_signature,
         }, status=status.HTTP_200_OK)
     
@@ -391,8 +401,21 @@ def generate_document_from_template(request):
     
     # Validate required fields
     required_fields = template.required_fields or []
+    
+    # Ensure required_fields is a list (parse if it's a string)
+    if isinstance(required_fields, str):
+        import json
+        try:
+            required_fields = json.loads(required_fields)
+        except json.JSONDecodeError:
+            required_fields = []
+    
     missing_fields = []
     for field_def in required_fields:
+        # Skip if field_def is not a dict
+        if not isinstance(field_def, dict):
+            continue
+            
         field_name = field_def.get('name')
         if field_def.get('required', False) and field_name not in field_data:
             missing_fields.append(field_def.get('label', field_name))

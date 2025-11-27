@@ -136,6 +136,7 @@ Content-Type: multipart/form-data
 ```
 
 **Response:** (201 Created)
+
 ```json
 {
   "id": 1,
