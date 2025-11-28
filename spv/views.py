@@ -880,7 +880,7 @@ STATUS_TABS = {
 def spv_management_overview(request):
     """
     SPV management overview list with status filters.
-    GET /api/spv/management/
+    GET /api/spv/                   /
     """
     user = request.user
     if user.is_staff or getattr(user, 'role', '') == 'admin':

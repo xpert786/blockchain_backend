@@ -18,6 +18,13 @@ from .views import (
     spv_dashboard_summary,
     spv_management_overview,
 )
+from .detail_views import (
+    spv_details,
+    spv_performance_metrics,
+    spv_investment_terms,
+    spv_investors,
+    spv_documents,
+)
 
 spv_list = SPVViewSet.as_view({'get': 'list', 'post': 'create'})
 spv_detail = SPVViewSet.as_view({
@@ -103,5 +110,12 @@ urlpatterns = [
     path('lookups/share-classes/', list_share_classes, name='lookup-share-classes'),
     path('lookups/rounds/', list_rounds, name='lookup-rounds'),
     path('lookups/master-partnership-entities/', list_master_partnership_entities, name='lookup-master-partnership-entities'),
+    
+    # SPV Detail endpoints
+    path('spv/<int:spv_id>/details/', spv_details, name='spv-details'),
+    path('spv/<int:spv_id>/performance-metrics/', spv_performance_metrics, name='spv-performance-metrics'),
+    path('spv/<int:spv_id>/investment-terms/', spv_investment_terms, name='spv-investment-terms'),
+    path('spv/<int:spv_id>/investors/', spv_investors, name='spv-investors'),
+    path('spv/<int:spv_id>/documents/', spv_documents, name='spv-documents'),
 ]
 
