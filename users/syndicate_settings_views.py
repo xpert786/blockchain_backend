@@ -9,7 +9,8 @@ from .serializers import (
     SyndicateProfileSerializer,
     SyndicateSettingsGeneralInfoSerializer,
     SyndicateSettingsKYBVerificationSerializer,
-    SyndicateSettingsComplianceSerializer
+    SyndicateSettingsComplianceSerializer,
+    SyndicateSettingsJurisdictionalSerializer
 )
 
 logger = logging.getLogger(__name__)
@@ -305,12 +306,13 @@ def syndicate_settings_compliance(request):
     }, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PATCH'])
 @permission_classes([permissions.IsAuthenticated])
 def syndicate_settings_jurisdictional(request):
     """
     Settings: Jurisdictional Settings
     GET /api/syndicate/settings/jurisdictional/ - Get jurisdictional settings
+    PATCH /api/syndicate/settings/jurisdictional/ - Update jurisdictional settings
     """
     user = request.user
     
@@ -327,22 +329,55 @@ def syndicate_settings_jurisdictional(request):
             'error': 'Syndicate profile not found. Please complete onboarding first.'
         }, status=status.HTTP_404_NOT_FOUND)
     
-    return Response({
-        'success': True,
-        'message': 'Jurisdictional settings endpoint',
-        'data': {
-            'jurisdictional_compliance_acknowledged': profile.jurisdictional_compliance_acknowledged,
-            'geographies': [
-                {
-                    'id': geo.id,
-                    'name': geo.name,
-                    'region': geo.region,
-                    'country_code': geo.country_code
+    if request.method == 'GET':
+        return Response({
+            'success': True,
+            'message': 'Jurisdictional settings endpoint',
+            'data': {
+                'jurisdictional_compliance_acknowledged': profile.jurisdictional_compliance_acknowledged,
+                'geographies': [
+                    {
+                        'id': geo.id,
+                        'name': geo.name,
+                        'region': geo.region,
+                        'country_code': geo.country_code
+                    }
+                    for geo in profile.geographies.all()
+                ]
+            }
+        })
+    
+    elif request.method == 'PATCH':
+        serializer = SyndicateSettingsJurisdictionalSerializer(
+            profile, 
+            data=request.data, 
+            partial=True,
+            context={'request': request}
+        )
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Jurisdictional settings updated successfully',
+                'data': {
+                    'jurisdictional_compliance_acknowledged': profile.jurisdictional_compliance_acknowledged,
+                    'geographies': [
+                        {
+                            'id': geo.id,
+                            'name': geo.name,
+                            'region': geo.region,
+                            'country_code': geo.country_code
+                        }
+                        for geo in profile.geographies.all()
+                    ]
                 }
-                for geo in profile.geographies.all()
-            ]
-        }
-    })
+            })
+        
+        return Response({
+            'success': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])

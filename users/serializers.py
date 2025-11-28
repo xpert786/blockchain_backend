@@ -624,6 +624,29 @@ class SyndicateSettingsComplianceSerializer(serializers.ModelSerializer):
         }
 
 
+class SyndicateSettingsJurisdictionalSerializer(serializers.ModelSerializer):
+    """Serializer for Settings: Jurisdictional Settings with geography management"""
+    geographies = GeographySerializer(many=True, read_only=True)
+    geography_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Geography.objects.all(),
+        write_only=True,
+        many=True,
+        required=False,
+        source='geographies'
+    )
+    
+    class Meta:
+        model = SyndicateProfile
+        fields = [
+            'jurisdictional_compliance_acknowledged',
+            'geographies',
+            'geography_ids'
+        ]
+        extra_kwargs = {
+            'jurisdictional_compliance_acknowledged': {'required': False}
+        }
+
+
 # Team Member Serializers
 
 class TeamMemberSerializer(serializers.ModelSerializer):
