@@ -670,12 +670,13 @@ def syndicate_settings_notifications_detail(request, preference_type):
     })
 
 
-@api_view(['GET', 'PATCH'])
+@api_view(['GET', 'PATCH', 'POST'])
 @permission_classes([permissions.IsAuthenticated])
 def syndicate_settings_fee_recipient(request):
     """
     Settings: Fee Recipient Setup
     GET /api/syndicate/settings/fee-recipient/ - Get fee recipient settings
+    POST /api/syndicate/settings/fee-recipient/ - Create new fee recipient
     PATCH /api/syndicate/settings/fee-recipient/ - Update fee recipient settings
     """
     user = request.user
@@ -704,6 +705,62 @@ def syndicate_settings_fee_recipient(request):
             'message': 'Fee recipient setup',
             'data': serializer.data
         })
+    
+    elif request.method == 'POST':
+        # Create new fee recipient
+        from .models import FeeRecipient
+        
+        # Check if fee recipient already exists for this syndicate
+        existing_recipient = FeeRecipient.objects.filter(syndicate=profile).first()
+        if existing_recipient:
+            return Response({
+                'error': 'Fee recipient already exists for this syndicate. Use PATCH to update.',
+                'recipient_id': existing_recipient.id
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Prepare data for serializer
+        serializer_data = {}
+        if hasattr(request, 'data'):
+            from django.http import QueryDict
+            if isinstance(request.data, QueryDict):
+                for key in request.data.keys():
+                    if key not in ['id_document', 'proof_of_address']:
+                        serializer_data[key] = request.data[key]
+            elif isinstance(request.data, dict):
+                for key, value in request.data.items():
+                    if key not in ['id_document', 'proof_of_address']:
+                        serializer_data[key] = value
+        
+        serializer = FeeRecipientSerializer(
+            data=serializer_data,
+            context={'request': request}
+        )
+        
+        if serializer.is_valid():
+            # Create the fee recipient
+            fee_recipient = serializer.save(syndicate=profile)
+            
+            # Handle file uploads
+            if hasattr(request, 'FILES') and 'id_document' in request.FILES:
+                fee_recipient.id_document = request.FILES['id_document']
+            if hasattr(request, 'FILES') and 'proof_of_address' in request.FILES:
+                fee_recipient.proof_of_address = request.FILES['proof_of_address']
+            
+            fee_recipient.save()
+            fee_recipient.refresh_from_db()
+            
+            # Return created fee recipient
+            response_serializer = FeeRecipientSerializer(fee_recipient, context={'request': request})
+            return Response({
+                'success': True,
+                'message': 'Fee recipient created successfully',
+                'data': response_serializer.data
+            }, status=status.HTTP_201_CREATED)
+        
+        return Response({
+            'success': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
     
     elif request.method == 'PATCH':
         from .models import FeeRecipient
@@ -762,12 +819,14 @@ def syndicate_settings_fee_recipient(request):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PATCH', 'DELETE'])
 @permission_classes([permissions.IsAuthenticated])
 def syndicate_settings_fee_recipient_detail(request, recipient_id):
     """
     Settings: Specific Fee Recipient
     GET /api/syndicate/settings/fee-recipient/<id>/ - Get specific fee recipient details
+    PATCH /api/syndicate/settings/fee-recipient/<id>/ - Update specific fee recipient
+    DELETE /api/syndicate/settings/fee-recipient/<id>/ - Delete specific fee recipient
     """
     user = request.user
     
@@ -793,12 +852,71 @@ def syndicate_settings_fee_recipient_detail(request, recipient_id):
             'error': 'This fee recipient is not associated with your syndicate profile'
         }, status=status.HTTP_403_FORBIDDEN)
     
-    serializer = FeeRecipientSerializer(fee_recipient, context={'request': request})
-    return Response({
-        'success': True,
-        'message': 'Fee recipient details retrieved successfully',
-        'data': serializer.data
-    })
+    if request.method == 'GET':
+        serializer = FeeRecipientSerializer(fee_recipient, context={'request': request})
+        return Response({
+            'success': True,
+            'message': 'Fee recipient details retrieved successfully',
+            'data': serializer.data
+        })
+    
+    elif request.method == 'PATCH':
+        # Handle file uploads if present
+        if hasattr(request, 'FILES') and 'id_document' in request.FILES:
+            fee_recipient.id_document = request.FILES['id_document']
+        
+        if hasattr(request, 'FILES') and 'proof_of_address' in request.FILES:
+            fee_recipient.proof_of_address = request.FILES['proof_of_address']
+        
+        # Prepare clean data for serializer (exclude file fields)
+        serializer_data = {}
+        if hasattr(request, 'data'):
+            from django.http import QueryDict
+            if isinstance(request.data, QueryDict):
+                for key in request.data.keys():
+                    if key not in ['id_document', 'proof_of_address']:
+                        serializer_data[key] = request.data[key]
+            elif isinstance(request.data, dict):
+                for key, value in request.data.items():
+                    if key not in ['id_document', 'proof_of_address']:
+                        serializer_data[key] = value
+        
+        serializer = FeeRecipientSerializer(
+            fee_recipient,
+            data=serializer_data,
+            partial=True,
+            context={'request': request}
+        )
+        
+        if serializer.is_valid():
+            # Save files if present
+            if hasattr(request, 'FILES') and 'id_document' in request.FILES:
+                fee_recipient.id_document = request.FILES['id_document']
+            if hasattr(request, 'FILES') and 'proof_of_address' in request.FILES:
+                fee_recipient.proof_of_address = request.FILES['proof_of_address']
+            
+            serializer.save()
+            fee_recipient.refresh_from_db()
+            
+            # Return updated fee recipient
+            response_serializer = FeeRecipientSerializer(fee_recipient, context={'request': request})
+            return Response({
+                'success': True,
+                'message': 'Fee recipient updated successfully',
+                'data': response_serializer.data
+            })
+        
+        return Response({
+            'success': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    elif request.method == 'DELETE':
+        fee_recipient.delete()
+        return Response({
+            'success': True,
+            'message': 'Fee recipient deleted successfully'
+        }, status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['GET', 'PATCH', 'POST'])
