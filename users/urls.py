@@ -96,7 +96,9 @@ urlpatterns = [
     path('syndicate/settings/jurisdictional/', syndicate_settings_views.syndicate_settings_jurisdictional, name='syndicate-settings-jurisdictional'),
     path('syndicate/settings/jurisdictional/<int:geography_id>/', syndicate_settings_views.syndicate_settings_jurisdictional_detail, name='syndicate-settings-jurisdictional-detail'),
     path('syndicate/settings/portfolio/', syndicate_settings_views.syndicate_settings_portfolio, name='syndicate-settings-portfolio'),
+    path('syndicate/settings/portfolio/<int:sector_id>/', syndicate_settings_views.syndicate_settings_portfolio_detail, name='syndicate-settings-portfolio-detail'),
     path('syndicate/settings/notifications/', syndicate_settings_views.syndicate_settings_notifications, name='syndicate-settings-notifications'),
+    path('syndicate/settings/notifications/<str:preference_type>/', syndicate_settings_views.syndicate_settings_notifications_detail, name='syndicate-settings-notifications-detail'),
     path('syndicate/settings/fee-recipient/', syndicate_settings_views.syndicate_settings_fee_recipient, name='syndicate-settings-fee-recipient'),
     path('syndicate/settings/bank-details/', syndicate_settings_views.syndicate_settings_bank_details, name='syndicate-settings-bank-details'),
     

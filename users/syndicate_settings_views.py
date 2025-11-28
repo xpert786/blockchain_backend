@@ -501,6 +501,50 @@ def syndicate_settings_portfolio(request):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def syndicate_settings_portfolio_detail(request, sector_id):
+    """
+    Settings: Specific Portfolio Sector
+    GET /api/syndicate/settings/portfolio/<id>/ - Get specific sector details
+    """
+    user = request.user
+    
+    # Check if user has syndicate role
+    if user.role != 'syndicate':
+        return Response({
+            'error': 'Only users with syndicate role can access this endpoint'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        profile = SyndicateProfile.objects.get(user=user)
+    except SyndicateProfile.DoesNotExist:
+        return Response({
+            'error': 'Syndicate profile not found. Please complete onboarding first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Check if sector is associated with the syndicate profile
+    from .models import Sector
+    sector = get_object_or_404(Sector, id=sector_id)
+    
+    # Verify this sector is in the user's syndicate sectors
+    if not profile.sectors.filter(id=sector_id).exists():
+        return Response({
+            'error': 'This sector is not associated with your syndicate profile'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    return Response({
+        'success': True,
+        'message': 'Sector details retrieved successfully',
+        'data': {
+            'id': sector.id,
+            'name': sector.name,
+            'description': sector.description,
+            'created_at': sector.created_at
+        }
+    })
+
+
 @api_view(['GET', 'PATCH'])
 @permission_classes([permissions.IsAuthenticated])
 def syndicate_settings_notifications(request):
@@ -573,6 +617,74 @@ def syndicate_settings_notifications(request):
             'success': False,
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def syndicate_settings_notifications_detail(request, preference_type):
+    """
+    Settings: Specific Notification Preference
+    GET /api/syndicate/settings/notifications/<preference_type>/ - Get specific notification preference details
+    
+    Supported preference_types:
+    - email_preference
+    - lp_alerts
+    - deal_updates
+    """
+    user = request.user
+    
+    # Check if user has syndicate role
+    if user.role != 'syndicate':
+        return Response({
+            'error': 'Only users with syndicate role can access this endpoint'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        profile = SyndicateProfile.objects.get(user=user)
+    except SyndicateProfile.DoesNotExist:
+        return Response({
+            'error': 'Syndicate profile not found. Please complete onboarding first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Valid preference types
+    preference_map = {
+        'email_preference': {
+            'key': 'notify_email_preference',
+            'label': 'Email Preference',
+            'description': 'Receive email notifications'
+        },
+        'lp_alerts': {
+            'key': 'notify_new_lp_alerts',
+            'label': 'New LP Alerts',
+            'description': 'Receive alerts for new LP activities'
+        },
+        'deal_updates': {
+            'key': 'notify_deal_updates',
+            'label': 'Deal Status Updates',
+            'description': 'Receive updates on deal status changes'
+        }
+    }
+    
+    if preference_type not in preference_map:
+        return Response({
+            'error': f'Invalid preference type. Valid options are: {", ".join(preference_map.keys())}'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    pref_info = preference_map[preference_type]
+    pref_value = getattr(user, pref_info['key'], False)
+    
+    return Response({
+        'success': True,
+        'message': f'{pref_info["label"]} notification preference retrieved',
+        'data': {
+            'type': preference_type,
+            'label': pref_info['label'],
+            'description': pref_info['description'],
+            'enabled': pref_value,
+            'user_email': user.email,
+            'user_phone_number': user.phone_number
+        }
+    })
 
 
 @api_view(['GET'])
