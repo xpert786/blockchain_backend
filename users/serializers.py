@@ -651,25 +651,15 @@ class SyndicateSettingsPortfolioSerializer(serializers.ModelSerializer):
     """Serializer for Settings: Portfolio Company Outreach with restrict/allow options"""
     
     # For GET requests - show current state
-    restrict = serializers.SerializerMethodField()
-    allow = serializers.SerializerMethodField()
-    
-    # For PATCH requests - accept restrict/allow as input
-    restrict_input = serializers.BooleanField(write_only=True, required=False)
-    allow_input = serializers.BooleanField(write_only=True, required=False)
+    restrict = serializers.SerializerMethodField(read_only=True)
+    allow = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = SyndicateProfile
         fields = [
             'restrict',
-            'allow',
-            'restrict_input',
-            'allow_input'
+            'allow'
         ]
-        extra_kwargs = {
-            'restrict_input': {'required': False},
-            'allow_input': {'required': False}
-        }
     
     def get_restrict(self, obj):
         """Return True if platform contact is restricted"""
@@ -679,17 +669,25 @@ class SyndicateSettingsPortfolioSerializer(serializers.ModelSerializer):
         """Return True if platform contact is allowed"""
         return obj.allow_platform_contact
     
+    def to_internal_value(self, data):
+        """Handle both 'restrict' and 'allow' as input fields during PATCH"""
+        # Don't call parent since we handle custom logic
+        internal_data = {}
+        
+        if 'restrict' in data:
+            # If restrict is sent, set allow_platform_contact to opposite
+            internal_data['allow_platform_contact'] = not data['restrict']
+        elif 'allow' in data:
+            # If allow is sent, set allow_platform_contact directly
+            internal_data['allow_platform_contact'] = data['allow']
+        
+        return internal_data
+    
     def update(self, instance, validated_data):
-        """Update allow_platform_contact based on restrict_input or allow_input"""
-        restrict_input = validated_data.pop('restrict_input', None)
-        allow_input = validated_data.pop('allow_input', None)
-        
-        if restrict_input is not None:
-            instance.allow_platform_contact = not restrict_input
-        elif allow_input is not None:
-            instance.allow_platform_contact = allow_input
-        
-        instance.save()
+        """Update allow_platform_contact"""
+        if 'allow_platform_contact' in validated_data:
+            instance.allow_platform_contact = validated_data['allow_platform_contact']
+            instance.save()
         return instance
 
 
