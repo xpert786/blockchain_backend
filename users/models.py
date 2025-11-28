@@ -163,6 +163,58 @@ class SyndicateProfile(models.Model):
     bio = models.TextField(blank=True, null=True)
     link = models.URLField(max_length=500, blank=True, null=True)
     
+    # KYB Verification Fields
+    company_legal_name = models.CharField(max_length=255, blank=True, null=True, help_text="Company legal name")
+    kyb_full_name = models.CharField(max_length=255, blank=True, null=True, help_text="Your full name")
+    kyb_position = models.CharField(max_length=150, blank=True, null=True, help_text="Your position in company")
+    certificate_of_incorporation = models.FileField(upload_to='kyb_documents/coi/', blank=True, null=True)
+    company_bank_statement = models.FileField(upload_to='kyb_documents/bank_statements/', blank=True, null=True)
+    
+    # Address Information
+    address_line_1 = models.CharField(max_length=255, blank=True, null=True)
+    address_line_2 = models.CharField(max_length=255, blank=True, null=True)
+    town_city = models.CharField(max_length=150, blank=True, null=True)
+    postal_code = models.CharField(max_length=20, blank=True, null=True)
+    country = models.CharField(max_length=100, blank=True, null=True)
+    company_proof_of_address = models.FileField(upload_to='kyb_documents/proof_of_address/', blank=True, null=True)
+    
+    # Beneficiary Owner Information
+    beneficiary_owner_identity_document = models.FileField(upload_to='kyb_documents/beneficiary_identity/', blank=True, null=True)
+    beneficiary_owner_proof_of_address = models.FileField(upload_to='kyb_documents/beneficiary_address/', blank=True, null=True)
+    
+    # S/SE Eligibility
+    SSE_ELIGIBILITY_CHOICES = [
+        ('hidden', 'Hidden'),
+        ('yes', 'Yes'),
+        ('no', 'No'),
+    ]
+    sse_eligibility = models.CharField(max_length=20, choices=SSE_ELIGIBILITY_CHOICES, default='hidden', blank=True)
+    
+    # Signing Requirements
+    is_notary_wet_signing = models.CharField(
+        max_length=10,
+        choices=[('yes', 'Yes'), ('no', 'No')],
+        default='no',
+        blank=True,
+        help_text="Is Notary / Wet signing of document at close or conversion of share"
+    )
+    will_require_unlockley = models.CharField(
+        max_length=10,
+        choices=[('yes', 'Yes'), ('no', 'No')],
+        default='no',
+        blank=True,
+        help_text="Will you required Unlockley to sign a deed of adherence in order to close the deal"
+    )
+    
+    # Investee Company Contact
+    investee_company_contact_number = models.CharField(max_length=20, blank=True, null=True)
+    investee_company_email = models.EmailField(blank=True, null=True)
+    
+    # Agreement
+    agree_to_investee_terms = models.BooleanField(default=False, help_text="I agree to investee terms")
+    kyb_verification_completed = models.BooleanField(default=False)
+    kyb_verification_submitted_at = models.DateTimeField(blank=True, null=True)
+    
     # Step 3: Compliance & Attestation
     risk_regulatory_attestation = models.BooleanField(default=False)
     jurisdictional_compliance_acknowledged = models.BooleanField(default=False)

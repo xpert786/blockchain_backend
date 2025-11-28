@@ -471,19 +471,142 @@ class SyndicateSettingsGeneralInfoSerializer(serializers.ModelSerializer):
 
 
 class SyndicateSettingsKYBVerificationSerializer(serializers.ModelSerializer):
-    """Serializer for Settings: KYB Verification"""
+    """Serializer for Settings: KYB Verification with all fields"""
+    
+    # Read-only URL fields for file uploads
+    certificate_of_incorporation_url = serializers.SerializerMethodField()
+    company_bank_statement_url = serializers.SerializerMethodField()
+    company_proof_of_address_url = serializers.SerializerMethodField()
+    beneficiary_owner_identity_document_url = serializers.SerializerMethodField()
+    beneficiary_owner_proof_of_address_url = serializers.SerializerMethodField()
     
     class Meta:
         model = SyndicateProfile
         fields = [
-            'firm_name', 'description',
-            'risk_regulatory_attestation',
-            'jurisdictional_compliance_acknowledged',
-            'additional_compliance_policies'
+            # Basic Company Info
+            'company_legal_name',
+            'kyb_full_name',
+            'kyb_position',
+            
+            # Document Uploads
+            'certificate_of_incorporation',
+            'certificate_of_incorporation_url',
+            'company_bank_statement',
+            'company_bank_statement_url',
+            
+            # Address Information
+            'address_line_1',
+            'address_line_2',
+            'town_city',
+            'postal_code',
+            'country',
+            'company_proof_of_address',
+            'company_proof_of_address_url',
+            
+            # Beneficiary Owner Information
+            'beneficiary_owner_identity_document',
+            'beneficiary_owner_identity_document_url',
+            'beneficiary_owner_proof_of_address',
+            'beneficiary_owner_proof_of_address_url',
+            
+            # S/SE Eligibility
+            'sse_eligibility',
+            
+            # Signing Requirements
+            'is_notary_wet_signing',
+            'will_require_unlockley',
+            
+            # Investee Company Contact
+            'investee_company_contact_number',
+            'investee_company_email',
+            
+            # Agreement
+            'agree_to_investee_terms',
+            'kyb_verification_completed',
+            'kyb_verification_submitted_at',
         ]
-        extra_kwargs = {
-            'additional_compliance_policies': {'required': False, 'read_only': True}
-        }
+        read_only_fields = ['kyb_verification_submitted_at']
+    
+    def get_certificate_of_incorporation_url(self, obj):
+        if obj.certificate_of_incorporation:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.certificate_of_incorporation.url)
+            return obj.certificate_of_incorporation.url
+        return None
+    
+    def get_company_bank_statement_url(self, obj):
+        if obj.company_bank_statement:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.company_bank_statement.url)
+            return obj.company_bank_statement.url
+        return None
+    
+    def get_company_proof_of_address_url(self, obj):
+        if obj.company_proof_of_address:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.company_proof_of_address.url)
+            return obj.company_proof_of_address.url
+        return None
+    
+    def get_beneficiary_owner_identity_document_url(self, obj):
+        if obj.beneficiary_owner_identity_document:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.beneficiary_owner_identity_document.url)
+            return obj.beneficiary_owner_identity_document.url
+        return None
+    
+    def get_beneficiary_owner_proof_of_address_url(self, obj):
+        if obj.beneficiary_owner_proof_of_address:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.beneficiary_owner_proof_of_address.url)
+            return obj.beneficiary_owner_proof_of_address.url
+        return None
+    
+    def validate(self, attrs):
+        """Validate KYB data"""
+        # If marking as completed, ensure required fields are present
+        if attrs.get('kyb_verification_completed'):
+            required_fields = [
+                'company_legal_name', 'kyb_full_name', 'kyb_position',
+                'address_line_1', 'town_city', 'postal_code', 'country',
+                'investee_company_email', 'agree_to_investee_terms'
+            ]
+            
+            missing_fields = []
+            for field in required_fields:
+                # Check in attrs first, then in instance
+                value = attrs.get(field) if field in attrs else getattr(self.instance, field, None)
+                if not value:
+                    missing_fields.append(field)
+            
+            if missing_fields:
+                raise serializers.ValidationError({
+                    'error': f"Required fields missing: {', '.join(missing_fields)}"
+                })
+            
+            # Ensure agreement is checked
+            agree = attrs.get('agree_to_investee_terms', getattr(self.instance, 'agree_to_investee_terms', False))
+            if not agree:
+                raise serializers.ValidationError({
+                    'agree_to_investee_terms': 'You must agree to investee terms to complete KYB verification'
+                })
+        
+        return attrs
+    
+    def update(self, instance, validated_data):
+        """Update and auto-set submission timestamp if completed"""
+        from django.utils import timezone
+        
+        # If marking as completed, set the timestamp
+        if validated_data.get('kyb_verification_completed') and not instance.kyb_verification_completed:
+            validated_data['kyb_verification_submitted_at'] = timezone.now()
+        
+        return super().update(instance, validated_data)
 
 
 class SyndicateSettingsComplianceSerializer(serializers.ModelSerializer):

@@ -62,6 +62,19 @@ class SyndicateProfileAdmin(admin.ModelAdmin):
         ('Step 2: Entity Profile', {
             'fields': ('firm_name', 'description', 'logo')
         }),
+        ('KYB Verification', {
+            'fields': (
+                'company_legal_name', 'kyb_full_name', 'kyb_position',
+                'certificate_of_incorporation', 'company_bank_statement',
+                'address_line_1', 'address_line_2', 'town_city', 'postal_code', 'country',
+                'company_proof_of_address', 'beneficiary_owner_identity_document',
+                'beneficiary_owner_proof_of_address', 'sse_eligibility',
+                'is_notary_wet_signing', 'will_require_unlockley',
+                'investee_company_contact_number', 'investee_company_email',
+                'agree_to_investee_terms', 'kyb_verification_completed', 'kyb_verification_submitted_at'
+            ),
+            'classes': ('collapse',)
+        }),
         ('Step 3: Compliance & Attestation', {
             'fields': ('risk_regulatory_attestation', 'jurisdictional_compliance_acknowledged', 'additional_compliance_policies')
         }),
