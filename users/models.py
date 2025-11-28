@@ -27,6 +27,23 @@ class CustomUser(AbstractUser):
         null=True
     )
     
+    # Notification Preferences
+    notification_preference = models.CharField(
+        max_length=20,
+        choices=[
+            ('email', 'Email Preference'),
+            ('lp_alerts', 'New LP Alerts'),
+            ('deal_updates', 'Deal Status Updates'),
+        ],
+        default='email',
+        blank=True,
+        null=True,
+        help_text="Primary notification preference"
+    )
+    notify_new_lp_alerts = models.BooleanField(default=True, help_text="Receive alerts for new LP activities")
+    notify_deal_updates = models.BooleanField(default=True, help_text="Receive updates on deal status changes")
+    notify_email_preference = models.BooleanField(default=True, help_text="Receive email notifications")
+    
     class Meta:
         verbose_name = 'user'
         verbose_name_plural = 'users'

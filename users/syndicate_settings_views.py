@@ -10,7 +10,9 @@ from .serializers import (
     SyndicateSettingsGeneralInfoSerializer,
     SyndicateSettingsKYBVerificationSerializer,
     SyndicateSettingsComplianceSerializer,
-    SyndicateSettingsJurisdictionalSerializer
+    SyndicateSettingsJurisdictionalSerializer,
+    SyndicateSettingsPortfolioSerializer,
+    SyndicateSettingsNotificationsSerializer
 )
 
 logger = logging.getLogger(__name__)
@@ -380,12 +382,13 @@ def syndicate_settings_jurisdictional(request):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PATCH'])
 @permission_classes([permissions.IsAuthenticated])
 def syndicate_settings_portfolio(request):
     """
     Settings: Portfolio Company Outreach
     GET /api/syndicate/settings/portfolio/ - Get portfolio settings
+    PATCH /api/syndicate/settings/portfolio/ - Update portfolio settings
     """
     user = request.user
     
@@ -402,30 +405,64 @@ def syndicate_settings_portfolio(request):
             'error': 'Syndicate profile not found. Please complete onboarding first.'
         }, status=status.HTTP_404_NOT_FOUND)
     
-    return Response({
-        'success': True,
-        'message': 'Portfolio company outreach settings endpoint',
-        'data': {
-            'sectors': [
-                {
-                    'id': sector.id,
-                    'name': sector.name,
-                    'description': sector.description
+    if request.method == 'GET':
+        return Response({
+            'success': True,
+            'message': 'Portfolio company outreach settings endpoint',
+            'data': {
+                'sectors': [
+                    {
+                        'id': sector.id,
+                        'name': sector.name,
+                        'description': sector.description
+                    }
+                    for sector in profile.sectors.all()
+                ],
+                'enable_platform_lp_access': profile.enable_platform_lp_access,
+                'existing_lp_count': profile.existing_lp_count
+            }
+        })
+    
+    elif request.method == 'PATCH':
+        serializer = SyndicateSettingsPortfolioSerializer(
+            profile,
+            data=request.data,
+            partial=True,
+            context={'request': request}
+        )
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Portfolio settings updated successfully',
+                'data': {
+                    'sectors': [
+                        {
+                            'id': sector.id,
+                            'name': sector.name,
+                            'description': sector.description
+                        }
+                        for sector in profile.sectors.all()
+                    ],
+                    'enable_platform_lp_access': profile.enable_platform_lp_access,
+                    'existing_lp_count': profile.existing_lp_count
                 }
-                for sector in profile.sectors.all()
-            ],
-            'enable_platform_lp_access': profile.enable_platform_lp_access,
-            'existing_lp_count': profile.existing_lp_count
-        }
-    })
+            })
+        
+        return Response({
+            'success': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PATCH'])
 @permission_classes([permissions.IsAuthenticated])
 def syndicate_settings_notifications(request):
     """
     Settings: Notifications & Communication
     GET /api/syndicate/settings/notifications/ - Get notification settings
+    PATCH /api/syndicate/settings/notifications/ - Update notification settings
     """
     user = request.user
     
@@ -442,18 +479,55 @@ def syndicate_settings_notifications(request):
             'error': 'Syndicate profile not found. Please complete onboarding first.'
         }, status=status.HTTP_404_NOT_FOUND)
     
-    return Response({
-        'success': True,
-        'message': 'Notifications & communication settings endpoint - to be implemented',
-        'data': {
-            'email': user.email,
-            'phone_number': user.phone_number,
-            'email_verified': user.email_verified,
-            'phone_verified': user.phone_verified,
-            'two_factor_enabled': user.two_factor_enabled,
-            'two_factor_method': user.two_factor_method
-        }
-    })
+    if request.method == 'GET':
+        return Response({
+            'success': True,
+            'message': 'Notifications & communication settings',
+            'data': {
+                'email': user.email,
+                'phone_number': user.phone_number,
+                'email_verified': user.email_verified,
+                'phone_verified': user.phone_verified,
+                'two_factor_enabled': user.two_factor_enabled,
+                'two_factor_method': user.two_factor_method,
+                'notification_preference': user.notification_preference,
+                'notify_email_preference': user.notify_email_preference,
+                'notify_new_lp_alerts': user.notify_new_lp_alerts,
+                'notify_deal_updates': user.notify_deal_updates
+            }
+        })
+    
+    elif request.method == 'PATCH':
+        serializer = SyndicateSettingsNotificationsSerializer(
+            user,
+            data=request.data,
+            partial=True,
+            context={'request': request}
+        )
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Notification settings updated successfully',
+                'data': {
+                    'email': user.email,
+                    'phone_number': user.phone_number,
+                    'email_verified': user.email_verified,
+                    'phone_verified': user.phone_verified,
+                    'two_factor_enabled': user.two_factor_enabled,
+                    'two_factor_method': user.two_factor_method,
+                    'notification_preference': user.notification_preference,
+                    'notify_email_preference': user.notify_email_preference,
+                    'notify_new_lp_alerts': user.notify_new_lp_alerts,
+                    'notify_deal_updates': user.notify_deal_updates
+                }
+            })
+        
+        return Response({
+            'success': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])

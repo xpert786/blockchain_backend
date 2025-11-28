@@ -647,6 +647,73 @@ class SyndicateSettingsJurisdictionalSerializer(serializers.ModelSerializer):
         }
 
 
+class SyndicateSettingsPortfolioSerializer(serializers.ModelSerializer):
+    """Serializer for Settings: Portfolio Company Outreach with sector management"""
+    sectors = SectorSerializer(many=True, read_only=True)
+    sector_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Sector.objects.all(),
+        write_only=True,
+        many=True,
+        required=False,
+        source='sectors'
+    )
+    
+    class Meta:
+        model = SyndicateProfile
+        fields = [
+            'sectors',
+            'sector_ids',
+            'enable_platform_lp_access',
+            'existing_lp_count'
+        ]
+        extra_kwargs = {
+            'enable_platform_lp_access': {'required': False},
+            'existing_lp_count': {'required': False}
+        }
+
+
+class SyndicateSettingsNotificationsSerializer(serializers.Serializer):
+    """Serializer for Settings: Notifications & Communication"""
+    email = serializers.EmailField(read_only=True)
+    phone_number = serializers.CharField(read_only=True)
+    email_verified = serializers.BooleanField(read_only=True)
+    phone_verified = serializers.BooleanField(read_only=True)
+    two_factor_enabled = serializers.BooleanField(read_only=True)
+    two_factor_method = serializers.CharField(read_only=True)
+    
+    # Notification Preferences
+    notification_preference = serializers.CharField(
+        write_only=True,
+        required=False,
+        help_text="Primary notification preference: email, lp_alerts, or deal_updates"
+    )
+    notify_email_preference = serializers.BooleanField(
+        required=False,
+        help_text="Receive email notifications"
+    )
+    notify_new_lp_alerts = serializers.BooleanField(
+        required=False,
+        help_text="Receive alerts for new LP activities"
+    )
+    notify_deal_updates = serializers.BooleanField(
+        required=False,
+        help_text="Receive updates on deal status changes"
+    )
+    
+    def update(self, instance, validated_data):
+        """Update notification preferences"""
+        if 'notification_preference' in validated_data:
+            instance.notification_preference = validated_data['notification_preference']
+        if 'notify_email_preference' in validated_data:
+            instance.notify_email_preference = validated_data['notify_email_preference']
+        if 'notify_new_lp_alerts' in validated_data:
+            instance.notify_new_lp_alerts = validated_data['notify_new_lp_alerts']
+        if 'notify_deal_updates' in validated_data:
+            instance.notify_deal_updates = validated_data['notify_deal_updates']
+        instance.save()
+        return instance
+
+
 # Team Member Serializers
 
 class TeamMemberSerializer(serializers.ModelSerializer):
