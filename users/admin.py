@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
-from .models import CustomUser, Sector, Geography, TwoFactorAuth, EmailVerification, TermsAcceptance, SyndicateProfile, TeamMember
+from .models import CustomUser, Sector, Geography, TwoFactorAuth, EmailVerification, TermsAcceptance, SyndicateProfile, TeamMember, ComplianceDocument
 
 # Register CustomUser with Django admin
 @admin.register(CustomUser)
@@ -123,4 +123,88 @@ class TeamMemberAdmin(admin.ModelAdmin):
             '<span style="color: orange;">○ Invited</span>'
         )
     is_registered.short_description = 'Status'
+
+
+@admin.register(ComplianceDocument)
+class ComplianceDocumentAdmin(admin.ModelAdmin):
+    """Admin interface for Compliance Documents"""
+    list_display = (
+        'id', 'document_name', 'document_type', 'jurisdiction',
+        'status_badge', 'syndicate_name', 'file_size_display',
+        'expiry_display', 'uploaded_at'
+    )
+    list_filter = ('document_type', 'jurisdiction', 'status', 'uploaded_at')
+    search_fields = ('document_name', 'syndicate__firm_name', 'original_filename')
+    readonly_fields = ('uploaded_at', 'updated_at', 'file_size', 'mime_type', 'original_filename', 'file_size_mb', 'is_expired')
+    ordering = ('-uploaded_at',)
+    date_hierarchy = 'uploaded_at'
+    
+    fieldsets = (
+        ('Document Information', {
+            'fields': ('syndicate', 'document_name', 'document_type', 'jurisdiction')
+        }),
+        ('File Details', {
+            'fields': ('file', 'original_filename', 'file_size', 'file_size_mb', 'mime_type')
+        }),
+        ('Status & Review', {
+            'fields': ('status', 'review_notes', 'reviewed_by', 'reviewed_at')
+        }),
+        ('Expiry', {
+            'fields': ('expiry_date', 'is_expired')
+        }),
+        ('Metadata', {
+            'fields': ('uploaded_by', 'uploaded_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def syndicate_name(self, obj):
+        """Display syndicate firm name"""
+        return obj.syndicate.firm_name or f"Syndicate {obj.syndicate.id}"
+    syndicate_name.short_description = 'Syndicate'
+    
+    def status_badge(self, obj):
+        """Display status with colored badge"""
+        colors = {
+            'ok': 'green',
+            'pending': 'orange',
+            'exp': 'red',
+            'missing': 'gray',
+            'rejected': 'darkred'
+        }
+        color = colors.get(obj.status, 'black')
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 10px; border-radius: 3px; font-weight: bold;">{}</span>',
+            color, obj.get_status_display()
+        )
+    status_badge.short_description = 'Status'
+    
+    def file_size_display(self, obj):
+        """Display file size in MB"""
+        return f"{obj.file_size_mb} MB"
+    file_size_display.short_description = 'Size'
+    
+    def expiry_display(self, obj):
+        """Display expiry status"""
+        if not obj.expiry_date:
+            return format_html('<span style="color: gray;">No expiry</span>')
+        
+        if obj.is_expired:
+            return format_html(
+                '<span style="color: red; font-weight: bold;">⚠ Expired ({})</span>',
+                obj.expiry_date
+            )
+        
+        # Check if expiring soon (within 30 days)
+        from datetime import timedelta
+        from django.utils import timezone
+        days_until_expiry = (obj.expiry_date - timezone.now().date()).days
+        if days_until_expiry <= 30:
+            return format_html(
+                '<span style="color: orange;">⚠ {} days ({})</span>',
+                days_until_expiry, obj.expiry_date
+            )
+        
+        return format_html('<span style="color: green;">✓ {}</span>', obj.expiry_date)
+    expiry_display.short_description = 'Expiry'
     

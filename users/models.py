@@ -248,6 +248,139 @@ class Syndicate(SyndicateProfile):
         verbose_name_plural = 'syndicates'
 
 
+# Compliance & Accreditation Models
+
+def compliance_document_upload_path(instance, filename):
+    """Generate upload path for compliance documents"""
+    return f'compliance_documents/syndicate_{instance.syndicate.id}/{filename}'
+
+
+class ComplianceDocument(models.Model):
+    """Model for compliance and accreditation documents"""
+    
+    DOCUMENT_TYPE_CHOICES = [
+        ('COI', 'Certificate of Incorporation (COI)'),
+        ('Tax', 'Tax Document'),
+        ('Attest.', 'Attestation Document'),
+        ('Bank', 'Bank Statement'),
+        ('Identity', 'Identity Document'),
+        ('Address', 'Proof of Address'),
+        ('Other', 'Other Compliance Document'),
+    ]
+    
+    JURISDICTION_CHOICES = [
+        ('US (NY)', 'United States (New York)'),
+        ('US (TX)', 'United States (Texas)'),
+        ('US (CA)', 'United States (California)'),
+        ('US (DE)', 'United States (Delaware)'),
+        ('EU (DE)', 'European Union (Germany)'),
+        ('EU (FR)', 'European Union (France)'),
+        ('EU (UK)', 'European Union (United Kingdom)'),
+        ('Asia (SG)', 'Asia (Singapore)'),
+        ('Asia (HK)', 'Asia (Hong Kong)'),
+        ('Other', 'Other Jurisdiction'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending Review'),
+        ('ok', 'OK'),
+        ('exp', 'Expired'),
+        ('missing', 'Missing'),
+        ('rejected', 'Rejected'),
+    ]
+    
+    syndicate = models.ForeignKey(
+        SyndicateProfile,
+        on_delete=models.CASCADE,
+        related_name='compliance_documents'
+    )
+    
+    # Document information
+    document_name = models.CharField(max_length=255)
+    document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPE_CHOICES)
+    jurisdiction = models.CharField(max_length=20, choices=JURISDICTION_CHOICES)
+    
+    # File details
+    file = models.FileField(upload_to=compliance_document_upload_path)
+    original_filename = models.CharField(max_length=255, blank=True, null=True)
+    file_size = models.BigIntegerField(help_text="File size in bytes", blank=True, null=True)
+    mime_type = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Status and review
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    review_notes = models.TextField(blank=True, null=True)
+    reviewed_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_compliance_docs'
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Expiry tracking
+    expiry_date = models.DateField(null=True, blank=True, help_text="Document expiration date")
+    
+    # Upload metadata
+    uploaded_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='uploaded_compliance_docs'
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'compliance document'
+        verbose_name_plural = 'compliance documents'
+        ordering = ['-uploaded_at']
+        indexes = [
+            models.Index(fields=['syndicate', 'status']),
+            models.Index(fields=['document_type']),
+            models.Index(fields=['status']),
+        ]
+    
+    def __str__(self):
+        return f"{self.document_name} - {self.syndicate.firm_name or 'Syndicate'}"
+    
+    @property
+    def file_size_mb(self):
+        """Return file size in MB"""
+        if self.file_size is None:
+            return 0
+        return round(self.file_size / (1024 * 1024), 2)
+    
+    @property
+    def is_expired(self):
+        """Check if document is expired"""
+        if self.expiry_date:
+            return timezone.now().date() > self.expiry_date
+        return False
+    
+    def mark_as_ok(self, reviewed_by=None):
+        """Mark document as OK"""
+        self.status = 'ok'
+        if reviewed_by:
+            self.reviewed_by = reviewed_by
+            self.reviewed_at = timezone.now()
+        self.save()
+    
+    def mark_as_expired(self):
+        """Mark document as expired"""
+        self.status = 'exp'
+        self.save()
+    
+    def mark_as_rejected(self, notes, reviewed_by=None):
+        """Mark document as rejected with notes"""
+        self.status = 'rejected'
+        self.review_notes = notes
+        if reviewed_by:
+            self.reviewed_by = reviewed_by
+            self.reviewed_at = timezone.now()
+        self.save()
+
+
 # Team Management Models
 
 class TeamMember(models.Model):

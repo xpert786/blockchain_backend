@@ -9,10 +9,12 @@ from . import cors_views
 from . import syndicate_views
 from . import syndicate_settings_views
 from . import team_management_views
+from . import compliance_views
 
 # Create router for ViewSets
 router = DefaultRouter()
 router.register(r'team-members', team_management_views.TeamMemberViewSet, basename='team-member')
+router.register(r'compliance-documents', compliance_views.ComplianceDocumentViewSet, basename='compliance-document')
 
 urlpatterns = [
     # User management endpoints

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CustomUser, Sector, Geography, EmailVerification, TwoFactorAuth, TermsAcceptance, SyndicateProfile, TeamMember
+from .models import CustomUser, Sector, Geography, EmailVerification, TwoFactorAuth, TermsAcceptance, SyndicateProfile, TeamMember, ComplianceDocument
 from .email_utils import send_verification_email, send_sms_verification
 from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
@@ -638,4 +638,105 @@ class TeamMemberPermissionsUpdateSerializer(serializers.Serializer):
     can_manage_transfers = serializers.BooleanField(required=False)
     can_manage_team = serializers.BooleanField(required=False)
     can_manage_settings = serializers.BooleanField(required=False)
+
+
+# Compliance Document Serializers
+
+class ComplianceDocumentSerializer(serializers.ModelSerializer):
+    """Full serializer for compliance documents"""
+    uploaded_by_name = serializers.CharField(source='uploaded_by.get_full_name', read_only=True)
+    reviewed_by_name = serializers.CharField(source='reviewed_by.get_full_name', read_only=True)
+    file_size_mb = serializers.FloatField(read_only=True)
+    is_expired = serializers.BooleanField(read_only=True)
+    file_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ComplianceDocument
+        fields = [
+            'id', 'syndicate', 'document_name', 'document_type', 'jurisdiction',
+            'file', 'file_url', 'original_filename', 'file_size', 'file_size_mb', 'mime_type',
+            'status', 'review_notes', 'reviewed_by', 'reviewed_by_name', 'reviewed_at',
+            'expiry_date', 'is_expired', 'uploaded_by', 'uploaded_by_name', 'uploaded_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'uploaded_by', 'uploaded_at', 'updated_at', 'reviewed_by', 'reviewed_at']
+    
+    def get_file_url(self, obj):
+        """Return full URL for file"""
+        if obj.file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.file.url)
+            return obj.file.url
+        return None
+
+
+class ComplianceDocumentListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for list view"""
+    file_size_mb = serializers.FloatField(read_only=True)
+    is_expired = serializers.BooleanField(read_only=True)
+    uploaded_by_name = serializers.CharField(source='uploaded_by.get_full_name', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
+    
+    class Meta:
+        model = ComplianceDocument
+        fields = [
+            'id', 'document_name', 'document_type', 'document_type_display',
+            'jurisdiction', 'status', 'status_display', 'file_size_mb',
+            'expiry_date', 'is_expired', 'uploaded_by_name', 'uploaded_at'
+        ]
+
+
+class ComplianceDocumentUploadSerializer(serializers.ModelSerializer):
+    """Serializer for document upload"""
+    
+    class Meta:
+        model = ComplianceDocument
+        fields = [
+            'document_name', 'document_type', 'jurisdiction', 'file', 'expiry_date'
+        ]
+    
+    def validate_file(self, value):
+        """Validate file upload"""
+        # Check file size (25MB max)
+        max_size = 25 * 1024 * 1024  # 25MB in bytes
+        if value.size > max_size:
+            raise serializers.ValidationError("File size cannot exceed 25MB")
+        
+        # Check file type
+        allowed_types = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                        'image/jpeg', 'image/png', 'image/jpg']
+        allowed_extensions = ['.pdf', '.docx', '.jpg', '.jpeg', '.png']
+        
+        file_extension = value.name.lower().split('.')[-1]
+        if f'.{file_extension}' not in allowed_extensions:
+            raise serializers.ValidationError(
+                f"Unsupported file type. Allowed types: {', '.join(allowed_extensions)}"
+            )
+        
+        return value
+    
+    def create(self, validated_data):
+        """Create document with metadata"""
+        file = validated_data['file']
+        validated_data['original_filename'] = file.name
+        validated_data['file_size'] = file.size
+        validated_data['mime_type'] = file.content_type
+        validated_data['uploaded_by'] = self.context['request'].user
+        validated_data['syndicate'] = self.context['syndicate']
+        
+        return super().create(validated_data)
+
+
+class ComplianceDocumentStatusUpdateSerializer(serializers.Serializer):
+    """Serializer for updating document status"""
+    status = serializers.ChoiceField(choices=ComplianceDocument.STATUS_CHOICES)
+    review_notes = serializers.CharField(required=False, allow_blank=True)
+    
+    def validate_status(self, value):
+        """Ensure valid status transition"""
+        valid_statuses = ['pending', 'ok', 'exp', 'missing', 'rejected']
+        if value not in valid_statuses:
+            raise serializers.ValidationError(f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
+        return value
 
