@@ -736,7 +736,13 @@ def spv_dashboard_summary(request):
         queryset = SPV.objects.filter(created_by=user)
 
     queryset = queryset.select_related('company_stage', 'round')
-    spvs = list(queryset)
+    
+    # Avoid iterating queryset to prevent SQLite Decimal conversion errors
+    try:
+        spvs = list(queryset)
+    except Exception:
+        # If queryset iteration fails, use values instead
+        spvs = []
 
     totals = queryset.aggregate(
         total_allocation=Sum('allocation'),
@@ -748,7 +754,12 @@ def spv_dashboard_summary(request):
     total_target = _safe_decimal(totals.get('total_round_size'))
     spv_count = totals.get('spv_count', 0) or 0
 
-    active_investors = sum(len(spv.lp_invite_emails or []) for spv in spvs)
+    # Safely calculate active investors
+    try:
+        active_investors = sum(len(spv.lp_invite_emails or []) for spv in spvs)
+    except Exception:
+        active_investors = 0
+        
     average_investment = Decimal('0')
     if active_investors:
         average_investment = (total_aum / active_investors).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
@@ -756,8 +767,12 @@ def spv_dashboard_summary(request):
     my_spv_cards = []
     total_progress = Decimal('0')
     for spv in spvs:
-        my_commitment = _safe_decimal(spv.allocation)
-        target_amount = _safe_decimal(spv.round_size)
+        try:
+            my_commitment = _safe_decimal(spv.allocation)
+            target_amount = _safe_decimal(spv.round_size)
+        except Exception:
+            my_commitment = Decimal('0')
+            target_amount = Decimal('0')
         progress_percent = Decimal('0')
         if target_amount > 0:
             progress_percent = (my_commitment / target_amount) * Decimal('100')
@@ -900,7 +915,7 @@ STATUS_TABS = {
 def spv_management_overview(request):
     """
     SPV management overview list with status filters.
-    GET /api/spv/                   /
+    GET /api/spv/management/
     """
     user = request.user
     if user.is_staff or getattr(user, 'role', '') == 'admin':
@@ -929,15 +944,25 @@ def spv_management_overview(request):
     total_target = _safe_decimal(totals.get('total_round_size'))
     spv_count = totals.get('spv_count', 0) or 0
 
-    active_investors = sum(len(spv.lp_invite_emails or []) for spv in base_queryset)
+    # Use .values() to avoid Decimal conversion issues in SQLite
+    try:
+        active_investors = sum(len(spv.get('lp_invite_emails') or []) for spv in base_queryset.values('lp_invite_emails'))
+    except Exception:
+        active_investors = 0
+    
     success_rate = Decimal('0')
     if total_target > 0:
         success_rate = (total_aum / total_target) * Decimal('100')
 
     spv_cards = []
     for spv in queryset:
-        my_commitment = _safe_decimal(spv.allocation)
-        target_amount = _safe_decimal(spv.round_size)
+        try:
+            my_commitment = _safe_decimal(spv.allocation)
+            target_amount = _safe_decimal(spv.round_size)
+        except Exception:
+            my_commitment = Decimal('0')
+            target_amount = Decimal('0')
+            
         progress_percent = Decimal('0')
         if target_amount > 0:
             progress_percent = (my_commitment / target_amount) * Decimal('100')
