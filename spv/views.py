@@ -689,17 +689,37 @@ def list_master_partnership_entities(request):
 
 
 def _safe_decimal(value):
+    """Safely convert value to Decimal, handling edge cases"""
     if value is None:
         return Decimal('0')
     if isinstance(value, Decimal):
         return value
-    return Decimal(str(value))
+    if isinstance(value, (int, float)):
+        return Decimal(str(value))
+    
+    # Handle string values
+    value_str = str(value).strip()
+    if not value_str or value_str.lower() in ['none', 'null', '']:
+        return Decimal('0')
+    
+    try:
+        return Decimal(value_str)
+    except Exception:
+        # If conversion fails, return 0
+        return Decimal('0')
 
 
 def _decimal_to_float(value, precision='0.01'):
+    """Safely convert Decimal to float with precision"""
     value = _safe_decimal(value)
-    quantizer = Decimal(precision)
-    return float(value.quantize(quantizer, rounding=ROUND_HALF_UP)) if quantizer != 0 else float(value)
+    try:
+        quantizer = Decimal(precision)
+        if quantizer != 0:
+            return float(value.quantize(quantizer, rounding=ROUND_HALF_UP))
+        return float(value)
+    except Exception:
+        # If quantize fails, return float directly
+        return float(value) if value else 0.0
 
 
 @api_view(['GET'])

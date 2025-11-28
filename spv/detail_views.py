@@ -14,22 +14,32 @@ from .models import SPV
 
 
 def _safe_decimal(value):
-    """Safely convert value to Decimal"""
+    """Safely convert value to Decimal with comprehensive error handling"""
     if value is None:
         return Decimal('0')
     if isinstance(value, Decimal):
         return value
-    try:
+    if isinstance(value, (int, float)):
         return Decimal(str(value))
-    except:
+    
+    # Handle string values
+    value_str = str(value).strip()
+    if not value_str or value_str.lower() in ['none', 'null', '']:
+        return Decimal('0')
+    
+    try:
+        return Decimal(value_str)
+    except Exception:
         return Decimal('0')
 
 
 def _decimal_to_float(value):
-    """Convert Decimal to float"""
-    if value is None:
+    """Safely convert Decimal to float"""
+    try:
+        value = _safe_decimal(value)
+        return float(value) if value else 0.0
+    except Exception:
         return 0.0
-    return float(value)
 
 
 class IsSPVOwnerOrAdmin(permissions.BasePermission):
