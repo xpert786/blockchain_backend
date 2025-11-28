@@ -1,8 +1,19 @@
 from django.contrib import admin
+from django.db.models import QuerySet
 from .models import (
     SPV, PortfolioCompany, CompanyStage, IncorporationType,
     InstrumentType, ShareClass, Round, MasterPartnershipEntity
 )
+
+
+class SPVQuerySet(QuerySet):
+    """Custom queryset that avoids Decimal field deserialization issues in SQLite"""
+    def for_changelist(self):
+        """Return only safe fields for admin changelist to avoid Decimal conversion errors"""
+        return self.values_list(
+            'id', 'display_name', 'company_name', 'company_stage_id', 
+            'founder_email', 'status', 'created_by_id', 'created_at'
+        )
 
 
 @admin.register(CompanyStage)
@@ -90,6 +101,18 @@ class SPVAdmin(admin.ModelAdmin):
         'created_by', 'portfolio_company', 'company_stage', 'incorporation_type',
         'instrument_type', 'share_class', 'round', 'master_partnership_entity', 'fund_lead'
     ]
+    
+    def get_queryset(self, request):
+        """Override queryset to exclude Decimal fields that cause SQLite conversion errors"""
+        queryset = super().get_queryset(request)
+        # For the changelist view, exclude Decimal fields to avoid InvalidOperation
+        if request.resolver_match and 'changelist' in request.resolver_match.func_name:
+            # Use defer() to exclude the problematic Decimal fields from the queryset
+            queryset = queryset.defer(
+                'round_size', 'allocation', 'minimum_lp_investment',
+                'total_carry_percentage', 'gp_commitment', 'lead_carry_percentage'
+            )
+        return queryset
     
     fieldsets = (
         ('Basic Information', {
