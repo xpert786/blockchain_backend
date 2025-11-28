@@ -94,6 +94,7 @@ urlpatterns = [
     path('syndicate/settings/kyb-verification/', syndicate_settings_views.syndicate_settings_kyb_verification, name='syndicate-settings-kyb-verification'),
     path('syndicate/settings/compliance/', syndicate_settings_views.syndicate_settings_compliance, name='syndicate-settings-compliance'),
     path('syndicate/settings/jurisdictional/', syndicate_settings_views.syndicate_settings_jurisdictional, name='syndicate-settings-jurisdictional'),
+    path('syndicate/settings/jurisdictional/<int:geography_id>/', syndicate_settings_views.syndicate_settings_jurisdictional_detail, name='syndicate-settings-jurisdictional-detail'),
     path('syndicate/settings/portfolio/', syndicate_settings_views.syndicate_settings_portfolio, name='syndicate-settings-portfolio'),
     path('syndicate/settings/notifications/', syndicate_settings_views.syndicate_settings_notifications, name='syndicate-settings-notifications'),
     path('syndicate/settings/fee-recipient/', syndicate_settings_views.syndicate_settings_fee_recipient, name='syndicate-settings-fee-recipient'),

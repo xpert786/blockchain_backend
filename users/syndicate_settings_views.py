@@ -382,6 +382,51 @@ def syndicate_settings_jurisdictional(request):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def syndicate_settings_jurisdictional_detail(request, geography_id):
+    """
+    Settings: Specific Jurisdictional Geography
+    GET /api/syndicate/settings/jurisdictional/<id>/ - Get specific geography details
+    """
+    user = request.user
+    
+    # Check if user has syndicate role
+    if user.role != 'syndicate':
+        return Response({
+            'error': 'Only users with syndicate role can access this endpoint'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        profile = SyndicateProfile.objects.get(user=user)
+    except SyndicateProfile.DoesNotExist:
+        return Response({
+            'error': 'Syndicate profile not found. Please complete onboarding first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Check if geography is associated with the syndicate profile
+    from .models import Geography
+    geography = get_object_or_404(Geography, id=geography_id)
+    
+    # Verify this geography is in the user's syndicate geographies
+    if not profile.geographies.filter(id=geography_id).exists():
+        return Response({
+            'error': 'This geography is not associated with your syndicate profile'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    return Response({
+        'success': True,
+        'message': 'Geography details retrieved successfully',
+        'data': {
+            'id': geography.id,
+            'name': geography.name,
+            'region': geography.region,
+            'country_code': geography.country_code,
+            'created_at': geography.created_at
+        }
+    })
+
+
 @api_view(['GET', 'PATCH'])
 @permission_classes([permissions.IsAuthenticated])
 def syndicate_settings_portfolio(request):
