@@ -106,7 +106,8 @@ class SPVAdmin(admin.ModelAdmin):
         """Override queryset to exclude Decimal fields that cause SQLite conversion errors"""
         queryset = super().get_queryset(request)
         # For the changelist view, exclude Decimal fields to avoid InvalidOperation
-        if request.resolver_match and 'changelist' in request.resolver_match.func_name:
+        # Check if this is a changelist view by examining the request path
+        if 'changelist' in request.path or request.path.endswith('/spv/'):
             # Use defer() to exclude the problematic Decimal fields from the queryset
             queryset = queryset.defer(
                 'round_size', 'allocation', 'minimum_lp_investment',
