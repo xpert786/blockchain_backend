@@ -342,15 +342,16 @@ class FeeRecipient(models.Model):
         help_text="Type of fee recipient"
     )
     
-    # Individual recipient
-    first_name = models.CharField(max_length=100, blank=True, null=True)
-    last_name = models.CharField(max_length=100, blank=True, null=True)
+    # Entity name (replaces first_name/last_name)
+    entity_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Name of the entity (individual, company, or trust)"
+    )
     
-    # Company recipient
-    company_name = models.CharField(max_length=255, blank=True, null=True)
-    
-    # Jurisdiction
-    jurisdiction = models.CharField(max_length=100, blank=True, null=True)
+    # Residence (replaces jurisdiction)
+    residence = models.CharField(max_length=100, blank=True, null=True)
     
     # Tax ID
     tax_id = models.CharField(
@@ -383,10 +384,7 @@ class FeeRecipient(models.Model):
         verbose_name_plural = 'fee recipients'
     
     def __str__(self):
-        if self.recipient_type == 'individual':
-            return f"{self.first_name} {self.last_name} - {self.syndicate.firm_name}"
-        else:
-            return f"{self.company_name} - {self.syndicate.firm_name}"
+        return f"{self.entity_name} - {self.syndicate.firm_name}"
 
 
 # Bank Details Models

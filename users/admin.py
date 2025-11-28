@@ -48,12 +48,12 @@ admin.site.register(TermsAcceptance)
 class FeeRecipientAdmin(admin.ModelAdmin):
     """Admin interface for Fee Recipients"""
     list_display = (
-        'id', 'get_recipient_name', 'recipient_type', 'jurisdiction',
+        'id', 'entity_name', 'recipient_type', 'residence',
         'syndicate_name', 'tax_id', 'created_at'
     )
-    list_filter = ('recipient_type', 'jurisdiction', 'created_at')
+    list_filter = ('recipient_type', 'residence', 'created_at')
     search_fields = (
-        'first_name', 'last_name', 'company_name', 'tax_id',
+        'entity_name', 'tax_id',
         'syndicate__firm_name', 'syndicate__user__username'
     )
     readonly_fields = ('created_at', 'updated_at')
@@ -64,10 +64,10 @@ class FeeRecipientAdmin(admin.ModelAdmin):
             'fields': ('syndicate',)
         }),
         ('Recipient Information', {
-            'fields': ('recipient_type', 'first_name', 'last_name', 'company_name')
+            'fields': ('recipient_type', 'entity_name', 'residence')
         }),
-        ('Jurisdiction & Tax', {
-            'fields': ('jurisdiction', 'tax_id')
+        ('Tax Information', {
+            'fields': ('tax_id',)
         }),
         ('Documents', {
             'fields': ('id_document', 'proof_of_address')
@@ -77,14 +77,6 @@ class FeeRecipientAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
-    def get_recipient_name(self, obj):
-        """Display recipient name based on type"""
-        if obj.recipient_type == 'individual':
-            return f"{obj.first_name} {obj.last_name}".strip() or "N/A"
-        else:
-            return obj.company_name or "N/A"
-    get_recipient_name.short_description = 'Recipient Name'
     
     def syndicate_name(self, obj):
         """Display syndicate firm name"""

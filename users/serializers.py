@@ -726,10 +726,8 @@ class FeeRecipientSerializer(serializers.ModelSerializer):
             'id',
             'recipient_type',
             'recipient_type_display',
-            'first_name',
-            'last_name',
-            'company_name',
-            'jurisdiction',
+            'entity_name',
+            'residence',
             'tax_id',
             'id_document',
             'id_document_url',
@@ -740,10 +738,8 @@ class FeeRecipientSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'id_document_url', 'proof_of_address_url', 'recipient_type_display']
         extra_kwargs = {
-            'first_name': {'required': False},
-            'last_name': {'required': False},
-            'company_name': {'required': False},
-            'jurisdiction': {'required': False},
+            'entity_name': {'required': False},
+            'residence': {'required': False},
             'tax_id': {'required': False},
             'id_document': {'required': False},
             'proof_of_address': {'required': False}
@@ -771,16 +767,10 @@ class FeeRecipientSerializer(serializers.ModelSerializer):
         """Validate recipient data based on recipient type"""
         recipient_type = data.get('recipient_type', self.instance.recipient_type if self.instance else 'individual')
         
-        if recipient_type == 'individual':
-            if not data.get('first_name') or not data.get('last_name'):
-                raise serializers.ValidationError({
-                    'name': 'First name and last name are required for individual recipients'
-                })
-        elif recipient_type in ['company', 'trust']:
-            if not data.get('company_name'):
-                raise serializers.ValidationError({
-                    'company_name': 'Company name is required for company/trust recipients'
-                })
+        if not data.get('entity_name'):
+            raise serializers.ValidationError({
+                'entity_name': 'Entity name is required for all recipient types'
+            })
         
         return data
 
