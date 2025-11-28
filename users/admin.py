@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
-from .models import CustomUser, Sector, Geography, TwoFactorAuth, EmailVerification, TermsAcceptance, SyndicateProfile, TeamMember, ComplianceDocument
+from .models import CustomUser, Sector, Geography, TwoFactorAuth, EmailVerification, TermsAcceptance, SyndicateProfile, TeamMember, ComplianceDocument, FeeRecipient
 
 # Register CustomUser with Django admin
 @admin.register(CustomUser)
@@ -42,6 +42,54 @@ admin.site.register(Geography)
 admin.site.register(TwoFactorAuth)
 admin.site.register(EmailVerification)
 admin.site.register(TermsAcceptance)
+
+
+@admin.register(FeeRecipient)
+class FeeRecipientAdmin(admin.ModelAdmin):
+    """Admin interface for Fee Recipients"""
+    list_display = (
+        'id', 'get_recipient_name', 'recipient_type', 'jurisdiction',
+        'syndicate_name', 'tax_id', 'created_at'
+    )
+    list_filter = ('recipient_type', 'jurisdiction', 'created_at')
+    search_fields = (
+        'first_name', 'last_name', 'company_name', 'tax_id',
+        'syndicate__firm_name', 'syndicate__user__username'
+    )
+    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('-created_at',)
+    
+    fieldsets = (
+        ('Syndicate Information', {
+            'fields': ('syndicate',)
+        }),
+        ('Recipient Information', {
+            'fields': ('recipient_type', 'first_name', 'last_name', 'company_name')
+        }),
+        ('Jurisdiction & Tax', {
+            'fields': ('jurisdiction', 'tax_id')
+        }),
+        ('Documents', {
+            'fields': ('id_document', 'proof_of_address')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_recipient_name(self, obj):
+        """Display recipient name based on type"""
+        if obj.recipient_type == 'individual':
+            return f"{obj.first_name} {obj.last_name}".strip() or "N/A"
+        else:
+            return obj.company_name or "N/A"
+    get_recipient_name.short_description = 'Recipient Name'
+    
+    def syndicate_name(self, obj):
+        """Display syndicate firm name"""
+        return obj.syndicate.firm_name or f"Syndicate {obj.syndicate.id}"
+    syndicate_name.short_description = 'Syndicate'
 
 
 @admin.register(SyndicateProfile)

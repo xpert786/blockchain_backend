@@ -317,6 +317,78 @@ class Syndicate(SyndicateProfile):
         verbose_name_plural = 'syndicates'
 
 
+# Fee Recipient Model
+
+class FeeRecipient(models.Model):
+    """Model for fee recipient setup"""
+    
+    RECIPIENT_TYPE_CHOICES = [
+        ('individual', 'Individual'),
+        ('company', 'Company'),
+        ('trust', 'Trust'),
+    ]
+    
+    syndicate = models.OneToOneField(
+        SyndicateProfile,
+        on_delete=models.CASCADE,
+        related_name='fee_recipient'
+    )
+    
+    # Recipient Info
+    recipient_type = models.CharField(
+        max_length=20,
+        choices=RECIPIENT_TYPE_CHOICES,
+        default='individual',
+        help_text="Type of fee recipient"
+    )
+    
+    # Individual recipient
+    first_name = models.CharField(max_length=100, blank=True, null=True)
+    last_name = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Company recipient
+    company_name = models.CharField(max_length=255, blank=True, null=True)
+    
+    # Jurisdiction
+    jurisdiction = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Tax ID
+    tax_id = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="Tax ID or Entity Reference Code"
+    )
+    
+    # Documents
+    id_document = models.FileField(
+        upload_to='fee_recipient_documents/',
+        blank=True,
+        null=True,
+        help_text="ID or Incorporation Document"
+    )
+    proof_of_address = models.FileField(
+        upload_to='fee_recipient_documents/',
+        blank=True,
+        null=True,
+        help_text="Proof of Address Document"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'fee recipient'
+        verbose_name_plural = 'fee recipients'
+    
+    def __str__(self):
+        if self.recipient_type == 'individual':
+            return f"{self.first_name} {self.last_name} - {self.syndicate.firm_name}"
+        else:
+            return f"{self.company_name} - {self.syndicate.firm_name}"
+
+
 # Compliance & Accreditation Models
 
 def compliance_document_upload_path(instance, filename):

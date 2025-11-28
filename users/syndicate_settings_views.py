@@ -12,7 +12,8 @@ from .serializers import (
     SyndicateSettingsComplianceSerializer,
     SyndicateSettingsJurisdictionalSerializer,
     SyndicateSettingsPortfolioSerializer,
-    SyndicateSettingsNotificationsSerializer
+    SyndicateSettingsNotificationsSerializer,
+    FeeRecipientSerializer
 )
 
 logger = logging.getLogger(__name__)
@@ -687,12 +688,13 @@ def syndicate_settings_notifications_detail(request, preference_type):
     })
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PATCH'])
 @permission_classes([permissions.IsAuthenticated])
 def syndicate_settings_fee_recipient(request):
     """
     Settings: Fee Recipient Setup
     GET /api/syndicate/settings/fee-recipient/ - Get fee recipient settings
+    PATCH /api/syndicate/settings/fee-recipient/ - Update fee recipient settings
     """
     user = request.user
     
@@ -709,14 +711,111 @@ def syndicate_settings_fee_recipient(request):
             'error': 'Syndicate profile not found. Please complete onboarding first.'
         }, status=status.HTTP_404_NOT_FOUND)
     
+    if request.method == 'GET':
+        # Get or create fee recipient
+        from .models import FeeRecipient
+        fee_recipient, created = FeeRecipient.objects.get_or_create(syndicate=profile)
+        
+        serializer = FeeRecipientSerializer(fee_recipient, context={'request': request})
+        return Response({
+            'success': True,
+            'message': 'Fee recipient setup',
+            'data': serializer.data
+        })
+    
+    elif request.method == 'PATCH':
+        from .models import FeeRecipient
+        
+        # Get or create fee recipient
+        fee_recipient, created = FeeRecipient.objects.get_or_create(syndicate=profile)
+        
+        # Handle file uploads if present
+        if hasattr(request, 'FILES') and 'id_document' in request.FILES:
+            fee_recipient.id_document = request.FILES['id_document']
+        
+        if hasattr(request, 'FILES') and 'proof_of_address' in request.FILES:
+            fee_recipient.proof_of_address = request.FILES['proof_of_address']
+        
+        # Prepare clean data for serializer (exclude file fields)
+        serializer_data = {}
+        if hasattr(request, 'data'):
+            from django.http import QueryDict
+            if isinstance(request.data, QueryDict):
+                for key in request.data.keys():
+                    if key not in ['id_document', 'proof_of_address']:
+                        serializer_data[key] = request.data[key]
+            elif isinstance(request.data, dict):
+                for key, value in request.data.items():
+                    if key not in ['id_document', 'proof_of_address']:
+                        serializer_data[key] = value
+        
+        serializer = FeeRecipientSerializer(
+            fee_recipient,
+            data=serializer_data,
+            partial=True,
+            context={'request': request}
+        )
+        
+        if serializer.is_valid():
+            # Save files first
+            if hasattr(request, 'FILES') and 'id_document' in request.FILES:
+                fee_recipient.id_document = request.FILES['id_document']
+            if hasattr(request, 'FILES') and 'proof_of_address' in request.FILES:
+                fee_recipient.proof_of_address = request.FILES['proof_of_address']
+            
+            serializer.save()
+            fee_recipient.refresh_from_db()
+            
+            # Return updated fee recipient
+            response_serializer = FeeRecipientSerializer(fee_recipient, context={'request': request})
+            return Response({
+                'success': True,
+                'message': 'Fee recipient settings updated successfully',
+                'data': response_serializer.data
+            })
+        
+        return Response({
+            'success': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def syndicate_settings_fee_recipient_detail(request, recipient_id):
+    """
+    Settings: Specific Fee Recipient
+    GET /api/syndicate/settings/fee-recipient/<id>/ - Get specific fee recipient details
+    """
+    user = request.user
+    
+    # Check if user has syndicate role
+    if user.role != 'syndicate':
+        return Response({
+            'error': 'Only users with syndicate role can access this endpoint'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        profile = SyndicateProfile.objects.get(user=user)
+    except SyndicateProfile.DoesNotExist:
+        return Response({
+            'error': 'Syndicate profile not found. Please complete onboarding first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    from .models import FeeRecipient
+    fee_recipient = get_object_or_404(FeeRecipient, id=recipient_id)
+    
+    # Verify this fee recipient belongs to user's syndicate
+    if fee_recipient.syndicate != profile:
+        return Response({
+            'error': 'This fee recipient is not associated with your syndicate profile'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    serializer = FeeRecipientSerializer(fee_recipient, context={'request': request})
     return Response({
         'success': True,
-        'message': 'Fee recipient setup endpoint - to be implemented',
-        'data': {
-            'syndicate_id': profile.id,
-            'firm_name': profile.firm_name
-            # TODO: Add fee recipient fields when implemented
-        }
+        'message': 'Fee recipient details retrieved successfully',
+        'data': serializer.data
     })
 
 

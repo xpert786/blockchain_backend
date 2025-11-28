@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CustomUser, Sector, Geography, EmailVerification, TwoFactorAuth, TermsAcceptance, SyndicateProfile, TeamMember, ComplianceDocument
+from .models import CustomUser, Sector, Geography, EmailVerification, TwoFactorAuth, TermsAcceptance, SyndicateProfile, TeamMember, ComplianceDocument, FeeRecipient
 from .email_utils import send_verification_email, send_sms_verification
 from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
@@ -712,6 +712,77 @@ class SyndicateSettingsNotificationsSerializer(serializers.Serializer):
             instance.notify_deal_updates = validated_data['notify_deal_updates']
         instance.save()
         return instance
+
+
+class FeeRecipientSerializer(serializers.ModelSerializer):
+    """Serializer for Fee Recipient settings"""
+    id_document_url = serializers.SerializerMethodField()
+    proof_of_address_url = serializers.SerializerMethodField()
+    recipient_type_display = serializers.CharField(source='get_recipient_type_display', read_only=True)
+    
+    class Meta:
+        model = FeeRecipient
+        fields = [
+            'id',
+            'recipient_type',
+            'recipient_type_display',
+            'first_name',
+            'last_name',
+            'company_name',
+            'jurisdiction',
+            'tax_id',
+            'id_document',
+            'id_document_url',
+            'proof_of_address',
+            'proof_of_address_url',
+            'created_at',
+            'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'id_document_url', 'proof_of_address_url', 'recipient_type_display']
+        extra_kwargs = {
+            'first_name': {'required': False},
+            'last_name': {'required': False},
+            'company_name': {'required': False},
+            'jurisdiction': {'required': False},
+            'tax_id': {'required': False},
+            'id_document': {'required': False},
+            'proof_of_address': {'required': False}
+        }
+    
+    def get_id_document_url(self, obj):
+        """Get absolute URL for ID document"""
+        if obj.id_document:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.id_document.url)
+            return obj.id_document.url
+        return None
+    
+    def get_proof_of_address_url(self, obj):
+        """Get absolute URL for proof of address document"""
+        if obj.proof_of_address:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.proof_of_address.url)
+            return obj.proof_of_address.url
+        return None
+    
+    def validate(self, data):
+        """Validate recipient data based on recipient type"""
+        recipient_type = data.get('recipient_type', self.instance.recipient_type if self.instance else 'individual')
+        
+        if recipient_type == 'individual':
+            if not data.get('first_name') or not data.get('last_name'):
+                raise serializers.ValidationError({
+                    'name': 'First name and last name are required for individual recipients'
+                })
+        elif recipient_type in ['company', 'trust']:
+            if not data.get('company_name'):
+                raise serializers.ValidationError({
+                    'company_name': 'Company name is required for company/trust recipients'
+                })
+        
+        return data
 
 
 # Team Member Serializers
