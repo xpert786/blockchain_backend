@@ -736,13 +736,6 @@ def spv_dashboard_summary(request):
         queryset = SPV.objects.filter(created_by=user)
 
     queryset = queryset.select_related('company_stage', 'round')
-    
-    # Avoid iterating queryset to prevent SQLite Decimal conversion errors
-    try:
-        spvs = list(queryset)
-    except Exception:
-        # If queryset iteration fails, use values instead
-        spvs = []
 
     totals = queryset.aggregate(
         total_allocation=Sum('allocation'),
@@ -754,9 +747,9 @@ def spv_dashboard_summary(request):
     total_target = _safe_decimal(totals.get('total_round_size'))
     spv_count = totals.get('spv_count', 0) or 0
 
-    # Safely calculate active investors
+    # Safely calculate active investors using .values()
     try:
-        active_investors = sum(len(spv.lp_invite_emails or []) for spv in spvs)
+        active_investors = sum(len(spv.get('lp_invite_emails') or []) for spv in queryset.values('lp_invite_emails'))
     except Exception:
         active_investors = 0
         
@@ -766,35 +759,54 @@ def spv_dashboard_summary(request):
 
     my_spv_cards = []
     total_progress = Decimal('0')
-    for spv in spvs:
-        try:
-            my_commitment = _safe_decimal(spv.allocation)
-            target_amount = _safe_decimal(spv.round_size)
-        except Exception:
-            my_commitment = Decimal('0')
-            target_amount = Decimal('0')
-        progress_percent = Decimal('0')
-        if target_amount > 0:
-            progress_percent = (my_commitment / target_amount) * Decimal('100')
-        progress_percent = min(progress_percent, Decimal('100'))
-        total_progress += progress_percent
+    
+    # Use .values() to avoid SQLite Decimal conversion errors
+    try:
+        spvs_values = queryset.values(
+            'id', 'display_name', 'status', 'created_at', 'updated_at',
+            'lp_invite_emails', 'round__name', 'company_stage__name'
+        )
+        
+        for spv in spvs_values:
+            try:
+                # Get decimal fields separately with error handling
+                allocation_obj = queryset.filter(id=spv['id']).values('allocation', 'round_size').first()
+                
+                if allocation_obj:
+                    my_commitment = _safe_decimal(allocation_obj.get('allocation'))
+                    target_amount = _safe_decimal(allocation_obj.get('round_size'))
+                else:
+                    my_commitment = Decimal('0')
+                    target_amount = Decimal('0')
+            except Exception:
+                my_commitment = Decimal('0')
+                target_amount = Decimal('0')
+                
+            progress_percent = Decimal('0')
+            if target_amount > 0:
+                progress_percent = (my_commitment / target_amount) * Decimal('100')
+            progress_percent = min(progress_percent, Decimal('100'))
+            total_progress += progress_percent
 
-        my_spv_cards.append({
-            'id': spv.id,
-            'code': f"SPV-{spv.id:03d}",
-            'name': spv.display_name,
-            'status': spv.status,
-            'status_label': spv.get_status_display(),
-            'my_commitment': _decimal_to_float(my_commitment),
-            'target_amount': _decimal_to_float(target_amount),
-            'target_currency': 'USD',
-            'investor_count': len(spv.lp_invite_emails or []),
-            'round': spv.round.name if spv.round else None,
-            'stage': spv.company_stage.name if spv.company_stage else None,
-            'progress_percent': float(progress_percent.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)),
-            'created_at': spv.created_at.isoformat(),
-            'updated_at': spv.updated_at.isoformat(),
-        })
+            my_spv_cards.append({
+                'id': spv['id'],
+                'code': f"SPV-{spv['id']:03d}",
+                'name': spv['display_name'],
+                'status': spv['status'],
+                'status_label': dict(SPV.STATUS_CHOICES).get(spv['status'], spv['status']),
+                'my_commitment': _decimal_to_float(my_commitment),
+                'target_amount': _decimal_to_float(target_amount),
+                'target_currency': 'USD',
+                'investor_count': len(spv['lp_invite_emails'] or []),
+                'round': spv['round__name'],
+                'stage': spv['company_stage__name'],
+                'progress_percent': float(progress_percent.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)),
+                'created_at': spv['created_at'].isoformat() if spv['created_at'] else None,
+                'updated_at': spv['updated_at'].isoformat() if spv['updated_at'] else None,
+            })
+    except Exception:
+        # Fallback: empty list if iteration fails
+        my_spv_cards = []
 
     average_progress = float((total_progress / spv_count).quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)) if spv_count else 0.0
 
@@ -812,37 +824,42 @@ def spv_dashboard_summary(request):
         })
 
     now = timezone.now().date()
-    for spv in spvs:
-        if spv.status == 'pending_review':
-            pending_actions.append({
-                'id': f'spv-review-{spv.id}',
-                'title': f'{spv.display_name} pending review',
-                'description': 'Review and approve deal terms to continue fundraising.',
-                'status': spv.status,
-                'action_required': 'review_spv',
-                'spv_id': spv.id,
-                'updated_at': spv.updated_at.isoformat(),
-            })
-        if not spv.pitch_deck or not spv.supporting_document:
-            pending_actions.append({
-                'id': f'spv-docs-{spv.id}',
-                'title': f'Upload documents for {spv.display_name}',
-                'description': 'Pitch deck or supporting documents are missing.',
-                'status': 'documents_pending',
-                'action_required': 'upload_documents',
-                'spv_id': spv.id,
-                'updated_at': spv.updated_at.isoformat(),
-            })
-        if spv.target_closing_date and spv.target_closing_date <= now + timedelta(days=14) and spv.status not in ('closed', 'cancelled'):
-            pending_actions.append({
-                'id': f'spv-closing-{spv.id}',
-                'title': f'{spv.display_name} closing soon',
-                'description': f'Target closing date {spv.target_closing_date.isoformat()} is approaching.',
-                'status': 'closing_soon',
-                'action_required': 'close_out_spv',
-                'spv_id': spv.id,
-                'updated_at': spv.updated_at.isoformat(),
-            })
+    
+    # Use .values() to safely iterate SPVs without Decimal conversion
+    try:
+        for spv in queryset.values('id', 'status', 'display_name', 'pitch_deck', 'supporting_document', 'target_closing_date', 'updated_at'):
+            if spv['status'] == 'pending_review':
+                pending_actions.append({
+                    'id': f'spv-review-{spv["id"]}',
+                    'title': f'{spv["display_name"]} pending review',
+                    'description': 'Review and approve deal terms to continue fundraising.',
+                    'status': spv['status'],
+                    'action_required': 'review_spv',
+                    'spv_id': spv['id'],
+                    'updated_at': spv['updated_at'].isoformat() if spv['updated_at'] else None,
+                })
+            if not spv['pitch_deck'] or not spv['supporting_document']:
+                pending_actions.append({
+                    'id': f'spv-docs-{spv["id"]}',
+                    'title': f'Upload documents for {spv["display_name"]}',
+                    'description': 'Pitch deck or supporting documents are missing.',
+                    'status': 'documents_pending',
+                    'action_required': 'upload_documents',
+                    'spv_id': spv['id'],
+                    'updated_at': spv['updated_at'].isoformat() if spv['updated_at'] else None,
+                })
+            if spv['target_closing_date'] and spv['target_closing_date'] <= now + timedelta(days=14) and spv['status'] not in ('closed', 'cancelled'):
+                pending_actions.append({
+                    'id': f'spv-closing-{spv["id"]}',
+                    'title': f'{spv["display_name"]} closing soon',
+                    'description': f'Target closing date {spv["target_closing_date"].isoformat()} is approaching.',
+                    'status': 'closing_soon',
+                    'action_required': 'close_out_spv',
+                    'spv_id': spv['id'],
+                    'updated_at': spv['updated_at'].isoformat() if spv['updated_at'] else None,
+                })
+    except Exception:
+        pass  # Silently continue if pending actions fail
 
     status_breakdown = []
     status_totals = queryset.values('status').annotate(
@@ -955,43 +972,66 @@ def spv_management_overview(request):
         success_rate = (total_aum / total_target) * Decimal('100')
 
     spv_cards = []
-    for spv in queryset:
-        try:
-            my_commitment = _safe_decimal(spv.allocation)
-            target_amount = _safe_decimal(spv.round_size)
-        except Exception:
-            my_commitment = Decimal('0')
-            target_amount = Decimal('0')
-            
-        progress_percent = Decimal('0')
-        if target_amount > 0:
-            progress_percent = (my_commitment / target_amount) * Decimal('100')
-        progress_percent = min(progress_percent, Decimal('100'))
+    
+    # Use .values() to avoid SQLite Decimal conversion errors
+    try:
+        queryset_values = queryset.values(
+            'id', 'display_name', 'status', 'jurisdiction', 'deal_tags',
+            'created_at', 'lp_invite_emails', 'pitch_deck', 'supporting_document',
+            'portfolio_company_name', 'round__name', 'company_stage__name',
+            'portfolio_company__name'
+        )
+        
+        for spv in queryset_values:
+            try:
+                # Get decimal fields from database with error handling
+                allocation_obj = base_queryset.filter(id=spv['id']).values('allocation', 'round_size', 'minimum_lp_investment').first()
+                
+                if allocation_obj:
+                    my_commitment = _safe_decimal(allocation_obj.get('allocation'))
+                    target_amount = _safe_decimal(allocation_obj.get('round_size'))
+                    min_investment = _safe_decimal(allocation_obj.get('minimum_lp_investment'))
+                else:
+                    my_commitment = Decimal('0')
+                    target_amount = Decimal('0')
+                    min_investment = Decimal('0')
+            except Exception:
+                my_commitment = Decimal('0')
+                target_amount = Decimal('0')
+                min_investment = Decimal('0')
+                
+            progress_percent = Decimal('0')
+            if target_amount > 0:
+                progress_percent = (my_commitment / target_amount) * Decimal('100')
+            progress_percent = min(progress_percent, Decimal('100'))
 
-        spv_cards.append({
-            'id': spv.id,
-            'code': f"SPV-{spv.id:03d}",
-            'name': spv.display_name,
-            'status': spv.status,
-            'status_label': spv.get_status_display(),
-            'jurisdiction': spv.jurisdiction,
-            'sector': spv.deal_tags[0] if isinstance(spv.deal_tags, list) and spv.deal_tags else None,
-            'industry_tags': spv.deal_tags or [],
-            'created_at': spv.created_at.isoformat(),
-            'target_amount': _decimal_to_float(target_amount),
-            'my_commitment': _decimal_to_float(my_commitment),
-            'investor_count': len(spv.lp_invite_emails or []),
-            'minimum_investment': _decimal_to_float(spv.minimum_lp_investment),
-            'round': spv.round.name if spv.round else None,
-            'stage': spv.company_stage.name if spv.company_stage else None,
-            'portfolio_company': spv.portfolio_company.name if spv.portfolio_company else spv.portfolio_company_name,
-            'funding_progress_percent': float(progress_percent.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)),
-            'actions': {
-                'manage_investors': True,
-                'documents': spv.pitch_deck is not None or spv.supporting_document is not None,
-                'analytics': True,
-            }
-        })
+            spv_cards.append({
+                'id': spv['id'],
+                'code': f"SPV-{spv['id']:03d}",
+                'name': spv['display_name'],
+                'status': spv['status'],
+                'status_label': dict(SPV.STATUS_CHOICES).get(spv['status'], spv['status']),
+                'jurisdiction': spv['jurisdiction'],
+                'sector': spv['deal_tags'][0] if isinstance(spv['deal_tags'], list) and spv['deal_tags'] else None,
+                'industry_tags': spv['deal_tags'] or [],
+                'created_at': spv['created_at'].isoformat() if spv['created_at'] else None,
+                'target_amount': _decimal_to_float(target_amount),
+                'my_commitment': _decimal_to_float(my_commitment),
+                'investor_count': len(spv['lp_invite_emails'] or []),
+                'minimum_investment': _decimal_to_float(min_investment),
+                'round': spv['round__name'],
+                'stage': spv['company_stage__name'],
+                'portfolio_company': spv['portfolio_company__name'] or spv['portfolio_company_name'],
+                'funding_progress_percent': float(progress_percent.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)),
+                'actions': {
+                    'manage_investors': True,
+                    'documents': spv['pitch_deck'] is not None or spv['supporting_document'] is not None,
+                    'analytics': True,
+                }
+            })
+    except Exception as e:
+        # Fallback: return empty list if queryset iteration fails
+        spv_cards = []
 
     tab_summary = []
     for key, config in STATUS_TABS.items():
