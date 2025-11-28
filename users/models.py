@@ -164,6 +164,10 @@ class SyndicateProfile(models.Model):
     geographies = models.ManyToManyField(Geography, blank=True, related_name='syndicate_profiles')
     existing_lp_count = models.CharField(max_length=10, choices=LP_NETWORK_CHOICES, blank=True, null=True)
     enable_platform_lp_access = models.BooleanField(default=False)
+    allow_platform_contact = models.BooleanField(
+        default=True,
+        help_text="Allow platform to contact portfolio companies (True=Allow, False=Restrict)"
+    )
     
     # Step 2: Entity Profile
     firm_name = models.CharField(max_length=255, blank=True, null=True)

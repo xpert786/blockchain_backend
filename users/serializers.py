@@ -648,28 +648,49 @@ class SyndicateSettingsJurisdictionalSerializer(serializers.ModelSerializer):
 
 
 class SyndicateSettingsPortfolioSerializer(serializers.ModelSerializer):
-    """Serializer for Settings: Portfolio Company Outreach with sector management"""
-    sectors = SectorSerializer(many=True, read_only=True)
-    sector_ids = serializers.PrimaryKeyRelatedField(
-        queryset=Sector.objects.all(),
-        write_only=True,
-        many=True,
-        required=False,
-        source='sectors'
-    )
+    """Serializer for Settings: Portfolio Company Outreach with restrict/allow options"""
+    
+    # For GET requests - show current state
+    restrict = serializers.SerializerMethodField()
+    allow = serializers.SerializerMethodField()
+    
+    # For PATCH requests - accept restrict/allow as input
+    restrict_input = serializers.BooleanField(write_only=True, required=False)
+    allow_input = serializers.BooleanField(write_only=True, required=False)
     
     class Meta:
         model = SyndicateProfile
         fields = [
-            'sectors',
-            'sector_ids',
-            'enable_platform_lp_access',
-            'existing_lp_count'
+            'restrict',
+            'allow',
+            'restrict_input',
+            'allow_input'
         ]
         extra_kwargs = {
-            'enable_platform_lp_access': {'required': False},
-            'existing_lp_count': {'required': False}
+            'restrict_input': {'required': False},
+            'allow_input': {'required': False}
         }
+    
+    def get_restrict(self, obj):
+        """Return True if platform contact is restricted"""
+        return not obj.allow_platform_contact
+    
+    def get_allow(self, obj):
+        """Return True if platform contact is allowed"""
+        return obj.allow_platform_contact
+    
+    def update(self, instance, validated_data):
+        """Update allow_platform_contact based on restrict_input or allow_input"""
+        restrict_input = validated_data.pop('restrict_input', None)
+        allow_input = validated_data.pop('allow_input', None)
+        
+        if restrict_input is not None:
+            instance.allow_platform_contact = not restrict_input
+        elif allow_input is not None:
+            instance.allow_platform_contact = allow_input
+        
+        instance.save()
+        return instance
 
 
 class SyndicateSettingsNotificationsSerializer(serializers.Serializer):

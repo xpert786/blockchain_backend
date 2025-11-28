@@ -435,9 +435,9 @@ def syndicate_settings_jurisdictional_detail(request, geography_id):
 @permission_classes([permissions.IsAuthenticated])
 def syndicate_settings_portfolio(request):
     """
-    Settings: Portfolio Company Outreach
-    GET /api/syndicate/settings/portfolio/ - Get portfolio settings
-    PATCH /api/syndicate/settings/portfolio/ - Update portfolio settings
+    Settings: Portfolio Company Outreach - Allow/Restrict Platform Contact
+    GET /api/syndicate/settings/portfolio/ - Get portfolio contact settings
+    PATCH /api/syndicate/settings/portfolio/ - Update portfolio contact settings (restrict or allow)
     """
     user = request.user
     
@@ -455,21 +455,11 @@ def syndicate_settings_portfolio(request):
         }, status=status.HTTP_404_NOT_FOUND)
     
     if request.method == 'GET':
+        serializer = SyndicateSettingsPortfolioSerializer(profile, context={'request': request})
         return Response({
             'success': True,
-            'message': 'Portfolio company outreach settings endpoint',
-            'data': {
-                'sectors': [
-                    {
-                        'id': sector.id,
-                        'name': sector.name,
-                        'description': sector.description
-                    }
-                    for sector in profile.sectors.all()
-                ],
-                'enable_platform_lp_access': profile.enable_platform_lp_access,
-                'existing_lp_count': profile.existing_lp_count
-            }
+            'message': 'Portfolio company outreach settings retrieved successfully',
+            'data': serializer.data
         })
     
     elif request.method == 'PATCH':
@@ -484,19 +474,8 @@ def syndicate_settings_portfolio(request):
             serializer.save()
             return Response({
                 'success': True,
-                'message': 'Portfolio settings updated successfully',
-                'data': {
-                    'sectors': [
-                        {
-                            'id': sector.id,
-                            'name': sector.name,
-                            'description': sector.description
-                        }
-                        for sector in profile.sectors.all()
-                    ],
-                    'enable_platform_lp_access': profile.enable_platform_lp_access,
-                    'existing_lp_count': profile.existing_lp_count
-                }
+                'message': 'Portfolio company outreach settings updated successfully',
+                'data': serializer.data
             })
         
         return Response({
