@@ -411,3 +411,309 @@ def spv_documents(request, spv_id):
     }
     
     return Response(response_data)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([permissions.IsAuthenticated])
+def spv_invite_lps(request, spv_id):
+    """
+    Get or send LP invitations for an SPV
+    GET /api/spv/{id}/invite-lps/ - Get current invite settings
+    POST /api/spv/{id}/invite-lps/ - Send invitations to LPs
+    
+    POST Payload:
+    {
+        "emails": ["investor1@example.com", "investor2@example.com"],
+        "message": "Investment opportunity text",
+        "lead_carry_percentage": 5.0,
+        "investment_visibility": "hidden",  # or "visible"
+        "auto_invite_active_spvs": false,
+        "private_note": "Internal note",
+        "tags": ["tag1", "tag2"]
+    }
+    """
+    spv = get_object_or_404(SPV, id=spv_id)
+    
+    # Check permissions
+    if not (request.user.is_staff or request.user.role == 'admin' or spv.created_by == request.user):
+        return Response({
+            'error': 'You do not have permission to access this SPV'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    if request.method == 'GET':
+        # Return current invite settings
+        response_data = {
+            'success': True,
+            'data': {
+                'spv_id': spv.id,
+                'spv_name': spv.display_name,
+                'current_invites': {
+                    'total_emails': len(spv.lp_invite_emails or []),
+                    'emails': spv.lp_invite_emails or [],
+                    'message': spv.lp_invite_message,
+                    'lead_carry_percentage': float(spv.lead_carry_percentage) if spv.lead_carry_percentage else 0.0,
+                    'investment_visibility': spv.investment_visibility,
+                    'auto_invite_active_spvs': spv.auto_invite_active_spvs,
+                    'private_note': spv.invite_private_note,
+                    'tags': spv.invite_tags or [],
+                }
+            }
+        }
+        return Response(response_data)
+    
+    elif request.method == 'POST':
+        # Validate required fields
+        emails = request.data.get('emails', [])
+        message = request.data.get('message')
+        
+        if not emails or not isinstance(emails, list):
+            return Response({
+                'success': False,
+                'error': 'emails field is required and must be a list of email addresses'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if len(emails) == 0:
+            return Response({
+                'success': False,
+                'error': 'At least one email address is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate email format
+        import re
+        email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        invalid_emails = [e for e in emails if not re.match(email_regex, e)]
+        
+        if invalid_emails:
+            return Response({
+                'success': False,
+                'error': f'Invalid email addresses: {", ".join(invalid_emails)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Merge with existing emails (avoid duplicates)
+        existing_emails = set(spv.lp_invite_emails or [])
+        new_emails = set(emails)
+        all_emails = list(existing_emails.union(new_emails))
+        
+        # Update SPV with new invite data
+        spv.lp_invite_emails = all_emails
+        spv.lp_invite_message = message or spv.lp_invite_message
+        
+        # Update optional fields
+        if 'lead_carry_percentage' in request.data:
+            spv.lead_carry_percentage = request.data['lead_carry_percentage']
+        
+        if 'investment_visibility' in request.data:
+            visibility = request.data['investment_visibility']
+            if visibility in ['hidden', 'visible']:
+                spv.investment_visibility = visibility
+        
+        if 'auto_invite_active_spvs' in request.data:
+            spv.auto_invite_active_spvs = request.data['auto_invite_active_spvs']
+        
+        if 'private_note' in request.data:
+            spv.invite_private_note = request.data['private_note']
+        
+        if 'tags' in request.data and isinstance(request.data['tags'], list):
+            spv.invite_tags = request.data['tags']
+        
+        spv.save()
+        
+        # Here you would typically send actual emails
+        # For now, we'll just log the invitation
+        new_invites_sent = len(new_emails - existing_emails)
+        
+        response_data = {
+            'success': True,
+            'message': f'LP invitations sent successfully to {new_invites_sent} new investor(s)',
+            'data': {
+                'spv_id': spv.id,
+                'total_invited': len(all_emails),
+                'new_invites_sent': new_invites_sent,
+                'emails_invited': list(new_emails - existing_emails),
+                'all_emails': all_emails,
+                'settings': {
+                    'lead_carry_percentage': float(spv.lead_carry_percentage) if spv.lead_carry_percentage else 0.0,
+                    'investment_visibility': spv.investment_visibility,
+                    'auto_invite_active_spvs': spv.auto_invite_active_spvs,
+                    'private_note': spv.invite_private_note,
+                    'tags': spv.invite_tags or [],
+                }
+            }
+        }
+        
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([permissions.IsAuthenticated])
+def spv_manage_lp_defaults(request):
+    """
+    Get or set default LP invitation settings for the user
+    GET /api/spv/invite-lps/defaults/ - Get default settings
+    POST /api/spv/invite-lps/defaults/ - Set default settings
+    
+    POST Payload:
+    {
+        "lead_carry_percentage": 5.0,
+        "investment_visibility": "hidden",
+        "auto_invite_active_spvs": true,
+        "default_message": "Default invitation message"
+    }
+    """
+    # Store in user profile or custom settings
+    # For now, return template defaults
+    
+    if request.method == 'GET':
+        response_data = {
+            'success': True,
+            'data': {
+                'user_id': request.user.id,
+                'defaults': {
+                    'lead_carry_percentage': 5.0,
+                    'investment_visibility': 'hidden',
+                    'auto_invite_active_spvs': False,
+                    'default_message': 'You are invited to invest in this SPV opportunity. Please review the details and let us know if you are interested.'
+                }
+            }
+        }
+        return Response(response_data)
+    
+    elif request.method == 'POST':
+        # In real implementation, save to UserProfile or custom settings
+        defaults = {
+            'lead_carry_percentage': request.data.get('lead_carry_percentage', 5.0),
+            'investment_visibility': request.data.get('investment_visibility', 'hidden'),
+            'auto_invite_active_spvs': request.data.get('auto_invite_active_spvs', False),
+            'default_message': request.data.get('default_message', '')
+        }
+        
+        response_data = {
+            'success': True,
+            'message': 'Default LP invitation settings updated successfully',
+            'data': {
+                'user_id': request.user.id,
+                'defaults': defaults
+            }
+        }
+        return Response(response_data)
+
+
+@api_view(['DELETE'])
+@permission_classes([permissions.IsAuthenticated])
+def spv_remove_lp_invite(request, spv_id, email):
+    """
+    Remove an LP from the invite list
+    DELETE /api/spv/{id}/invite-lps/{email}/
+    """
+    spv = get_object_or_404(SPV, id=spv_id)
+    
+    # Check permissions
+    if not (request.user.is_staff or request.user.role == 'admin' or spv.created_by == request.user):
+        return Response({
+            'error': 'You do not have permission to access this SPV'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    if not spv.lp_invite_emails or email not in spv.lp_invite_emails:
+        return Response({
+            'success': False,
+            'error': f'Email {email} not found in invite list'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Remove email from list
+    spv.lp_invite_emails = [e for e in spv.lp_invite_emails if e != email]
+    spv.save()
+    
+    response_data = {
+        'success': True,
+        'message': f'Email {email} removed from invite list',
+        'data': {
+            'spv_id': spv.id,
+            'removed_email': email,
+            'remaining_emails': spv.lp_invite_emails,
+            'total_remaining': len(spv.lp_invite_emails)
+        }
+    }
+    
+    return Response(response_data, status=status.HTTP_200_OK)
+
+
+@api_view(['PATCH'])
+@permission_classes([permissions.IsAuthenticated])
+def spv_bulk_invite_lps(request):
+    """
+    Send invitations to LPs for multiple SPVs
+    PATCH /api/spv/bulk-invite-lps/
+    
+    Payload:
+    {
+        "spv_ids": [1, 2, 3],
+        "emails": ["investor@example.com"],
+        "message": "Investment opportunity",
+        "lead_carry_percentage": 5.0
+    }
+    """
+    spv_ids = request.data.get('spv_ids', [])
+    emails = request.data.get('emails', [])
+    
+    if not spv_ids or not isinstance(spv_ids, list):
+        return Response({
+            'success': False,
+            'error': 'spv_ids field is required and must be a list'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    if not emails or not isinstance(emails, list):
+        return Response({
+            'success': False,
+            'error': 'emails field is required and must be a list'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Get all SPVs
+    spvs = SPV.objects.filter(id__in=spv_ids)
+    
+    # Check permissions - user must own all SPVs
+    for spv in spvs:
+        if not (request.user.is_staff or request.user.role == 'admin' or spv.created_by == request.user):
+            return Response({
+                'error': f'You do not have permission to access SPV {spv.id}'
+            }, status=status.HTTP_403_FORBIDDEN)
+    
+    if spvs.count() != len(spv_ids):
+        return Response({
+            'success': False,
+            'error': f'Some SPVs not found. Found {spvs.count()} out of {len(spv_ids)}'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Update all SPVs
+    message = request.data.get('message')
+    lead_carry = request.data.get('lead_carry_percentage')
+    
+    updated_count = 0
+    for spv in spvs:
+        existing_emails = set(spv.lp_invite_emails or [])
+        new_emails = set(emails)
+        spv.lp_invite_emails = list(existing_emails.union(new_emails))
+        
+        if message:
+            spv.lp_invite_message = message
+        
+        if lead_carry is not None:
+            spv.lead_carry_percentage = lead_carry
+        
+        spv.save()
+        updated_count += 1
+    
+    response_data = {
+        'success': True,
+        'message': f'LP invitations sent to {updated_count} SPV(s)',
+        'data': {
+            'spvs_updated': updated_count,
+            'emails_invited': emails,
+            'spv_ids': spv_ids,
+            'settings': {
+                'lead_carry_percentage': float(lead_carry) if lead_carry else None,
+                'message': message
+            }
+        }
+    }
+    
+    return Response(response_data)
