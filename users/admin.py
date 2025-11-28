@@ -266,10 +266,10 @@ class ComplianceDocumentAdmin(admin.ModelAdmin):
 class CreditCardAdmin(admin.ModelAdmin):
     """Admin interface for Credit Cards"""
     list_display = (
-        'id', 'card_type_display', 'card_number_masked', 'card_holder_name',
+        'id', 'card_type_display', 'card_category_display', 'card_number_masked', 'card_holder_name',
         'expiry_date', 'status_badge', 'is_primary', 'syndicate_name', 'created_at'
     )
-    list_filter = ('card_type', 'status', 'is_primary', 'created_at')
+    list_filter = ('card_category', 'card_type', 'status', 'is_primary', 'created_at')
     search_fields = ('card_holder_name', 'card_number', 'syndicate__firm_name')
     readonly_fields = ('created_at', 'updated_at')
     ordering = ('-is_primary', '-created_at')
@@ -279,7 +279,7 @@ class CreditCardAdmin(admin.ModelAdmin):
             'fields': ('syndicate',)
         }),
         ('Card Information', {
-            'fields': ('card_type', 'card_number', 'card_holder_name', 'expiry_date', 'cvv')
+            'fields': ('card_category', 'card_type', 'card_number', 'card_holder_name', 'expiry_date', 'cvv')
         }),
         ('Status & Settings', {
             'fields': ('status', 'is_primary')
@@ -301,6 +301,11 @@ class CreditCardAdmin(admin.ModelAdmin):
         """Display card type"""
         return obj.get_card_type_display()
     card_type_display.short_description = 'Card Type'
+    
+    def card_category_display(self, obj):
+        """Display card category"""
+        return obj.get_card_category_display()
+    card_category_display.short_description = 'Card Category'
     
     def status_badge(self, obj):
         """Display status with colored badge"""

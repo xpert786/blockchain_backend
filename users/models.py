@@ -399,6 +399,11 @@ class CreditCard(models.Model):
         ('discover', 'Discover'),
     ]
     
+    CARD_CATEGORY_CHOICES = [
+        ('credit_card', 'Credit Card'),
+        ('debit_card', 'Debit Card'),
+    ]
+    
     STATUS_CHOICES = [
         ('active', 'Active'),
         ('expired', 'Expired'),
@@ -409,6 +414,13 @@ class CreditCard(models.Model):
         SyndicateProfile,
         on_delete=models.CASCADE,
         related_name='credit_cards'
+    )
+    
+    card_category = models.CharField(
+        max_length=20,
+        choices=CARD_CATEGORY_CHOICES,
+        default='credit_card',
+        help_text="Whether this is a credit card or debit card"
     )
     
     card_type = models.CharField(max_length=20, choices=CARD_TYPE_CHOICES)
@@ -437,7 +449,7 @@ class CreditCard(models.Model):
         ordering = ['-is_primary', '-created_at']
     
     def __str__(self):
-        return f"{self.get_card_type_display()} - {self.card_number[-4:]}"
+        return f"{self.get_card_type_display()} ({self.get_card_category_display()}) - {self.card_number[-4:]}"
 
 
 class BankAccount(models.Model):

@@ -778,14 +778,17 @@ class FeeRecipientSerializer(serializers.ModelSerializer):
 # Bank Details Serializers
 
 class CreditCardSerializer(serializers.ModelSerializer):
-    """Serializer for Credit Card"""
+    """Serializer for Credit/Debit Cards"""
     card_type_display = serializers.CharField(source='get_card_type_display', read_only=True)
+    card_category_display = serializers.CharField(source='get_card_category_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     
     class Meta:
         model = CreditCard
         fields = [
             'id',
+            'card_category',
+            'card_category_display',
             'card_type',
             'card_type_display',
             'card_number',
@@ -798,12 +801,13 @@ class CreditCardSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'card_type_display', 'status_display']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'card_type_display', 'card_category_display', 'status_display']
         extra_kwargs = {
+            'card_category': {'required': True},
+            'card_type': {'required': True},
             'card_number': {'required': True},
             'card_holder_name': {'required': True},
-            'expiry_date': {'required': True},
-            'card_type': {'required': True}
+            'expiry_date': {'required': True}
         }
     
     def validate_card_number(self, value):

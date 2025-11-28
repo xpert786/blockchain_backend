@@ -854,15 +854,20 @@ def syndicate_settings_bank_details(request):
         })
     
     elif request.method == 'POST':
-        item_type = request.data.get('type')  # 'credit_card' or 'bank_account'
+        item_type = request.data.get('type')  # 'credit_card', 'debit_card', or 'bank_account'
         
-        if item_type == 'credit_card':
-            serializer = CreditCardSerializer(data=request.data, context={'request': request})
+        if item_type in ['credit_card', 'debit_card']:
+            # Map the type to card_category
+            card_category = 'credit_card' if item_type == 'credit_card' else 'debit_card'
+            data = request.data.dict() if hasattr(request.data, 'dict') else dict(request.data)
+            data['card_category'] = card_category
+            
+            serializer = CreditCardSerializer(data=data, context={'request': request})
             if serializer.is_valid():
                 serializer.save(syndicate=profile)
                 return Response({
                     'success': True,
-                    'message': 'Credit card added successfully',
+                    'message': f'{item_type.replace("_", " ").title()} added successfully',
                     'data': serializer.data
                 }, status=status.HTTP_201_CREATED)
             return Response({
