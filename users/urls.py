@@ -102,6 +102,8 @@ urlpatterns = [
     path('syndicate/settings/fee-recipient/', syndicate_settings_views.syndicate_settings_fee_recipient, name='syndicate-settings-fee-recipient'),
     path('syndicate/settings/fee-recipient/<int:recipient_id>/', syndicate_settings_views.syndicate_settings_fee_recipient_detail, name='syndicate-settings-fee-recipient-detail'),
     path('syndicate/settings/bank-details/', syndicate_settings_views.syndicate_settings_bank_details, name='syndicate-settings-bank-details'),
+    path('syndicate/settings/bank-details/card/<int:card_id>/', syndicate_settings_views.syndicate_settings_bank_card_detail, name='syndicate-settings-bank-card-detail'),
+    path('syndicate/settings/bank-details/account/<int:account_id>/', syndicate_settings_views.syndicate_settings_bank_account_detail, name='syndicate-settings-bank-account-detail'),
     
     # CORS preflight handler
     path('cors-preflight/', cors_views.cors_preflight, name='cors-preflight'),

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CustomUser, Sector, Geography, EmailVerification, TwoFactorAuth, TermsAcceptance, SyndicateProfile, TeamMember, ComplianceDocument, FeeRecipient
+from .models import CustomUser, Sector, Geography, EmailVerification, TwoFactorAuth, TermsAcceptance, SyndicateProfile, TeamMember, ComplianceDocument, FeeRecipient, CreditCard, BankAccount
 from .email_utils import send_verification_email, send_sms_verification
 from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
@@ -783,6 +783,123 @@ class FeeRecipientSerializer(serializers.ModelSerializer):
                 })
         
         return data
+
+
+# Bank Details Serializers
+
+class CreditCardSerializer(serializers.ModelSerializer):
+    """Serializer for Credit Card"""
+    card_type_display = serializers.CharField(source='get_card_type_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        model = CreditCard
+        fields = [
+            'id',
+            'card_type',
+            'card_type_display',
+            'card_number',
+            'card_holder_name',
+            'expiry_date',
+            'cvv',
+            'status',
+            'status_display',
+            'is_primary',
+            'created_at',
+            'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'card_type_display', 'status_display']
+        extra_kwargs = {
+            'card_number': {'required': True},
+            'card_holder_name': {'required': True},
+            'expiry_date': {'required': True},
+            'card_type': {'required': True}
+        }
+    
+    def validate_card_number(self, value):
+        """Validate card number format"""
+        # Remove spaces and dashes
+        clean_number = value.replace(' ', '').replace('-', '')
+        if not clean_number.isdigit() or len(clean_number) < 13 or len(clean_number) > 19:
+            raise serializers.ValidationError("Card number must be between 13 and 19 digits")
+        return value
+    
+    def validate_expiry_date(self, value):
+        """Validate expiry date format (MM/YY)"""
+        if len(value) != 5 or value[2] != '/':
+            raise serializers.ValidationError("Expiry date must be in MM/YY format")
+        try:
+            month, year = value.split('/')
+            int(month)
+            int(year)
+        except ValueError:
+            raise serializers.ValidationError("Expiry date must be in MM/YY format")
+        return value
+
+
+class BankAccountSerializer(serializers.ModelSerializer):
+    """Serializer for Bank Account"""
+    account_type_display = serializers.CharField(source='get_account_type_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        model = BankAccount
+        fields = [
+            'id',
+            'bank_name',
+            'account_type',
+            'account_type_display',
+            'account_number',
+            'routing_number',
+            'swift_code',
+            'iban',
+            'account_holder_name',
+            'status',
+            'status_display',
+            'is_primary',
+            'created_at',
+            'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'account_type_display', 'status_display']
+        extra_kwargs = {
+            'bank_name': {'required': True},
+            'account_type': {'required': True},
+            'account_number': {'required': True},
+            'account_holder_name': {'required': True}
+        }
+    
+    def validate(self, data):
+        """Validate bank account data"""
+        account_type = data.get('account_type')
+        
+        # IBAN is required for international accounts
+        if account_type and not data.get('routing_number') and not data.get('iban'):
+            raise serializers.ValidationError({
+                'routing_number': 'Either routing number or IBAN must be provided'
+            })
+        
+        return data
+
+
+class SyndicateSettingsBankDetailsSerializer(serializers.Serializer):
+    """Serializer for Bank Details settings"""
+    credit_cards = CreditCardSerializer(many=True, read_only=True)
+    bank_accounts = BankAccountSerializer(many=True, read_only=True)
+    
+    def to_representation(self, instance):
+        """Custom representation for bank details"""
+        return {
+            'credit_cards': CreditCardSerializer(
+                instance.credit_cards.all(),
+                many=True,
+                context=self.context
+            ).data,
+            'bank_accounts': BankAccountSerializer(
+                instance.bank_accounts.all(),
+                many=True,
+                context=self.context
+            ).data
+        }
 
 
 # Team Member Serializers

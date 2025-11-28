@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
-from .models import CustomUser, Sector, Geography, TwoFactorAuth, EmailVerification, TermsAcceptance, SyndicateProfile, TeamMember, ComplianceDocument, FeeRecipient
+from .models import CustomUser, Sector, Geography, TwoFactorAuth, EmailVerification, TermsAcceptance, SyndicateProfile, TeamMember, ComplianceDocument, FeeRecipient, CreditCard, BankAccount
 
 # Register CustomUser with Django admin
 @admin.register(CustomUser)
@@ -268,4 +268,129 @@ class ComplianceDocumentAdmin(admin.ModelAdmin):
         
         return format_html('<span style="color: green;">✓ {}</span>', obj.expiry_date)
     expiry_display.short_description = 'Expiry'
+
+
+@admin.register(CreditCard)
+class CreditCardAdmin(admin.ModelAdmin):
+    """Admin interface for Credit Cards"""
+    list_display = (
+        'id', 'card_type_display', 'card_number_masked', 'card_holder_name',
+        'expiry_date', 'status_badge', 'is_primary', 'syndicate_name', 'created_at'
+    )
+    list_filter = ('card_type', 'status', 'is_primary', 'created_at')
+    search_fields = ('card_holder_name', 'card_number', 'syndicate__firm_name')
+    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('-is_primary', '-created_at')
     
+    fieldsets = (
+        ('Syndicate Information', {
+            'fields': ('syndicate',)
+        }),
+        ('Card Information', {
+            'fields': ('card_type', 'card_number', 'card_holder_name', 'expiry_date', 'cvv')
+        }),
+        ('Status & Settings', {
+            'fields': ('status', 'is_primary')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def card_number_masked(self, obj):
+        """Display masked card number"""
+        if obj.card_number:
+            return f"****-****-****-{obj.card_number[-4:]}"
+        return "N/A"
+    card_number_masked.short_description = 'Card Number'
+    
+    def card_type_display(self, obj):
+        """Display card type"""
+        return obj.get_card_type_display()
+    card_type_display.short_description = 'Card Type'
+    
+    def status_badge(self, obj):
+        """Display status with colored badge"""
+        colors = {
+            'active': 'green',
+            'expired': 'red',
+            'suspended': 'orange'
+        }
+        color = colors.get(obj.status, 'gray')
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 10px; border-radius: 3px; font-weight: bold;">{}</span>',
+            color, obj.get_status_display()
+        )
+    status_badge.short_description = 'Status'
+    
+    def syndicate_name(self, obj):
+        """Display syndicate firm name"""
+        return obj.syndicate.firm_name or f"Syndicate {obj.syndicate.id}"
+    syndicate_name.short_description = 'Syndicate'
+
+
+@admin.register(BankAccount)
+class BankAccountAdmin(admin.ModelAdmin):
+    """Admin interface for Bank Accounts"""
+    list_display = (
+        'id', 'bank_name', 'account_number_masked', 'account_type_display',
+        'account_holder_name', 'status_badge', 'is_primary', 'syndicate_name', 'created_at'
+    )
+    list_filter = ('account_type', 'status', 'is_primary', 'created_at')
+    search_fields = ('bank_name', 'account_number', 'account_holder_name', 'syndicate__firm_name')
+    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('-is_primary', '-created_at')
+    
+    fieldsets = (
+        ('Syndicate Information', {
+            'fields': ('syndicate',)
+        }),
+        ('Bank Account Information', {
+            'fields': (
+                'bank_name', 'account_type', 'account_number', 'account_holder_name'
+            )
+        }),
+        ('Routing Information', {
+            'fields': ('routing_number', 'swift_code', 'iban'),
+            'classes': ('collapse',)
+        }),
+        ('Status & Settings', {
+            'fields': ('status', 'is_primary')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def account_number_masked(self, obj):
+        """Display masked account number"""
+        if obj.account_number:
+            return f"****-****-****-{obj.account_number[-4:]}"
+        return "N/A"
+    account_number_masked.short_description = 'Account Number'
+    
+    def account_type_display(self, obj):
+        """Display account type"""
+        return obj.get_account_type_display()
+    account_type_display.short_description = 'Account Type'
+    
+    def status_badge(self, obj):
+        """Display status with colored badge"""
+        colors = {
+            'active': 'green',
+            'inactive': 'gray',
+            'suspended': 'orange'
+        }
+        color = colors.get(obj.status, 'gray')
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 10px; border-radius: 3px; font-weight: bold;">{}</span>',
+            color, obj.get_status_display()
+        )
+    status_badge.short_description = 'Status'
+    
+    def syndicate_name(self, obj):
+        """Display syndicate firm name"""
+        return obj.syndicate.firm_name or f"Syndicate {obj.syndicate.id}"
+    syndicate_name.short_description = 'Syndicate'

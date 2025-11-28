@@ -389,6 +389,113 @@ class FeeRecipient(models.Model):
             return f"{self.company_name} - {self.syndicate.firm_name}"
 
 
+# Bank Details Models
+
+class CreditCard(models.Model):
+    """Model for credit/debit cards"""
+    
+    CARD_TYPE_CHOICES = [
+        ('visa', 'Visa'),
+        ('mastercard', 'Mastercard'),
+        ('amex', 'American Express'),
+        ('discover', 'Discover'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('expired', 'Expired'),
+        ('suspended', 'Suspended'),
+    ]
+    
+    syndicate = models.ForeignKey(
+        SyndicateProfile,
+        on_delete=models.CASCADE,
+        related_name='credit_cards'
+    )
+    
+    card_type = models.CharField(max_length=20, choices=CARD_TYPE_CHOICES)
+    card_number = models.CharField(max_length=19)  # Masked or encrypted in production
+    card_holder_name = models.CharField(max_length=255)
+    expiry_date = models.CharField(max_length=5, help_text="MM/YY format")  # MM/YY
+    cvv = models.CharField(max_length=4, blank=True, null=True)  # Should be encrypted
+    
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='active'
+    )
+    
+    is_primary = models.BooleanField(
+        default=False,
+        help_text="Primary card for transactions"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'credit card'
+        verbose_name_plural = 'credit cards'
+        ordering = ['-is_primary', '-created_at']
+    
+    def __str__(self):
+        return f"{self.get_card_type_display()} - {self.card_number[-4:]}"
+
+
+class BankAccount(models.Model):
+    """Model for bank accounts"""
+    
+    ACCOUNT_TYPE_CHOICES = [
+        ('checking', 'Checking'),
+        ('savings', 'Savings'),
+        ('money_market', 'Money Market'),
+        ('investment', 'Investment'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+        ('suspended', 'Suspended'),
+    ]
+    
+    syndicate = models.ForeignKey(
+        SyndicateProfile,
+        on_delete=models.CASCADE,
+        related_name='bank_accounts'
+    )
+    
+    bank_name = models.CharField(max_length=255)
+    account_type = models.CharField(max_length=20, choices=ACCOUNT_TYPE_CHOICES)
+    account_number = models.CharField(max_length=20)
+    routing_number = models.CharField(max_length=20, blank=True, null=True)
+    swift_code = models.CharField(max_length=20, blank=True, null=True)
+    iban = models.CharField(max_length=34, blank=True, null=True)
+    
+    account_holder_name = models.CharField(max_length=255)
+    
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='active'
+    )
+    
+    is_primary = models.BooleanField(
+        default=False,
+        help_text="Primary account for transfers"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'bank account'
+        verbose_name_plural = 'bank accounts'
+        ordering = ['-is_primary', '-created_at']
+    
+    def __str__(self):
+        return f"{self.bank_name} - {self.account_number[-4:]}"
+
+
 # Compliance & Accreditation Models
 
 def compliance_document_upload_path(instance, filename):

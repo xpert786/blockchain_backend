@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 import logging
 
-from .models import SyndicateProfile
+from .models import SyndicateProfile, CreditCard, BankAccount
 from .serializers import (
     SyndicateProfileSerializer,
     SyndicateSettingsGeneralInfoSerializer,
@@ -13,7 +13,10 @@ from .serializers import (
     SyndicateSettingsJurisdictionalSerializer,
     SyndicateSettingsPortfolioSerializer,
     SyndicateSettingsNotificationsSerializer,
-    FeeRecipientSerializer
+    FeeRecipientSerializer,
+    CreditCardSerializer,
+    BankAccountSerializer,
+    SyndicateSettingsBankDetailsSerializer
 )
 
 logger = logging.getLogger(__name__)
@@ -819,12 +822,13 @@ def syndicate_settings_fee_recipient_detail(request, recipient_id):
     })
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PATCH', 'POST'])
 @permission_classes([permissions.IsAuthenticated])
 def syndicate_settings_bank_details(request):
     """
     Settings: Bank Details
-    GET /api/syndicate/settings/bank-details/ - Get bank details
+    GET /api/syndicate/settings/bank-details/ - Get bank details (credit cards and accounts)
+    POST /api/syndicate/settings/bank-details/ - Add new card or account
     """
     user = request.user
     
@@ -841,15 +845,172 @@ def syndicate_settings_bank_details(request):
             'error': 'Syndicate profile not found. Please complete onboarding first.'
         }, status=status.HTTP_404_NOT_FOUND)
     
-    return Response({
-        'success': True,
-        'message': 'Bank details endpoint - to be implemented',
-        'data': {
-            'syndicate_id': profile.id,
-            'firm_name': profile.firm_name
-            # TODO: Add bank details fields when implemented
-        }
-    })
+    if request.method == 'GET':
+        serializer = SyndicateSettingsBankDetailsSerializer(profile, context={'request': request})
+        return Response({
+            'success': True,
+            'message': 'Bank details retrieved successfully',
+            'data': serializer.data
+        })
+    
+    elif request.method == 'POST':
+        item_type = request.data.get('type')  # 'credit_card' or 'bank_account'
+        
+        if item_type == 'credit_card':
+            serializer = CreditCardSerializer(data=request.data, context={'request': request})
+            if serializer.is_valid():
+                serializer.save(syndicate=profile)
+                return Response({
+                    'success': True,
+                    'message': 'Credit card added successfully',
+                    'data': serializer.data
+                }, status=status.HTTP_201_CREATED)
+            return Response({
+                'success': False,
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        elif item_type == 'bank_account':
+            serializer = BankAccountSerializer(data=request.data, context={'request': request})
+            if serializer.is_valid():
+                serializer.save(syndicate=profile)
+                return Response({
+                    'success': True,
+                    'message': 'Bank account added successfully',
+                    'data': serializer.data
+                }, status=status.HTTP_201_CREATED)
+            return Response({
+                'success': False,
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({
+            'error': 'type must be "credit_card" or "bank_account"'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+@permission_classes([permissions.IsAuthenticated])
+def syndicate_settings_bank_card_detail(request, card_id):
+    """
+    Settings: Specific Credit Card
+    GET /api/syndicate/settings/bank-details/card/<id>/ - Get specific credit card
+    PATCH /api/syndicate/settings/bank-details/card/<id>/ - Update credit card
+    DELETE /api/syndicate/settings/bank-details/card/<id>/ - Delete credit card
+    """
+    user = request.user
+    
+    # Check if user has syndicate role
+    if user.role != 'syndicate':
+        return Response({
+            'error': 'Only users with syndicate role can access this endpoint'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        profile = SyndicateProfile.objects.get(user=user)
+    except SyndicateProfile.DoesNotExist:
+        return Response({
+            'error': 'Syndicate profile not found. Please complete onboarding first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    card = get_object_or_404(CreditCard, id=card_id)
+    
+    # Verify card belongs to user's syndicate
+    if card.syndicate != profile:
+        return Response({
+            'error': 'This credit card is not associated with your syndicate profile'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    if request.method == 'GET':
+        serializer = CreditCardSerializer(card, context={'request': request})
+        return Response({
+            'success': True,
+            'message': 'Credit card details retrieved successfully',
+            'data': serializer.data
+        })
+    
+    elif request.method == 'PATCH':
+        serializer = CreditCardSerializer(card, data=request.data, partial=True, context={'request': request})
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Credit card updated successfully',
+                'data': serializer.data
+            })
+        return Response({
+            'success': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    elif request.method == 'DELETE':
+        card.delete()
+        return Response({
+            'success': True,
+            'message': 'Credit card deleted successfully'
+        }, status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+@permission_classes([permissions.IsAuthenticated])
+def syndicate_settings_bank_account_detail(request, account_id):
+    """
+    Settings: Specific Bank Account
+    GET /api/syndicate/settings/bank-details/account/<id>/ - Get specific bank account
+    PATCH /api/syndicate/settings/bank-details/account/<id>/ - Update bank account
+    DELETE /api/syndicate/settings/bank-details/account/<id>/ - Delete bank account
+    """
+    user = request.user
+    
+    # Check if user has syndicate role
+    if user.role != 'syndicate':
+        return Response({
+            'error': 'Only users with syndicate role can access this endpoint'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        profile = SyndicateProfile.objects.get(user=user)
+    except SyndicateProfile.DoesNotExist:
+        return Response({
+            'error': 'Syndicate profile not found. Please complete onboarding first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    account = get_object_or_404(BankAccount, id=account_id)
+    
+    # Verify account belongs to user's syndicate
+    if account.syndicate != profile:
+        return Response({
+            'error': 'This bank account is not associated with your syndicate profile'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    if request.method == 'GET':
+        serializer = BankAccountSerializer(account, context={'request': request})
+        return Response({
+            'success': True,
+            'message': 'Bank account details retrieved successfully',
+            'data': serializer.data
+        })
+    
+    elif request.method == 'PATCH':
+        serializer = BankAccountSerializer(account, data=request.data, partial=True, context={'request': request})
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Bank account updated successfully',
+                'data': serializer.data
+            })
+        return Response({
+            'success': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    elif request.method == 'DELETE':
+        account.delete()
+        return Response({
+            'success': True,
+            'message': 'Bank account deleted successfully'
+        }, status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['GET'])
