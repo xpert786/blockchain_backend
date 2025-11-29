@@ -242,3 +242,23 @@ class KYCStatus(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - KYC: {self.status}"
+
+
+class Wishlist(models.Model):
+    """Model for investor wishlist - SPVs saved by investors"""
+    
+    investor = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='wishlist_items')
+    spv = models.ForeignKey(SPV, on_delete=models.CASCADE, related_name='wishlisted_by')
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'wishlist'
+        verbose_name_plural = 'wishlists'
+        ordering = ['-created_at']
+        unique_together = ['investor', 'spv']  # Prevent duplicate entries
+    
+    def __str__(self):
+        return f"{self.investor.username} - {self.spv.display_name}"

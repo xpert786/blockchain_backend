@@ -8,7 +8,7 @@ from rest_framework.pagination import PageNumberPagination
 from decimal import Decimal
 from datetime import datetime, timedelta
 
-from .dashboard_models import Portfolio, Investment, Notification, KYCStatus
+from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, Wishlist
 from .dashboard_serializers import (
     PortfolioSerializer,
     InvestmentSerializer,
@@ -478,6 +478,181 @@ class DashboardViewSet(viewsets.ViewSet):
         
         return Response({
             'message': 'Invite declined successfully'
+        })
+    
+    @action(detail=False, methods=['post'])
+    def toggle_wishlist(self, request):
+        """Add or remove SPV from wishlist based on is_in_wishlist flag"""
+        spv_id = request.data.get('spv_id')
+        is_in_wishlist = request.data.get('is_in_wishlist')
+        
+        if not spv_id:
+            return Response(
+                {'error': 'spv_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if is_in_wishlist is None:
+            return Response(
+                {'error': 'is_in_wishlist is required (true or false)'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            spv = SPV.objects.get(id=spv_id)
+        except SPV.DoesNotExist:
+            return Response(
+                {'error': 'SPV not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Convert to boolean if string
+        if isinstance(is_in_wishlist, str):
+            is_in_wishlist = is_in_wishlist.lower() in ('true', '1', 'yes')
+        is_in_wishlist = bool(is_in_wishlist)
+        
+        # Check if already in wishlist
+        wishlist_item = Wishlist.objects.filter(
+            investor=request.user,
+            spv=spv
+        ).first()
+        
+        if is_in_wishlist:
+            # Add to wishlist
+            if wishlist_item:
+                # Already in wishlist
+                return Response({
+                    'success': True,
+                    'message': f'{spv.display_name} is already in wishlist',
+                    'is_in_wishlist': True,
+                    'spv_id': spv.id,
+                    'spv_name': spv.display_name
+                })
+            else:
+                # Create new wishlist entry
+                Wishlist.objects.create(
+                    investor=request.user,
+                    spv=spv
+                )
+                return Response({
+                    'success': True,
+                    'message': f'{spv.display_name} added to wishlist',
+                    'is_in_wishlist': True,
+                    'spv_id': spv.id,
+                    'spv_name': spv.display_name
+                }, status=status.HTTP_201_CREATED)
+        else:
+            # Remove from wishlist
+            if wishlist_item:
+                wishlist_item.delete()
+                return Response({
+                    'success': True,
+                    'message': f'{spv.display_name} removed from wishlist',
+                    'is_in_wishlist': False,
+                    'spv_id': spv.id,
+                    'spv_name': spv.display_name
+                })
+            else:
+                # Not in wishlist
+                return Response({
+                    'success': True,
+                    'message': f'{spv.display_name} is not in wishlist',
+                    'is_in_wishlist': False,
+                    'spv_id': spv.id,
+                    'spv_name': spv.display_name
+                })
+    
+    @action(detail=False, methods=['get'])
+    def wishlist(self, request):
+        """Get all SPVs in investor's wishlist"""
+        user = request.user
+        
+        # Get all wishlist items for this investor
+        wishlist_items = Wishlist.objects.filter(investor=user).select_related('spv').order_by('-created_at')
+        
+        # Paginate results
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(wishlist_items, request)
+        
+        wishlist_spvs = []
+        for item in page:
+            spv = item.spv
+            
+            # Calculate days left from target_closing_date
+            days_left = 22  # Default
+            if spv.target_closing_date:
+                delta = spv.target_closing_date - timezone.now().date()
+                days_left = max(0, delta.days)
+            
+            # Count investors (allocated count)
+            allocated_count = Investment.objects.filter(spv=spv).count()
+            
+            # Sum raised amount
+            raised_amount = Investment.objects.filter(spv=spv, status__in=['active', 'pending']).aggregate(Sum('invested_amount'))['invested_amount__sum'] or 0
+            
+            # Determine status label
+            status_label = 'Raising'
+            if spv.status == 'closed':
+                status_label = 'Closed'
+            elif spv.status == 'pending_review':
+                status_label = 'Pending'
+            elif days_left <= 0:
+                status_label = 'Expired'
+            
+            wishlist_spvs.append({
+                'id': spv.id,
+                'spv_id': spv.id,
+                'syndicate_name': spv.display_name,
+                'company_name': spv.portfolio_company_name,
+                'sector': spv.deal_tags[0] if spv.deal_tags and len(spv.deal_tags) > 0 else 'Technology',
+                'stage': str(spv.company_stage) if spv.company_stage else 'Series B',
+                'tags': spv.deal_tags or [],
+                'allocated': allocated_count,
+                'raised': float(raised_amount),
+                'target': float(spv.round_size) if spv.round_size else 0,
+                'allocation': float(spv.allocation) if spv.allocation else 0,
+                'min_investment': float(spv.minimum_lp_investment) if spv.minimum_lp_investment else 25000,
+                'days_left': days_left,
+                'target_closing_date': str(spv.target_closing_date) if spv.target_closing_date else None,
+                'status': status_label,
+                'status_code': spv.status,
+                'investment_type': 'syndicate_deal',
+                'created_at': spv.created_at.strftime('%d/%m/%Y'),
+                'lead_name': f"{spv.created_by.first_name} {spv.created_by.last_name}".strip() or spv.created_by.username if spv.created_by else 'Unknown',
+                'added_to_wishlist_at': item.created_at.strftime('%d/%m/%Y'),
+            })
+        
+        return paginator.get_paginated_response(wishlist_spvs)
+    
+    @action(detail=False, methods=['get'])
+    def check_wishlist(self, request):
+        """Check if specific SPV is in wishlist"""
+        spv_id = request.query_params.get('spv_id')
+        
+        if not spv_id:
+            return Response(
+                {'error': 'spv_id query parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            spv = SPV.objects.get(id=spv_id)
+        except SPV.DoesNotExist:
+            return Response(
+                {'error': 'SPV not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        is_in_wishlist = Wishlist.objects.filter(
+            investor=request.user,
+            spv=spv
+        ).exists()
+        
+        return Response({
+            'success': True,
+            'spv_id': spv.id,
+            'spv_name': spv.display_name,
+            'is_in_wishlist': is_in_wishlist
         })
 
 

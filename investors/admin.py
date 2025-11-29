@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import InvestorProfile
-from .dashboard_models import Portfolio, Investment, Notification, KYCStatus
+from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, Wishlist
 
 # Register your models here.
 
@@ -414,3 +414,59 @@ class KYCStatusAdmin(admin.ModelAdmin):
             'fields': ('created_at', 'updated_at', 'verified_at'),
         }),
     )
+
+
+@admin.register(Wishlist)
+class WishlistAdmin(admin.ModelAdmin):
+    """Admin interface for Wishlist"""
+    
+    list_display = [
+        'id',
+        'investor',
+        'spv',
+        'spv_display_name',
+        'spv_status',
+        'created_at',
+        'updated_at'
+    ]
+    
+    list_filter = [
+        'created_at',
+        'updated_at',
+        'spv__status'
+    ]
+    
+    search_fields = [
+        'investor__username',
+        'investor__email',
+        'spv__display_name',
+        'spv__portfolio_company_name'
+    ]
+    
+    readonly_fields = [
+        'created_at',
+        'updated_at'
+    ]
+    
+    fieldsets = (
+        ('Investor Information', {
+            'fields': ('investor',)
+        }),
+        ('SPV Information', {
+            'fields': ('spv',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def spv_display_name(self, obj):
+        """Display SPV name"""
+        return obj.spv.display_name if obj.spv else '-'
+    spv_display_name.short_description = 'SPV Name'
+    
+    def spv_status(self, obj):
+        """Display SPV status"""
+        return obj.spv.get_status_display() if obj.spv else '-'
+    spv_status.short_description = 'SPV Status'
