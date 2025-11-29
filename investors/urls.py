@@ -12,6 +12,7 @@ from .investor_detail_views import (
     investor_investments,
     investor_kyc_status,
     investor_risk_profile,
+    spv_investment_detail,
 )
 
 # Create a router and register our viewsets
@@ -28,6 +29,9 @@ urlpatterns = [
     path('investor/<int:investor_id>/investments/', investor_investments, name='investor-investments'),
     path('investor/<int:investor_id>/kyc-status/', investor_kyc_status, name='investor-kyc-status'),
     path('investor/<int:investor_id>/risk-profile/', investor_risk_profile, name='investor-risk-profile'),
+    
+    # SPV Investment Detail for Discover Deals page (from investor perspective)
+    path('investment-opportunity/<int:spv_id>/', spv_investment_detail, name='spv-investment-detail'),
     
     # Router patterns
     path('', include(router.urls)),

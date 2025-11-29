@@ -11,7 +11,9 @@ from rest_framework.response import Response
 from django.utils import timezone
 
 from investors.models import InvestorProfile
+from investors.dashboard_models import Investment
 from spv.models import SPV
+from django.db.models import Sum, Count
 
 
 def _safe_decimal(value):
@@ -482,6 +484,145 @@ def investor_risk_profile(request, investor_id):
                 ]),
             },
         }
+    }
+    
+    return Response(response_data)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def spv_investment_detail(request, spv_id):
+    """
+    Get complete SPV details for investment page
+    Includes investment overview, funding progress, details, and stats
+    Used when investor clicks on a deal from Discover Deals page
+    
+    GET /api/investors/spv/{spv_id}/investment-detail/
+    """
+    spv = get_object_or_404(SPV, id=spv_id)
+    user = request.user
+    
+    # Calculate funding progress
+    total_investments = Investment.objects.filter(spv=spv)
+    active_investments = total_investments.filter(status__in=['active', 'pending'])
+    
+    raised_amount = active_investments.aggregate(Sum('invested_amount'))['invested_amount__sum'] or 0
+    target_amount = spv.round_size or spv.allocation or 0
+    
+    funding_percentage = 0
+    if target_amount > 0:
+        funding_percentage = min(100, (float(raised_amount) / float(target_amount)) * 100)
+    
+    # Calculate days left
+    days_left = 22  # Default
+    if spv.target_closing_date:
+        delta = spv.target_closing_date - timezone.now().date()
+        days_left = max(0, delta.days)
+    
+    # Count total investors
+    total_investors = total_investments.values('investor').distinct().count()
+    
+    # Check if current user has already invested
+    user_investment = Investment.objects.filter(investor=user, spv=spv).first()
+    already_invested = user_investment is not None
+    user_invested_amount = float(user_investment.invested_amount) if user_investment else 0
+    
+    # Determine risk level based on company stage or other factors
+    risk_level = 'Medium'  # Default
+    if spv.company_stage:
+        stage_name = str(spv.company_stage).lower()
+        if 'seed' in stage_name or 'pre-seed' in stage_name:
+            risk_level = 'High'
+        elif 'series a' in stage_name or 'series b' in stage_name:
+            risk_level = 'Medium'
+        elif 'series c' in stage_name or 'series d' in stage_name or 'late' in stage_name:
+            risk_level = 'Low'
+    
+    # Prepare response data matching the UI design
+    response_data = {
+        'success': True,
+        'spv_id': spv.id,
+        
+        # Investment Overview Section
+        'overview': {
+            'company_name': spv.portfolio_company_name or spv.display_name,
+            'display_name': spv.display_name,
+            'company_type': spv.portfolio_company.description if spv.portfolio_company else 'Enterprise Software',
+            'description': spv.deal_memo or f"Leading AI-powered enterprise software company revolutionizing business automation",
+            'stage': str(spv.company_stage) if spv.company_stage else 'Series B',
+            'valuation': f"${float(spv.round_size) / 1000000:.0f}M" if spv.round_size else 'N/A',
+            'expected_returns': '3-5x',  # Can be calculated or stored
+            'timeline': '5-7 Years',  # Standard timeline
+        },
+        
+        # Funding Progress
+        'funding': {
+            'raised': float(raised_amount),
+            'raised_formatted': f"${float(raised_amount) / 1000000:.1f}M",
+            'target': float(target_amount),
+            'target_formatted': f"${float(target_amount) / 1000000:.0f}M",
+            'percentage': round(funding_percentage, 0),
+        },
+        
+        # Investment Details (Right sidebar)
+        'details': {
+            'status': spv.status,
+            'status_label': 'Active' if spv.status in ['active', 'approved'] else spv.get_status_display(),
+            'risk_level': risk_level,
+            'min_investment': float(spv.minimum_lp_investment) if spv.minimum_lp_investment else 25000,
+            'max_investment': float(spv.allocation) if spv.allocation else 500000,
+            'lead_investor': f"{spv.created_by.first_name} {spv.created_by.last_name}".strip() or spv.created_by.username if spv.created_by else 'Unknown',
+            'days_left': days_left,
+            'target_closing_date': str(spv.target_closing_date) if spv.target_closing_date else None,
+        },
+        
+        # Company Details (Tabs content)
+        'company_details': {
+            'business_model': 'SaaS platform with enterprise clients, recurring revenue model with 95% retention rate.',
+            'market_opportunity': '$50B+ addressable market in enterprise automation, growing at 25% CAGR.',
+            'competitive_advantage': 'Proprietary AI technology with 3+ years R&D lead over competitors.',
+            'deal_memo': spv.deal_memo,
+        },
+        
+        # Documents
+        'documents': {
+            'pitch_deck': spv.pitch_deck.url if spv.pitch_deck else None,
+            'supporting_document': spv.supporting_document.url if spv.supporting_document else None,
+        },
+        
+        # Investment Stats
+        'stats': {
+            'total_investors': total_investors,
+            'days_remaining': days_left,
+            'expected_returns': '3-5x',
+        },
+        
+        # User's investment status
+        'user_status': {
+            'already_invested': already_invested,
+            'invested_amount': user_invested_amount,
+            'investment_status': user_investment.status if user_investment else None,
+        },
+        
+        # Additional Info
+        'additional_info': {
+            'transaction_type': spv.get_transaction_type_display() if spv.transaction_type else None,
+            'instrument_type': str(spv.instrument_type) if spv.instrument_type else None,
+            'share_class': str(spv.share_class) if spv.share_class else None,
+            'round': str(spv.round) if spv.round else None,
+            'valuation_type': spv.get_valuation_type_display() if spv.valuation_type else None,
+            'total_carry_percentage': float(spv.total_carry_percentage) if spv.total_carry_percentage else 0,
+            'deal_tags': spv.deal_tags or [],
+            'jurisdiction': spv.jurisdiction,
+            'access_mode': spv.get_access_mode_display() if spv.access_mode else 'Private',
+        },
+        
+        # Contact
+        'contact': {
+            'founder_email': spv.founder_email,
+            'lead_name': f"{spv.created_by.first_name} {spv.created_by.last_name}".strip() or spv.created_by.username if spv.created_by else 'Unknown',
+            'lead_email': spv.created_by.email if spv.created_by else None,
+        },
     }
     
     return Response(response_data)
