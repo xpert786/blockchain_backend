@@ -654,6 +654,50 @@ class DashboardViewSet(viewsets.ViewSet):
             'spv_name': spv.display_name,
             'is_in_wishlist': is_in_wishlist
         })
+    
+    @action(detail=False, methods=['delete'])
+    def delete_wishlist(self, request):
+        """Delete SPV from wishlist"""
+        spv_id = request.data.get('spv_id') or request.query_params.get('spv_id')
+        
+        if not spv_id:
+            return Response(
+                {'error': 'spv_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            spv = SPV.objects.get(id=spv_id)
+        except SPV.DoesNotExist:
+            return Response(
+                {'error': 'SPV not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Find and delete wishlist item
+        try:
+            wishlist_item = Wishlist.objects.get(
+                investor=request.user,
+                spv=spv
+            )
+            wishlist_item.delete()
+            
+            return Response({
+                'success': True,
+                'message': f'{spv.display_name} removed from wishlist',
+                'spv_id': spv.id,
+                'spv_name': spv.display_name
+            }, status=status.HTTP_200_OK)
+        except Wishlist.DoesNotExist:
+            return Response(
+                {
+                    'success': False,
+                    'error': 'SPV is not in your wishlist',
+                    'spv_id': spv.id,
+                    'spv_name': spv.display_name
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
 
 
 class PortfolioViewSet(viewsets.ModelViewSet):
