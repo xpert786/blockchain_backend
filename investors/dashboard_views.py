@@ -20,6 +20,7 @@ from .dashboard_serializers import (
     DashboardOverviewSerializer,
     KYCStatusSerializer
 )
+from .models import InvestorProfile
 from spv.models import SPV
 from spv.serializers import SPVSerializer
 
@@ -121,20 +122,24 @@ class DashboardViewSet(viewsets.ViewSet):
     
     @action(detail=False, methods=['get'])
     def discover_deals(self, request):
-        """Get available syndicate deals for discovery"""
-        # Get active SPVs that are open for investment
+        """Get all available SPVs for discovery"""
+        # Get all SPVs that are open for investment
         spvs = SPV.objects.filter(
-            status__in=['active', 'approved']
+            status__in=['active', 'approved', 'pending_review']
         ).order_by('-created_at')
         
         # Apply filters if provided
         sector = request.query_params.get('sector', None)
         if sector:
-            spvs = spvs.filter(portfolio_company__sector__icontains=sector)
+            spvs = spvs.filter(deal_tags__contains=[sector])
         
-        min_investment = request.query_params.get('min_investment', None)
-        if min_investment:
-            spvs = spvs.filter(allocation__gte=min_investment)
+        stage = request.query_params.get('stage', None)
+        if stage:
+            spvs = spvs.filter(company_stage__name__icontains=stage)
+        
+        status_filter = request.query_params.get('status', None)
+        if status_filter:
+            spvs = spvs.filter(status=status_filter)
         
         # Paginate results
         paginator = StandardResultsSetPagination()
@@ -143,104 +148,213 @@ class DashboardViewSet(viewsets.ViewSet):
         # Convert to investment-like format for frontend
         deals = []
         for spv in page:
-            # Calculate days left if there's a deadline
+            # Calculate days left from target_closing_date
             days_left = 22  # Default
+            if spv.target_closing_date:
+                delta = spv.target_closing_date - timezone.now().date()
+                days_left = max(0, delta.days)
+            
+            # Count investors (allocated count)
+            allocated_count = Investment.objects.filter(spv=spv).count()
+            
+            # Sum raised amount
+            raised_amount = Investment.objects.filter(spv=spv, status__in=['active', 'pending']).aggregate(Sum('invested_amount'))['invested_amount__sum'] or 0
+            
+            # Determine status label
+            status_label = 'Raising'
+            if spv.status == 'closed':
+                status_label = 'Closed'
+            elif spv.status == 'pending_review':
+                status_label = 'Pending'
+            elif days_left <= 0:
+                status_label = 'Expired'
             
             deals.append({
                 'id': spv.id,
+                'spv_id': spv.id,
                 'syndicate_name': spv.display_name,
                 'company_name': spv.portfolio_company_name,
-                'sector': getattr(spv.portfolio_company, 'sector', 'Technology') if spv.portfolio_company else 'Technology',
+                'sector': spv.deal_tags[0] if spv.deal_tags and len(spv.deal_tags) > 0 else 'Technology',
                 'stage': str(spv.company_stage) if spv.company_stage else 'Series B',
-                'allocated': Investment.objects.filter(spv=spv).aggregate(Sum('invested_amount'))['invested_amount__sum'] or 0,
-                'raised': Investment.objects.filter(spv=spv, status='active').aggregate(Sum('invested_amount'))['invested_amount__sum'] or 0,
-                'target': spv.allocation or 0,
-                'min_investment': 25000,  # Default minimum
+                'tags': spv.deal_tags or [],
+                'allocated': allocated_count,
+                'raised': float(raised_amount),
+                'target': float(spv.round_size) if spv.round_size else 0,
+                'allocation': float(spv.allocation) if spv.allocation else 0,
+                'min_investment': float(spv.minimum_lp_investment) if spv.minimum_lp_investment else 25000,
                 'days_left': days_left,
-                'status': 'Raising',
+                'target_closing_date': str(spv.target_closing_date) if spv.target_closing_date else None,
+                'status': status_label,
+                'status_code': spv.status,
                 'investment_type': 'syndicate_deal',
-                'spv_id': spv.id,
+                'created_at': spv.created_at.strftime('%d/%m/%Y'),
+                'lead_name': f"{spv.created_by.first_name} {spv.created_by.last_name}".strip() or spv.created_by.username if spv.created_by else 'Unknown',
             })
         
         return paginator.get_paginated_response(deals)
     
     @action(detail=False, methods=['get'])
     def top_syndicates(self, request):
-        """Get top performing syndicates"""
-        # Get SPVs with high track record or performance
-        spvs = SPV.objects.filter(
-            status__in=['active', 'approved', 'closed']
-        ).order_by('-created_at')
+        """Get all syndicates (SPV leads/creators)"""
+        # Get all unique syndicate leads who have created SPVs
+        from django.db.models import Count as DjCount, Max, Avg
+        from users.models import CustomUser
+        
+        # Get syndicate leads with their SPV stats
+        syndicate_leads = CustomUser.objects.filter(
+            created_spvs__isnull=False
+        ).annotate(
+            total_spvs=DjCount('created_spvs'),
+            total_raised=Sum('created_spvs__allocation'),
+            latest_spv_date=Max('created_spvs__created_at')
+        ).order_by('-total_spvs', '-latest_spv_date')
         
         # Paginate results
         paginator = StandardResultsSetPagination()
-        page = paginator.paginate_queryset(spvs, request)
+        page = paginator.paginate_queryset(syndicate_leads, request)
         
         syndicates = []
-        for spv in page:
-            # Get existing investments in this SPV
-            investments = Investment.objects.filter(spv=spv)
-            total_allocated = investments.count()
-            total_raised = investments.aggregate(Sum('invested_amount'))['invested_amount__sum'] or 0
+        for lead in page:
+            # Get all SPVs for this lead
+            lead_spvs = SPV.objects.filter(created_by=lead)
+            active_spvs = lead_spvs.filter(status__in=['active', 'approved'])
+            
+            # Calculate total investors across all SPVs
+            total_investors = Investment.objects.filter(spv__in=lead_spvs).values('investor').distinct().count()
+            total_raised = Investment.objects.filter(spv__in=lead_spvs, status='active').aggregate(Sum('invested_amount'))['invested_amount__sum'] or 0
+            
+            # Get sectors from deal tags
+            all_tags = []
+            for spv in lead_spvs[:5]:  # Get tags from recent 5 SPVs
+                if spv.deal_tags:
+                    all_tags.extend(spv.deal_tags)
+            unique_sectors = list(set(all_tags))[:3]  # Top 3 unique sectors
             
             syndicates.append({
-                'id': spv.id,
-                'syndicate_name': spv.display_name,
-                'sector': getattr(spv.portfolio_company, 'sector', 'Technology') if spv.portfolio_company else 'Technology',
-                'allocated': total_allocated,
-                'raised': total_raised,
-                'target': spv.allocation or 0,
-                'min_investment': 85000,
-                'track_record': '+23.4% IRR',  # Mock data
-                'status': 'Raising',
+                'id': lead.id,
+                'syndicate_lead_id': lead.id,
+                'syndicate_name': f"{lead.first_name} {lead.last_name}".strip() or lead.username,
+                'lead_email': lead.email,
+                'total_spvs': lead.total_spvs,
+                'active_spvs': active_spvs.count(),
+                'sectors': unique_sectors if unique_sectors else ['Technology'],
+                'total_investors': total_investors,
+                'total_raised': float(total_raised),
+                'total_allocation': float(lead.total_raised) if lead.total_raised else 0,
+                'min_investment': 50000,  # Default
+                'track_record': '+23.4% IRR',  # Mock - can be calculated from actual performance
+                'status': 'Active' if active_spvs.exists() else 'Inactive',
                 'investment_type': 'top_syndicate',
-                'spv_id': spv.id,
+                'joined_date': lead.date_joined.strftime('%d/%m/%Y') if lead.date_joined else None,
             })
         
         return paginator.get_paginated_response(syndicates)
     
     @action(detail=False, methods=['get'])
     def invites(self, request):
-        """Get investment invites for the user"""
+        """Get all SPV invites sent to the investor"""
         user = request.user
         
-        # Get notifications that are invites
-        invite_notifications = Notification.objects.filter(
-            user=user,
-            notification_type='investment',
-            action_required=True,
-            status='unread'
-        ).order_by('-created_at')
+        # Get investor's email from InvestorProfile or user.email
+        investor_email = None
+        try:
+            investor_profile = InvestorProfile.objects.get(user=user)
+            investor_email = investor_profile.email_address
+        except InvestorProfile.DoesNotExist:
+            pass
+        
+        # Fallback to user email if profile email not available
+        if not investor_email:
+            investor_email = user.email
+        
+        if not investor_email:
+            return Response({
+                'success': False,
+                'error': 'No email found for this investor',
+                'invites': []
+            })
+        
+        # Normalize email for case-insensitive comparison
+        investor_email_lower = investor_email.lower().strip()
+        
+        # Get all SPVs that have lp_invite_emails set (include draft status since invites can be sent before approval)
+        all_spvs = SPV.objects.filter(
+            status__in=['draft', 'active', 'approved', 'pending_review']
+        ).exclude(
+            created_by=user  # Exclude SPVs created by the investor themselves
+        ).exclude(
+            lp_invite_emails__isnull=True  # Exclude SPVs with no invites
+        ).exclude(
+            lp_invite_emails=[]  # Exclude SPVs with empty invite list
+        )
+        
+        # Filter SPVs where investor email is in lp_invite_emails (case-insensitive)
+        invited_spvs = []
+        for spv in all_spvs:
+            if spv.lp_invite_emails:
+                # Convert all emails in the list to lowercase for comparison
+                spv_emails_lower = [email.lower().strip() for email in spv.lp_invite_emails]
+                if investor_email_lower in spv_emails_lower:
+                    invited_spvs.append(spv)
+        
+        # Paginate results
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(invited_spvs, request)
         
         invites = []
-        for notification in invite_notifications:
-            # Get related SPV if available
-            spv = notification.related_spv
-            if spv:
-                # Calculate deadline
-                deadline_days = 7  # Default
-                if notification.expires_at:
-                    deadline_days = (notification.expires_at.date() - timezone.now().date()).days
-                
-                invites.append({
-                    'id': notification.id,
-                    'syndicate_name': spv.display_name,
-                    'led_by': f"{spv.created_by.first_name} {spv.created_by.last_name}" if spv.created_by.first_name else spv.created_by.username,
-                    'description': notification.message,
-                    'sector': getattr(spv.portfolio_company, 'sector', 'Technology') if spv.portfolio_company else 'Technology',
-                    'stage': str(spv.company_stage) if spv.company_stage else 'Series C',
-                    'allocated': 40,  # Mock
-                    'raised': spv.allocation or 0,
-                    'target': spv.round_size or 0,
-                    'min_investment': 25000,
-                    'deadline': deadline_days,
-                    'status': 'Expired' if deadline_days <= 0 else 'Active',
-                    'investment_type': 'invite',
-                    'spv_id': spv.id,
-                    'notification_id': notification.id,
-                })
+        for spv in page:
+            # Calculate deadline from target_closing_date
+            deadline_days = 7  # Default
+            if spv.target_closing_date:
+                delta = spv.target_closing_date - timezone.now().date()
+                deadline_days = max(0, delta.days)
+            
+            # Check if investor has already invested in this SPV
+            already_invested = Investment.objects.filter(investor=user, spv=spv).exists()
+            
+            # Count investors (allocated count)
+            allocated_count = Investment.objects.filter(spv=spv).count()
+            
+            # Sum raised amount
+            raised_amount = Investment.objects.filter(spv=spv, status__in=['active', 'pending']).aggregate(Sum('invested_amount'))['invested_amount__sum'] or 0
+            
+            # Determine status
+            if already_invested:
+                invite_status = 'Invested'
+            elif deadline_days <= 0:
+                invite_status = 'Expired'
+            else:
+                invite_status = 'Active'
+            
+            invites.append({
+                'id': spv.id,
+                'spv_id': spv.id,
+                'syndicate_name': spv.display_name,
+                'company_name': spv.portfolio_company_name,
+                'led_by': f"{spv.created_by.first_name} {spv.created_by.last_name}".strip() or spv.created_by.username if spv.created_by else 'Unknown',
+                'lead_email': spv.created_by.email if spv.created_by else None,
+                'description': spv.lp_invite_message or f"You've been invited to invest in {spv.display_name}",
+                'sector': spv.deal_tags[0] if spv.deal_tags and len(spv.deal_tags) > 0 else 'Technology',
+                'stage': str(spv.company_stage) if spv.company_stage else 'Series B',
+                'tags': spv.deal_tags or [],
+                'allocated': allocated_count,
+                'raised': float(raised_amount),
+                'target': float(spv.round_size) if spv.round_size else 0,
+                'allocation': float(spv.allocation) if spv.allocation else 0,
+                'min_investment': float(spv.minimum_lp_investment) if spv.minimum_lp_investment else 25000,
+                'deadline': deadline_days,
+                'target_closing_date': str(spv.target_closing_date) if spv.target_closing_date else None,
+                'status': invite_status,
+                'status_code': spv.status,
+                'already_invested': already_invested,
+                'investment_type': 'invite',
+                'invited_at': spv.updated_at.strftime('%d/%m/%Y'),
+                'private_note': spv.invite_private_note,
+                'lead_carry_percentage': float(spv.lead_carry_percentage) if spv.lead_carry_percentage else 0,
+                'investment_visibility': spv.investment_visibility,
+            })
         
-        return Response(invites)
+        return paginator.get_paginated_response(invites)
     
     @action(detail=False, methods=['post'])
     def invest_in_syndicate(self, request):
