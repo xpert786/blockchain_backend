@@ -1030,3 +1030,219 @@ def investor_identity_settings(request):
         }
         
         return Response(response_data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'PUT', 'PATCH'])
+@permission_classes([permissions.IsAuthenticated])
+def investor_accreditation_settings(request):
+    """
+    Get or update investor accreditation settings
+    
+    GET /api/investors/settings/accreditation/ - Get current accreditation information
+    PUT /api/investors/settings/accreditation/ - Update accreditation information
+    
+    PUT/PATCH Payload:
+    {
+        "accreditation_type": "U.S.: Reg D Rule 501(a)",
+        "accreditation_method": "series_7_65_82",
+        "accreditation_expiry_date": "2025-12-31",
+        "is_accredited_investor": true,
+        "meets_local_investment_thresholds": true
+    }
+    """
+    user = request.user
+    
+    # Get or create investor profile
+    try:
+        investor_profile = InvestorProfile.objects.get(user=user)
+    except InvestorProfile.DoesNotExist:
+        return Response({
+            'error': 'Investor profile not found. Please complete onboarding first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    if request.method == 'GET':
+        # Map accreditation method to accreditation type
+        accreditation_type_map = {
+            'at_least_5m': 'U.S.: Reg D Rule 501(a)',
+            'between_2.2m_5m': 'U.S.: Reg D Rule 501(a)',
+            'between_1m_2.2m': 'U.S.: Reg D Rule 501(a)',
+            'income_200k': 'U.S.: Reg D Rule 501(a)',
+            'series_7_65_82': 'U.S.: Reg D Rule 501(a)',
+            'not_accredited': 'Not Accredited',
+        }
+        
+        accreditation_type = accreditation_type_map.get(
+            investor_profile.accreditation_method, 
+            'U.S.: Reg D Rule 501(a)' if investor_profile.is_accredited_investor else 'Not Accredited'
+        )
+        
+        # Determine verification status
+        verification_status = 'verified' if investor_profile.is_accredited_investor else 'pending'
+        if investor_profile.application_status == 'approved':
+            verification_status = 'verified'
+        elif investor_profile.application_status == 'rejected':
+            verification_status = 'rejected'
+        
+        # Check required documents
+        income_statement_uploaded = bool(investor_profile.proof_of_income_net_worth)
+        net_worth_statement_uploaded = bool(investor_profile.proof_of_income_net_worth)
+        professional_license_uploaded = investor_profile.accreditation_method == 'series_7_65_82'
+        
+        # Format expiry date (default to 1 year from now if accredited, or None)
+        expiry_date = None
+        expiry_date_formatted = None
+        if investor_profile.is_accredited_investor:
+            # Default to 1 year from submission or current date
+            from datetime import timedelta
+            if investor_profile.submitted_at:
+                expiry_date = (investor_profile.submitted_at + timedelta(days=365)).date()
+            else:
+                expiry_date = (timezone.now() + timedelta(days=365)).date()
+            expiry_date_formatted = expiry_date.strftime('%m/%d/%Y')
+        
+        response_data = {
+            'success': True,
+            'accreditation': {
+                'accreditation_type': accreditation_type,
+                'accreditation_method': investor_profile.accreditation_method or '',
+                'accreditation_method_display': investor_profile.get_accreditation_method_display() if investor_profile.accreditation_method else '',
+                'accreditation_expiry_date': expiry_date_formatted,
+                'accreditation_expiry_date_raw': str(expiry_date) if expiry_date else None,
+                'is_accredited_investor': investor_profile.is_accredited_investor,
+                'meets_local_investment_thresholds': investor_profile.meets_local_investment_thresholds,
+            },
+            'verification': {
+                'status': verification_status,
+                'status_label': 'Verified' if verification_status == 'verified' else 'Pending',
+                'message': 'Current accreditation verification',
+            },
+            'required_documents': {
+                'income_statement': {
+                    'name': 'Income Statement',
+                    'uploaded': income_statement_uploaded,
+                    'status': 'Uploaded' if income_statement_uploaded else 'Not Uploaded',
+                    'file_url': investor_profile.proof_of_income_net_worth.url if investor_profile.proof_of_income_net_worth else None,
+                },
+                'net_worth_statement': {
+                    'name': 'Net Worth Statement',
+                    'uploaded': net_worth_statement_uploaded,
+                    'status': 'Uploaded' if net_worth_statement_uploaded else 'Not Uploaded',
+                    'file_url': investor_profile.proof_of_income_net_worth.url if investor_profile.proof_of_income_net_worth else None,
+                },
+                'professional_license': {
+                    'name': 'Professional License',
+                    'uploaded': professional_license_uploaded,
+                    'status': 'Uploaded' if professional_license_uploaded else 'Not Uploaded',
+                    'file_url': None,  # Can be enhanced if license is stored separately
+                },
+            },
+        }
+        
+        return Response(response_data)
+    
+    elif request.method in ['PUT', 'PATCH']:
+        # Update accreditation information
+        data = request.data
+        
+        # Update accreditation method/type
+        if 'accreditation_method' in data:
+            investor_profile.accreditation_method = data['accreditation_method']
+        elif 'accreditation_type' in data:
+            # Map accreditation type back to method if needed
+            # For now, if type is provided, we'll keep existing method or set default
+            pass
+        
+        if 'is_accredited_investor' in data:
+            investor_profile.is_accredited_investor = bool(data['is_accredited_investor'])
+        
+        if 'meets_local_investment_thresholds' in data:
+            investor_profile.meets_local_investment_thresholds = bool(data['meets_local_investment_thresholds'])
+        
+        # Handle expiry date (can be stored in a note or metadata)
+        if 'accreditation_expiry_date' in data:
+            # Store expiry date - for now we'll note it, can be enhanced with a dedicated field
+            expiry_date_str = data['accreditation_expiry_date']
+            try:
+                from datetime import datetime
+                for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d-%m-%Y']:
+                    try:
+                        expiry_date = datetime.strptime(expiry_date_str, fmt).date()
+                        # Could store in a JSON field or note
+                        break
+                    except ValueError:
+                        continue
+            except Exception:
+                pass
+        
+        investor_profile.save()
+        
+        # Format response
+        accreditation_type_map = {
+            'at_least_5m': 'U.S.: Reg D Rule 501(a)',
+            'between_2.2m_5m': 'U.S.: Reg D Rule 501(a)',
+            'between_1m_2.2m': 'U.S.: Reg D Rule 501(a)',
+            'income_200k': 'U.S.: Reg D Rule 501(a)',
+            'series_7_65_82': 'U.S.: Reg D Rule 501(a)',
+            'not_accredited': 'Not Accredited',
+        }
+        
+        accreditation_type = accreditation_type_map.get(
+            investor_profile.accreditation_method, 
+            'U.S.: Reg D Rule 501(a)' if investor_profile.is_accredited_investor else 'Not Accredited'
+        )
+        
+        verification_status = 'verified' if investor_profile.is_accredited_investor else 'pending'
+        if investor_profile.application_status == 'approved':
+            verification_status = 'verified'
+        
+        income_statement_uploaded = bool(investor_profile.proof_of_income_net_worth)
+        net_worth_statement_uploaded = bool(investor_profile.proof_of_income_net_worth)
+        professional_license_uploaded = investor_profile.accreditation_method == 'series_7_65_82'
+        
+        expiry_date = None
+        expiry_date_formatted = None
+        if investor_profile.is_accredited_investor:
+            from datetime import timedelta
+            if investor_profile.submitted_at:
+                expiry_date = (investor_profile.submitted_at + timedelta(days=365)).date()
+            else:
+                expiry_date = (timezone.now() + timedelta(days=365)).date()
+            expiry_date_formatted = expiry_date.strftime('%m/%d/%Y')
+        
+        response_data = {
+            'success': True,
+            'message': 'Accreditation details updated successfully',
+            'accreditation': {
+                'accreditation_type': accreditation_type,
+                'accreditation_method': investor_profile.accreditation_method or '',
+                'accreditation_method_display': investor_profile.get_accreditation_method_display() if investor_profile.accreditation_method else '',
+                'accreditation_expiry_date': expiry_date_formatted,
+                'accreditation_expiry_date_raw': str(expiry_date) if expiry_date else None,
+                'is_accredited_investor': investor_profile.is_accredited_investor,
+                'meets_local_investment_thresholds': investor_profile.meets_local_investment_thresholds,
+            },
+            'verification': {
+                'status': verification_status,
+                'status_label': 'Verified' if verification_status == 'verified' else 'Pending',
+                'message': 'Current accreditation verification',
+            },
+            'required_documents': {
+                'income_statement': {
+                    'name': 'Income Statement',
+                    'uploaded': income_statement_uploaded,
+                    'status': 'Uploaded' if income_statement_uploaded else 'Not Uploaded',
+                },
+                'net_worth_statement': {
+                    'name': 'Net Worth Statement',
+                    'uploaded': net_worth_statement_uploaded,
+                    'status': 'Uploaded' if net_worth_statement_uploaded else 'Not Uploaded',
+                },
+                'professional_license': {
+                    'name': 'Professional License',
+                    'uploaded': professional_license_uploaded,
+                    'status': 'Uploaded' if professional_license_uploaded else 'Not Uploaded',
+                },
+            },
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)

@@ -17,6 +17,7 @@ from .investor_detail_views import (
     spv_team,
     spv_documents,
     investor_identity_settings,
+    investor_accreditation_settings,
 )
 
 # Create a router and register our viewsets
