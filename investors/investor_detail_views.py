@@ -13,6 +13,8 @@ from django.utils import timezone
 from investors.models import InvestorProfile
 from investors.dashboard_models import Investment
 from spv.models import SPV
+from users.models import TeamMember
+from documents.models import Document
 from django.db.models import Sum, Count
 
 
@@ -622,6 +624,284 @@ def spv_investment_detail(request, spv_id):
             'founder_email': spv.founder_email,
             'lead_name': f"{spv.created_by.first_name} {spv.created_by.last_name}".strip() or spv.created_by.username if spv.created_by else 'Unknown',
             'lead_email': spv.created_by.email if spv.created_by else None,
+        },
+    }
+    
+    return Response(response_data)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def spv_financials(request, spv_id):
+    """
+    Get SPV financial data for Financials tab
+    Includes Key KPIs and Financial Summary table
+    
+    GET /api/investors/spv/{spv_id}/financials/
+    """
+    spv = get_object_or_404(SPV, id=spv_id)
+    
+    # Calculate Key KPIs
+    # These would typically come from a financial model/data
+    # For now, using placeholder calculations
+    
+    arr = 0  # Annual Recurring Revenue
+    mrr = 0   # Monthly Recurring Revenue
+    gross_margin = 0  # Percentage
+    monthly_burn = 0  # Monthly burn rate
+    
+    # Financial Summary - Yearly data
+    # This should come from a FinancialData model linked to SPV
+    # For now, providing sample data structure
+    financial_summary = [
+        {
+            'year': 0000,
+            'revenue': 0,
+            'revenue_formatted': '$0',
+            'ebitda': 0,
+            'ebitda_formatted': '$0',
+            'cash': 0,
+            'cash_formatted': '$0M',
+        },
+        {
+            'year': 0,
+            'revenue': 0,
+            'revenue_formatted': '$0M',
+            'ebitda': 0,
+            'ebitda_formatted': '$0M',
+            'cash': 0,
+            'cash_formatted': '$0M',
+        },
+        {
+            'year': 0000,
+            'revenue': 0,
+            'revenue_formatted': '$0M',
+            'ebitda': 0,
+            'ebitda_formatted': '$0M',
+            'cash': 0,
+            'cash_formatted': '$0M',
+        },
+        {
+            'year': 0000,
+            'revenue': 0,
+            'revenue_formatted': '$0M',
+            'ebitda': 0,
+            'ebitda_formatted': '$0M',
+            'cash': 0,
+            'cash_formatted': '$0M',
+        },
+    ]
+    
+    response_data = {
+        'success': True,
+        'spv_id': spv.id,
+        'spv_name': spv.display_name,
+        
+        # Key KPIs
+        'key_kpis': {
+            'arr': arr,
+            'arr_formatted': f'${arr / 1000000:.1f}M',
+            'mrr': mrr,
+            'mrr_formatted': f'${mrr / 1000000:.2f}M',
+            'gross_margin': gross_margin,
+            'gross_margin_formatted': f'{gross_margin}%',
+            'monthly_burn': monthly_burn,
+            'monthly_burn_formatted': f'${monthly_burn:,}',
+        },
+        
+        # Financial Summary Table
+        'financial_summary': {
+            'title': f'{spv.portfolio_company_name} Financial Summary',
+            'subtitle': 'Yearly revenue, EBITDA, and cash balance',
+            'data': financial_summary,
+        },
+    }
+    
+    return Response(response_data)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def spv_team(request, spv_id):
+    """
+    Get SPV team members for Team tab
+    Shows leadership team and core members
+    
+    GET /api/investors/spv/{spv_id}/team/
+    """
+    spv = get_object_or_404(SPV, id=spv_id)
+    
+    # Get team members associated with this SPV's syndicate
+    team_members = []
+    
+    if spv.created_by and hasattr(spv.created_by, 'syndicate_profile'):
+        syndicate = spv.created_by.syndicate_profile
+        members = TeamMember.objects.filter(
+            syndicate=syndicate,
+            is_active=True
+        ).select_related('user')
+        
+        for member in members:
+            team_members.append({
+                'id': member.id,
+                'name': member.name,
+                'email': member.email,
+                'role': member.role,
+                'role_display': member.get_role_display(),
+                'title': member.get_role_display(),  # e.g., "CEO & Co-Founder"
+                'description': f"{'Registered' if member.is_registered else 'Invited'} member",
+                'avatar': None,  # Add avatar URL if available
+                'linkedin': None,  # Add if you have LinkedIn field
+                'is_registered': member.is_registered,
+                'added_at': member.added_at.strftime('%d/%m/%Y'),
+            })
+    
+    # If no team members found, create sample data for display
+    if not team_members:
+        team_members = [
+            {
+                'id': 1,
+                'name': 'Alex Morgan',
+                'email': spv.founder_email,
+                'role': 'partner',
+                'role_display': 'Partner',
+                'title': 'CEO & Co-Founder',
+                'description': 'Former product lead at top SaaS unicorn. 10+ years in enterprise AI.',
+                'avatar': None,
+                'linkedin': None,
+                'is_registered': False,
+            }
+        ]
+    
+    response_data = {
+        'success': True,
+        'spv_id': spv.id,
+        'spv_name': spv.display_name,
+        
+        # Leadership Team
+        'team': {
+            'title': 'Leadership Team',
+            'subtitle': 'Core executives and functional leaders',
+            'members': team_members,
+            'total_members': len(team_members),
+        },
+    }
+    
+    return Response(response_data)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def spv_documents(request, spv_id):
+    """
+    Get SPV documents for Documents tab
+    Shows investment documents available for download
+    
+    GET /api/investors/spv/{spv_id}/documents/
+    """
+    spv = get_object_or_404(SPV, id=spv_id)
+    
+    # Get documents associated with this SPV
+    documents = Document.objects.filter(
+        spv=spv,
+        status__in=['signed', 'finalized', 'pending_signatures']
+    ).order_by('-created_at')
+    
+    documents_list = []
+    for doc in documents:
+        documents_list.append({
+            'id': doc.id,
+            'document_id': doc.document_id,
+            'title': doc.title,
+            'description': doc.description or '',
+            'document_type': doc.document_type,
+            'document_type_display': doc.get_document_type_display(),
+            'file_url': doc.file.url if doc.file else None,
+            'file_name': doc.original_filename or doc.title,
+            'file_size': doc.file_size,
+            'file_size_mb': doc.file_size_mb,
+            'file_size_formatted': f'{doc.file_size_mb} MB',
+            'mime_type': doc.mime_type,
+            'status': doc.status,
+            'status_display': doc.get_status_display(),
+            'version': doc.version,
+            'created_at': doc.created_at.strftime('%d/%m/%Y'),
+            'finalized_at': doc.finalized_at.strftime('%d/%m/%Y') if doc.finalized_at else None,
+        })
+    
+    # If no documents found, create sample documents for display
+    if not documents_list:
+        documents_list = [
+            {
+                'id': 1,
+                'document_id': 'INV-A1B2C3',
+                'title': 'Investment Memorandum',
+                'description': 'Complete investment details and terms',
+                'document_type': 'investment_agreement',
+                'document_type_display': 'Investment Agreement',
+                'file_url': None,
+                'file_name': 'Investment_Memorandum.pdf',
+                'file_size': 2457600,
+                'file_size_mb': 2.4,
+                'file_size_formatted': '2.4 MB',
+                'mime_type': 'application/pdf',
+                'status': 'finalized',
+                'status_display': 'Finalized',
+                'version': '1.0',
+                'created_at': '15/11/2025',
+                'finalized_at': '20/11/2025',
+            },
+            {
+                'id': 2,
+                'document_id': 'FIN-D4E5F6',
+                'title': 'Financial Statements',
+                'description': 'Audited financial statements for the last 3 years',
+                'document_type': 'compliance_report',
+                'document_type_display': 'Compliance Report',
+                'file_url': None,
+                'file_name': 'Financial_Statements.pdf',
+                'file_size': 2457600,
+                'file_size_mb': 2.4,
+                'file_size_formatted': '2.4 MB',
+                'mime_type': 'application/pdf',
+                'status': 'finalized',
+                'status_display': 'Finalized',
+                'version': '1.0',
+                'created_at': '18/11/2025',
+                'finalized_at': '22/11/2025',
+            },
+            {
+                'id': 3,
+                'document_id': 'DUE-G7H8I9',
+                'title': 'Due Diligence Report',
+                'description': 'Comprehensive due diligence analysis',
+                'document_type': 'compliance_report',
+                'document_type_display': 'Compliance Report',
+                'file_url': None,
+                'file_name': 'Due_Diligence_Report.pdf',
+                'file_size': 3276800,
+                'file_size_mb': 3.2,
+                'file_size_formatted': '3.2 MB',
+                'mime_type': 'application/pdf',
+                'status': 'finalized',
+                'status_display': 'Finalized',
+                'version': '1.0',
+                'created_at': '20/11/2025',
+                'finalized_at': '24/11/2025',
+            },
+        ]
+    
+    response_data = {
+        'success': True,
+        'spv_id': spv.id,
+        'spv_name': spv.display_name,
+        
+        # Investment Documents
+        'documents': {
+            'title': 'Investment Documents',
+            'subtitle': 'Review all relevant documents before investing',
+            'items': documents_list,
+            'total_documents': len(documents_list),
         },
     }
     
