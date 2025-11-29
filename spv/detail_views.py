@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from django.utils import timezone
 
 from .models import SPV
+from investors.models import InvestorProfile
 
 
 def _safe_decimal(value):
@@ -497,6 +498,20 @@ def spv_invite_lps(request, spv_id):
             return Response({
                 'success': False,
                 'error': f'Invalid email addresses: {", ".join(invalid_emails)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if emails belong to registered investors
+        investor_emails = set(
+            InvestorProfile.objects.filter(
+                email_address__in=emails
+            ).values_list('email_address', flat=True)
+        )
+        non_investor_emails = [e for e in emails if e not in investor_emails]
+        
+        if non_investor_emails:
+            return Response({
+                'success': False,
+                'error': f'The following emails do not belong to registered investors: {", ".join(non_investor_emails)}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Merge with existing emails (avoid duplicates)
