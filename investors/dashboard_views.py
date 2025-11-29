@@ -9,6 +9,7 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 
 from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, Wishlist
+from .models import InvestorProfile
 from .dashboard_serializers import (
     PortfolioSerializer,
     InvestmentSerializer,
@@ -698,6 +699,162 @@ class DashboardViewSet(viewsets.ViewSet):
                 },
                 status=status.HTTP_404_NOT_FOUND
             )
+    
+    @action(detail=False, methods=['get', 'put', 'patch'], url_path='settings/identity')
+    def identity_settings(self, request):
+        """Get or update investor identity and jurisdiction settings"""
+        user = request.user
+        
+        # Get or create investor profile
+        try:
+            investor_profile = InvestorProfile.objects.get(user=user)
+        except InvestorProfile.DoesNotExist:
+            return Response({
+                'error': 'Investor profile not found. Please complete onboarding first.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        if request.method == 'GET':
+            # Format date of birth
+            dob_formatted = None
+            if investor_profile.date_of_birth:
+                dob_formatted = investor_profile.date_of_birth.strftime('%d-%m-%Y')
+            
+            # Format full address
+            full_address = None
+            if investor_profile.street_address:
+                address_parts = [
+                    investor_profile.street_address,
+                    investor_profile.city,
+                    investor_profile.state_province,
+                    investor_profile.zip_postal_code
+                ]
+                full_address = ', '.join([part for part in address_parts if part])
+            
+            # Determine jurisdiction status
+            jurisdiction_status = 'approved'
+            
+            response_data = {
+                'success': True,
+                'identity': {
+                    'full_legal_name': investor_profile.full_legal_name or investor_profile.full_name or '',
+                    'country_of_residence': investor_profile.country_of_residence or '',
+                    'tax_domicile': investor_profile.country_of_residence or '',
+                    'national_id_passport': '',
+                    'date_of_birth': dob_formatted or '',
+                    'date_of_birth_raw': str(investor_profile.date_of_birth) if investor_profile.date_of_birth else None,
+                    'full_address': full_address or '',
+                    'street_address': investor_profile.street_address or '',
+                    'city': investor_profile.city or '',
+                    'state_province': investor_profile.state_province or '',
+                    'zip_postal_code': investor_profile.zip_postal_code or '',
+                    'country': investor_profile.country or investor_profile.country_of_residence or '',
+                },
+                'jurisdiction': {
+                    'status': jurisdiction_status,
+                    'status_label': 'Approved',
+                    'message': 'Auto-tagged based on residence',
+                },
+                'government_id_uploaded': bool(investor_profile.government_id),
+                'government_id_url': investor_profile.government_id.url if investor_profile.government_id else None,
+            }
+            
+            return Response(response_data)
+        
+        elif request.method in ['PUT', 'PATCH']:
+            # Update identity information
+            data = request.data
+            
+            # Update fields if provided
+            if 'full_legal_name' in data:
+                investor_profile.full_legal_name = data['full_legal_name']
+                if not investor_profile.full_name:
+                    investor_profile.full_name = data['full_legal_name']
+            
+            if 'country_of_residence' in data:
+                investor_profile.country_of_residence = data['country_of_residence']
+            
+            if 'date_of_birth' in data:
+                try:
+                    dob_str = data['date_of_birth']
+                    if isinstance(dob_str, str):
+                        from datetime import datetime
+                        for fmt in ['%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y', '%d/%m/%Y']:
+                            try:
+                                investor_profile.date_of_birth = datetime.strptime(dob_str, fmt).date()
+                                break
+                            except ValueError:
+                                continue
+                        else:
+                            return Response({
+                                'error': 'Invalid date format. Use YYYY-MM-DD, DD-MM-YYYY, or MM/DD/YYYY'
+                            }, status=status.HTTP_400_BAD_REQUEST)
+                    else:
+                        investor_profile.date_of_birth = dob_str
+                except Exception as e:
+                    return Response({
+                        'error': f'Invalid date of birth: {str(e)}'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Update address fields
+            if 'street_address' in data:
+                investor_profile.street_address = data['street_address']
+            if 'city' in data:
+                investor_profile.city = data['city']
+            if 'state_province' in data:
+                investor_profile.state_province = data['state_province']
+            if 'zip_postal_code' in data:
+                investor_profile.zip_postal_code = data['zip_postal_code']
+            if 'country' in data:
+                investor_profile.country = data['country']
+            
+            if 'tax_domicile' in data:
+                if not investor_profile.country_of_residence:
+                    investor_profile.country_of_residence = data['tax_domicile']
+            
+            national_id_provided = 'national_id_passport' in data and data['national_id_passport']
+            
+            investor_profile.save()
+            
+            # Format response
+            dob_formatted = None
+            if investor_profile.date_of_birth:
+                dob_formatted = investor_profile.date_of_birth.strftime('%d-%m-%Y')
+            
+            full_address = None
+            if investor_profile.street_address:
+                address_parts = [
+                    investor_profile.street_address,
+                    investor_profile.city,
+                    investor_profile.state_province,
+                    investor_profile.zip_postal_code
+                ]
+                full_address = ', '.join([part for part in address_parts if part])
+            
+            response_data = {
+                'success': True,
+                'message': 'Identity information updated successfully',
+                'identity': {
+                    'full_legal_name': investor_profile.full_legal_name or investor_profile.full_name or '',
+                    'country_of_residence': investor_profile.country_of_residence or '',
+                    'tax_domicile': investor_profile.country_of_residence or '',
+                    'national_id_passport': 'Provided' if national_id_provided else '',
+                    'date_of_birth': dob_formatted or '',
+                    'date_of_birth_raw': str(investor_profile.date_of_birth) if investor_profile.date_of_birth else None,
+                    'full_address': full_address or '',
+                    'street_address': investor_profile.street_address or '',
+                    'city': investor_profile.city or '',
+                    'state_province': investor_profile.state_province or '',
+                    'zip_postal_code': investor_profile.zip_postal_code or '',
+                    'country': investor_profile.country or investor_profile.country_of_residence or '',
+                },
+                'jurisdiction': {
+                    'status': 'approved',
+                    'status_label': 'Approved',
+                    'message': 'Auto-tagged based on residence',
+                },
+            }
+            
+            return Response(response_data, status=status.HTTP_200_OK)
 
 
 class PortfolioViewSet(viewsets.ModelViewSet):

@@ -16,6 +16,7 @@ from .investor_detail_views import (
     spv_financials,
     spv_team,
     spv_documents,
+    investor_identity_settings,
 )
 
 # Create a router and register our viewsets
@@ -27,6 +28,9 @@ router.register(r'investments', InvestmentViewSet, basename='investment')
 router.register(r'notifications', NotificationViewSet, basename='notification')
 
 urlpatterns = [
+    # Investor Settings - Must come first to avoid router conflicts
+    path('settings/identity/', investor_identity_settings, name='investor-identity-settings'),
+    
     # Investor Detail Endpoints - Must come before router patterns to avoid conflicts
     path('investor/<int:investor_id>/', investor_detail, name='investor-detail'),
     path('investor/<int:investor_id>/investments/', investor_investments, name='investor-investments'),

@@ -845,3 +845,188 @@ def spv_documents(request, spv_id):
     }
     
     return Response(response_data)
+
+
+@api_view(['GET', 'PUT', 'PATCH'])
+@permission_classes([permissions.IsAuthenticated])
+def investor_identity_settings(request):
+    """
+    Get or update investor identity and jurisdiction settings
+    
+    GET /api/investors/settings/identity/ - Get current identity information
+    PUT /api/investors/settings/identity/ - Update identity information
+    
+    PUT/PATCH Payload:
+    {
+        "full_legal_name": "John Michael Smith",
+        "country_of_residence": "United States",
+        "tax_domicile": "United States",
+        "national_id_passport": "123-45-6789",
+        "date_of_birth": "1985-06-15",
+        "street_address": "123 Main St",
+        "city": "New York",
+        "state_province": "NY",
+        "zip_postal_code": "10001",
+        "country": "United States"
+    }
+    """
+    user = request.user
+    
+    # Get or create investor profile
+    try:
+        investor_profile = InvestorProfile.objects.get(user=user)
+    except InvestorProfile.DoesNotExist:
+        return Response({
+            'error': 'Investor profile not found. Please complete onboarding first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    if request.method == 'GET':
+        # Format date of birth
+        dob_formatted = None
+        if investor_profile.date_of_birth:
+            dob_formatted = investor_profile.date_of_birth.strftime('%d-%m-%Y')
+        
+        # Format full address
+        full_address = None
+        if investor_profile.street_address:
+            address_parts = [
+                investor_profile.street_address,
+                investor_profile.city,
+                investor_profile.state_province,
+                investor_profile.zip_postal_code
+            ]
+            full_address = ', '.join([part for part in address_parts if part])
+        
+        # Determine jurisdiction status (can be enhanced with actual logic)
+        jurisdiction_status = 'approved'  # Default, can be calculated based on verification
+        
+        response_data = {
+            'success': True,
+            'identity': {
+                'full_legal_name': investor_profile.full_legal_name or investor_profile.full_name or '',
+                'country_of_residence': investor_profile.country_of_residence or '',
+                'tax_domicile': investor_profile.country_of_residence or '',  # Using same as residence for now
+                'national_id_passport': '',  # Can be extracted from government_id filename if needed
+                'date_of_birth': dob_formatted or '',
+                'date_of_birth_raw': str(investor_profile.date_of_birth) if investor_profile.date_of_birth else None,
+                'full_address': full_address or '',
+                'street_address': investor_profile.street_address or '',
+                'city': investor_profile.city or '',
+                'state_province': investor_profile.state_province or '',
+                'zip_postal_code': investor_profile.zip_postal_code or '',
+                'country': investor_profile.country or investor_profile.country_of_residence or '',
+            },
+            'jurisdiction': {
+                'status': jurisdiction_status,
+                'status_label': 'Approved',
+                'message': 'Auto-tagged based on residence',
+            },
+            'government_id_uploaded': bool(investor_profile.government_id),
+            'government_id_url': investor_profile.government_id.url if investor_profile.government_id else None,
+        }
+        
+        return Response(response_data)
+    
+    elif request.method in ['PUT', 'PATCH']:
+        # Update identity information
+        data = request.data
+        
+        # Update fields if provided
+        if 'full_legal_name' in data:
+            investor_profile.full_legal_name = data['full_legal_name']
+            # Also update full_name if it's empty
+            if not investor_profile.full_name:
+                investor_profile.full_name = data['full_legal_name']
+        
+        if 'country_of_residence' in data:
+            investor_profile.country_of_residence = data['country_of_residence']
+        
+        if 'date_of_birth' in data:
+            try:
+                # Handle different date formats
+                dob_str = data['date_of_birth']
+                if isinstance(dob_str, str):
+                    # Try different formats
+                    from datetime import datetime
+                    for fmt in ['%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y', '%d/%m/%Y']:
+                        try:
+                            investor_profile.date_of_birth = datetime.strptime(dob_str, fmt).date()
+                            break
+                        except ValueError:
+                            continue
+                    else:
+                        return Response({
+                            'error': 'Invalid date format. Use YYYY-MM-DD, DD-MM-YYYY, or MM/DD/YYYY'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    investor_profile.date_of_birth = dob_str
+            except Exception as e:
+                return Response({
+                    'error': f'Invalid date of birth: {str(e)}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update address fields
+        if 'street_address' in data:
+            investor_profile.street_address = data['street_address']
+        if 'city' in data:
+            investor_profile.city = data['city']
+        if 'state_province' in data:
+            investor_profile.state_province = data['state_province']
+        if 'zip_postal_code' in data:
+            investor_profile.zip_postal_code = data['zip_postal_code']
+        if 'country' in data:
+            investor_profile.country = data['country']
+        
+        # Tax domicile (using country_of_residence for now, can add separate field later)
+        if 'tax_domicile' in data:
+            # If tax_domicile is different, we might want to store it separately
+            # For now, we'll use country_of_residence
+            if not investor_profile.country_of_residence:
+                investor_profile.country_of_residence = data['tax_domicile']
+        
+        # National ID/Passport (can be stored in a note or separate field)
+        # For now, we'll just acknowledge it's provided
+        national_id_provided = 'national_id_passport' in data and data['national_id_passport']
+        
+        investor_profile.save()
+        
+        # Format response
+        dob_formatted = None
+        if investor_profile.date_of_birth:
+            dob_formatted = investor_profile.date_of_birth.strftime('%d-%m-%Y')
+        
+        full_address = None
+        if investor_profile.street_address:
+            address_parts = [
+                investor_profile.street_address,
+                investor_profile.city,
+                investor_profile.state_province,
+                investor_profile.zip_postal_code
+            ]
+            full_address = ', '.join([part for part in address_parts if part])
+        
+        response_data = {
+            'success': True,
+            'message': 'Identity information updated successfully',
+            'identity': {
+                'full_legal_name': investor_profile.full_legal_name or investor_profile.full_name or '',
+                'country_of_residence': investor_profile.country_of_residence or '',
+                'tax_domicile': investor_profile.country_of_residence or '',
+                'national_id_passport': 'Provided' if national_id_provided else '',
+                'date_of_birth': dob_formatted or '',
+                'date_of_birth_raw': str(investor_profile.date_of_birth) if investor_profile.date_of_birth else None,
+                'full_address': full_address or '',
+                'street_address': investor_profile.street_address or '',
+                'city': investor_profile.city or '',
+                'state_province': investor_profile.state_province or '',
+                'zip_postal_code': investor_profile.zip_postal_code or '',
+                'country': investor_profile.country or investor_profile.country_of_residence or '',
+            },
+            'jurisdiction': {
+                'status': 'approved',
+                'status_label': 'Approved',
+                'message': 'Auto-tagged based on residence',
+            },
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)

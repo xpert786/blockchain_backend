@@ -23,6 +23,7 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
     TokenVerifyView,
 )
+from investors.investor_detail_views import investor_identity_settings
 
 admin.site.site_header = "Unlocksly"
 admin.site.site_title = "Blockchain Administration"
@@ -40,6 +41,10 @@ urlpatterns = [
     path('blockchain-backend/api/', include('reporting.urls')),
     path('blockchain-backend/api/', include('investors.urls')),
     path('blockchain-backend/api/', include('messaging.urls')),
+    
+    # Investor Settings - Direct path with investors prefix
+    path('blockchain-backend/api/investors/settings/identity/', 
+         investor_identity_settings, name='investor-identity-settings'),
     
     # JWT token endpoints
     path('blockchain-backend/api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
