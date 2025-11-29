@@ -39,7 +39,7 @@ class DashboardViewSet(viewsets.ViewSet):
     
     @action(detail=False, methods=['get'])
     def overview(self, request):
-        """Get complete dashboard overview with all cards data"""
+        """Get complete dashboard overview with all cards data for investor"""
         user = request.user
         
         # Get or create portfolio
@@ -63,22 +63,47 @@ class DashboardViewSet(viewsets.ViewSet):
         action_required_count = notifications.filter(action_required=True, status='unread').count()
         
         # Count active SPVs (investments)
-        active_spvs = Investment.objects.filter(investor=user, status='active').count()
+        active_investments = Investment.objects.filter(investor=user, status='active')
+        active_spvs_count = active_investments.count()
+        
+        # Calculate portfolio growth label
+        portfolio_growth_value = portfolio.portfolio_growth_percentage
+        portfolio_growth_label = f"+{portfolio_growth_value}% from invested capital" if portfolio_growth_value >= 0 else f"{portfolio_growth_value}% from invested capital"
         
         # Get recent investments
         recent_investments = Investment.objects.filter(investor=user).order_by('-created_at')[:5]
         
+        # Structure data to match UI cards
         data = {
-            'kyc_status': kyc_status_value,
-            'kyc_verified': kyc_verified,
-            'total_investments': active_spvs,
-            'portfolio_value': str(portfolio.current_value),
-            'total_invested': str(portfolio.total_invested),
-            'unrealized_gain': str(portfolio.unrealized_gain),
-            'portfolio_growth': portfolio.portfolio_growth_percentage,
-            'total_notifications': total_notifications,
-            'unread_notifications': unread_count,
-            'action_required_notifications': action_required_count,
+            'success': True,
+            'kyc_card': {
+                'title': 'KYC Status',
+                'status': kyc_status_value,
+                'status_label': kyc_status_value.replace('_', ' ').title(),
+                'verified': kyc_verified,
+            },
+            'investments_card': {
+                'title': 'Total Investments',
+                'count': active_spvs_count,
+                'label': 'Active SPVs',
+            },
+            'portfolio_card': {
+                'title': 'Portfolio Value',
+                'value': float(portfolio.current_value),
+                'formatted_value': f"${portfolio.current_value:,.0f}",
+                'growth_percentage': portfolio_growth_value,
+                'growth_label': portfolio_growth_label,
+                'total_invested': float(portfolio.total_invested),
+                'unrealized_gain': float(portfolio.unrealized_gain),
+            },
+            'notification_card': {
+                'title': 'Notification',
+                'count': unread_count,
+                'label': 'Unread Updates',
+                'total_notifications': total_notifications,
+                'action_required': action_required_count,
+            },
+            # Additional data
             'recent_investments': InvestmentSerializer(recent_investments, many=True).data,
         }
         
