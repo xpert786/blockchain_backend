@@ -307,3 +307,6 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/blockchain-backend/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 USE_X_FORWARDED_HOST = True
+
+
+CALLBACK_URL = config('CALLBACK_URL')

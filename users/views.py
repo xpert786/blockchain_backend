@@ -20,6 +20,7 @@ from .serializers import (
     VerifyEmailSerializer,
     VerifyTwoFactorSerializer
 )
+from django.conf import settings
 
 
 
@@ -578,7 +579,7 @@ class GoogleLoginWithRoleView(SocialLoginView):
     client_class = OAuth2Client
     permission_classes = (AllowAny,)
     authentication_classes = []
-    callback_url = "http://localhost:3000"  
+    callback_url = settings.CALLBACK_URL  
 
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
