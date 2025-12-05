@@ -267,13 +267,15 @@ additional_compliance_policies: <FILE>
 
 ### 6. Jurisdictional Settings
 
-View jurisdictional compliance settings.
+Manage legal and compliance configurations for your selected jurisdiction.
 
 ```http
 GET /api/syndicate/settings/jurisdictional/
+PATCH /api/syndicate/settings/jurisdictional/
+GET /api/syndicate/settings/jurisdictional/<id>/
 ```
 
-**Response:**
+**GET All Jurisdictions Response:**
 ```json
 {
   "success": true,
@@ -298,62 +300,197 @@ GET /api/syndicate/settings/jurisdictional/
 }
 ```
 
----
-
-### 7. Portfolio Company Outreach
-
-View portfolio and LP network settings.
-
-```http
-GET /api/syndicate/settings/portfolio/
-```
-
-**Response:**
+**GET Specific Geography Response:**
 ```json
 {
   "success": true,
-  "message": "Portfolio company outreach settings endpoint",
+  "message": "Geography details retrieved successfully",
   "data": {
-    "sectors": [
+    "id": 1,
+    "name": "United States",
+    "region": "North America",
+    "country_code": "US",
+    "created_at": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+**PATCH Request:**
+```json
+{
+  "jurisdictional_compliance_acknowledged": true,
+  "geography_ids": [1, 2, 3]
+}
+```
+
+**PATCH Response:**
+```json
+{
+  "success": true,
+  "message": "Jurisdictional settings updated successfully",
+  "data": {
+    "jurisdictional_compliance_acknowledged": true,
+    "geographies": [
       {
         "id": 1,
-        "name": "Technology",
-        "description": "Software and hardware technology companies"
+        "name": "United States",
+        "region": "North America",
+        "country_code": "US"
       },
       {
         "id": 2,
-        "name": "Healthcare",
-        "description": "Healthcare and biotech companies"
+        "name": "United Kingdom",
+        "region": "Europe",
+        "country_code": "GB"
+      },
+      {
+        "id": 3,
+        "name": "Canada",
+        "region": "North America",
+        "country_code": "CA"
       }
-    ],
-    "enable_platform_lp_access": true,
-    "existing_lp_count": "11-25"
+    ]
   }
 }
 ```
 
 ---
 
-### 8. Notifications & Communication
+### 7. Portfolio Company Outreach
 
-View notification and communication preferences.
+Manage platform contact permissions for portfolio company valuation, tax reporting, and compliance purposes.
 
 ```http
-GET /api/syndicate/settings/notifications/
+GET /api/syndicate/settings/portfolio/
+PATCH /api/syndicate/settings/portfolio/
 ```
 
-**Response:**
+**Description:**
+This endpoint controls whether the platform is allowed to contact your portfolio companies directly for valuation, tax reporting, and compliance purposes. Use the `restrict` or `allow` fields in PATCH requests to control this setting.
+
+**GET Portfolio Settings Response:**
 ```json
 {
   "success": true,
-  "message": "Notifications & communication settings endpoint - to be implemented",
+  "message": "Portfolio company outreach settings retrieved successfully",
+  "data": {
+    "restrict": false,
+    "allow": true
+  }
+}
+```
+
+**PATCH Request - Allow Platform Contact:**
+```json
+{
+  "allow": true
+}
+```
+
+**PATCH Request - Restrict Platform Contact:**
+```json
+{
+  "restrict": true
+}
+```
+
+**PATCH Response:**
+```json
+{
+  "success": true,
+  "message": "Portfolio company outreach settings updated successfully",
+  "data": {
+    "restrict": true,
+    "allow": false
+  }
+}
+```
+
+**Field Definitions:**
+- `restrict` (boolean, read-only): `true` if platform cannot contact portfolio companies directly
+- `allow` (boolean, read-only): `true` if platform can contact portfolio companies directly
+- `restrict` (boolean, write-only in PATCH): Set to `true` to prevent platform contact
+- `allow` (boolean, write-only in PATCH): Set to `true` to allow platform contact
+
+**Note:** `restrict` and `allow` are inverse of each other. Sending either field in a PATCH request will update the setting accordingly.
+
+---
+
+### 8. Notifications & Communication
+
+Manage notification and communication preferences.
+
+```http
+GET /api/syndicate/settings/notifications/
+PATCH /api/syndicate/settings/notifications/
+GET /api/syndicate/settings/notifications/<preference_type>/
+```
+
+**GET All Notification Settings Response:**
+```json
+{
+  "success": true,
+  "message": "Notifications & communication settings",
   "data": {
     "email": "john@example.com",
     "phone_number": "+1234567890",
     "email_verified": true,
     "phone_verified": true,
     "two_factor_enabled": true,
-    "two_factor_method": "sms"
+    "two_factor_method": "email",
+    "notification_preference": "email",
+    "notify_email_preference": true,
+    "notify_new_lp_alerts": true,
+    "notify_deal_updates": true
+  }
+}
+```
+
+**GET Specific Notification Preference Response:**
+
+Supported preference types: `email_preference`, `lp_alerts`, `deal_updates`
+
+```json
+{
+  "success": true,
+  "message": "Email Preference notification preference retrieved",
+  "data": {
+    "type": "email_preference",
+    "label": "Email Preference",
+    "description": "Receive email notifications",
+    "enabled": true,
+    "user_email": "john@example.com",
+    "user_phone_number": "+1234567890"
+  }
+}
+```
+
+**PATCH Request:**
+```json
+{
+  "notification_preference": "lp_alerts",
+  "notify_email_preference": true,
+  "notify_new_lp_alerts": false,
+  "notify_deal_updates": true
+}
+```
+
+**PATCH Response:**
+```json
+{
+  "success": true,
+  "message": "Notification settings updated successfully",
+  "data": {
+    "email": "john@example.com",
+    "phone_number": "+1234567890",
+    "email_verified": true,
+    "phone_verified": true,
+    "two_factor_enabled": true,
+    "two_factor_method": "email",
+    "notification_preference": "lp_alerts",
+    "notify_email_preference": true,
+    "notify_new_lp_alerts": false,
+    "notify_deal_updates": true
   }
 }
 ```
@@ -362,20 +499,66 @@ GET /api/syndicate/settings/notifications/
 
 ### 9. Fee Recipient Setup
 
-View fee recipient configuration.
+Manage fee recipient information for payment distribution.
 
 ```http
 GET /api/syndicate/settings/fee-recipient/
+PATCH /api/syndicate/settings/fee-recipient/
+GET /api/syndicate/settings/fee-recipient/<id>/
 ```
 
-**Response:**
+**GET Fee Recipient Response:**
 ```json
 {
   "success": true,
-  "message": "Fee recipient setup endpoint - to be implemented",
+  "message": "Fee recipient setup",
   "data": {
-    "syndicate_id": 1,
-    "firm_name": "Tech Ventures LLC"
+    "id": 1,
+    "recipient_type": "individual",
+    "recipient_type_display": "Individual",
+    "entity_name": "John Doe",
+    "residence": "Delaware",
+    "tax_id": "12-3456789",
+    "id_document": "/media/fee_recipient_documents/id_doc.pdf",
+    "id_document_url": "http://localhost:8000/media/fee_recipient_documents/id_doc.pdf",
+    "proof_of_address": "/media/fee_recipient_documents/proof.pdf",
+    "proof_of_address_url": "http://localhost:8000/media/fee_recipient_documents/proof.pdf",
+    "created_at": "2024-01-20T10:15:00Z",
+    "updated_at": "2024-01-20T10:15:00Z"
+  }
+}
+```
+
+**PATCH Request (Multipart for file uploads):**
+```
+Content-Type: multipart/form-data
+
+recipient_type: individual
+entity_name: John Doe
+residence: Delaware
+tax_id: 12-3456789
+id_document: <FILE>
+proof_of_address: <FILE>
+```
+
+**PATCH Response:**
+```json
+{
+  "success": true,
+  "message": "Fee recipient settings updated successfully",
+  "data": {
+    "id": 1,
+    "recipient_type": "individual",
+    "recipient_type_display": "Individual",
+    "entity_name": "John Doe",
+    "residence": "Delaware",
+    "tax_id": "12-3456789",
+    "id_document": "/media/fee_recipient_documents/id_doc_updated.pdf",
+    "id_document_url": "http://localhost:8000/media/fee_recipient_documents/id_doc_updated.pdf",
+    "proof_of_address": "/media/fee_recipient_documents/proof_updated.pdf",
+    "proof_of_address_url": "http://localhost:8000/media/fee_recipient_documents/proof_updated.pdf",
+    "created_at": "2024-01-20T10:15:00Z",
+    "updated_at": "2024-01-20T11:30:00Z"
   }
 }
 ```
@@ -384,7 +567,9 @@ GET /api/syndicate/settings/fee-recipient/
 
 ### 10. Bank Details
 
-View bank account details.
+Manage credit cards and bank accounts.
+
+#### Get All Bank Details
 
 ```http
 GET /api/syndicate/settings/bank-details/
@@ -394,11 +579,351 @@ GET /api/syndicate/settings/bank-details/
 ```json
 {
   "success": true,
-  "message": "Bank details endpoint - to be implemented",
+  "message": "Bank details retrieved successfully",
   "data": {
-    "syndicate_id": 1,
-    "firm_name": "Tech Ventures LLC"
+    "credit_cards": [
+      {
+        "id": 1,
+        "card_category": "credit_card",
+        "card_category_display": "Credit Card",
+        "card_type": "visa",
+        "card_type_display": "Visa",
+        "card_number": "XXXX-XXXX-XXXX-4155",
+        "card_holder_name": "SMITH RHODES",
+        "expiry_date": "07/29",
+        "status": "active",
+        "status_display": "Active",
+        "is_primary": true,
+        "created_at": "2025-01-15T10:30:00Z",
+        "updated_at": "2025-01-15T10:30:00Z"
+      },
+      {
+        "id": 2,
+        "card_category": "debit_card",
+        "card_category_display": "Debit Card",
+        "card_type": "mastercard",
+        "card_type_display": "Mastercard",
+        "card_number": "XXXX-XXXX-XXXX-6296",
+        "card_holder_name": "SMITH RHODES",
+        "expiry_date": "08/26",
+        "status": "active",
+        "status_display": "Active",
+        "is_primary": false,
+        "created_at": "2025-01-16T11:20:00Z",
+        "updated_at": "2025-01-16T11:20:00Z"
+      }
+    ],
+    "bank_accounts": [
+      {
+        "id": 1,
+        "bank_name": "ICICI Bank",
+        "account_type": "checking",
+        "account_type_display": "Checking",
+        "account_number": "XXXX-XXXX-XXXX-9025",
+        "routing_number": "021000021",
+        "swift_code": "ICICINBB",
+        "iban": null,
+        "account_holder_name": "Tech Ventures LLC",
+        "status": "active",
+        "status_display": "Active",
+        "is_primary": true,
+        "created_at": "2025-01-10T09:15:00Z",
+        "updated_at": "2025-01-10T09:15:00Z"
+      }
+    ]
   }
+}
+```
+
+#### Add Credit Card
+
+```http
+POST /api/syndicate/settings/bank-details/
+```
+
+**Request Body:**
+```json
+{
+  "type": "credit_card",
+  "card_type": "visa",
+  "card_number": "4111-1111-1111-4155",
+  "card_holder_name": "SMITH RHODES",
+  "expiry_date": "07/29",
+  "cvv": "123",
+  "status": "active",
+  "is_primary": false
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Credit Card added successfully",
+  "data": {
+    "id": 3,
+    "card_category": "credit_card",
+    "card_category_display": "Credit Card",
+    "card_type": "visa",
+    "card_type_display": "Visa",
+    "card_number": "XXXX-XXXX-XXXX-4155",
+    "card_holder_name": "SMITH RHODES",
+    "expiry_date": "07/29",
+    "status": "active",
+    "status_display": "Active",
+    "is_primary": false,
+    "created_at": "2025-01-20T14:45:00Z",
+    "updated_at": "2025-01-20T14:45:00Z"
+  }
+}
+```
+
+#### Add Debit Card
+
+```http
+POST /api/syndicate/settings/bank-details/
+```
+
+**Request Body:**
+```json
+{
+  "type": "debit_card",
+  "card_type": "mastercard",
+  "card_number": "5555-4444-3333-6296",
+  "card_holder_name": "SMITH RHODES",
+  "expiry_date": "08/26",
+  "cvv": "456",
+  "status": "active",
+  "is_primary": true
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Debit Card added successfully",
+  "data": {
+    "id": 4,
+    "card_category": "debit_card",
+    "card_category_display": "Debit Card",
+    "card_type": "mastercard",
+    "card_type_display": "Mastercard",
+    "card_number": "XXXX-XXXX-XXXX-6296",
+    "card_holder_name": "SMITH RHODES",
+    "expiry_date": "08/26",
+    "status": "active",
+    "status_display": "Active",
+    "is_primary": true,
+    "created_at": "2025-01-20T15:10:00Z",
+    "updated_at": "2025-01-20T15:10:00Z"
+  }
+}
+```
+
+#### Add Bank Account
+
+```http
+POST /api/syndicate/settings/bank-details/
+```
+
+**Request Body:**
+```json
+{
+  "type": "bank_account",
+  "bank_name": "Chase Bank",
+  "account_type": "checking",
+  "account_number": "1234567890",
+  "routing_number": "021000021",
+  "account_holder_name": "Tech Ventures LLC",
+  "status": "active",
+  "is_primary": false
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Bank account added successfully",
+  "data": {
+    "id": 2,
+    "bank_name": "Chase Bank",
+    "account_type": "checking",
+    "account_type_display": "Checking",
+    "account_number": "XXXX-XXXX-XXXX-7890",
+    "routing_number": "021000021",
+    "swift_code": null,
+    "iban": null,
+    "account_holder_name": "Tech Ventures LLC",
+    "status": "active",
+    "status_display": "Active",
+    "is_primary": false,
+    "created_at": "2025-01-20T15:00:00Z",
+    "updated_at": "2025-01-20T15:00:00Z"
+  }
+}
+```
+
+#### Get Specific Credit Card
+
+```http
+GET /api/syndicate/settings/bank-details/card/<card_id>/
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Credit card details retrieved successfully",
+  "data": {
+    "id": 1,
+    "card_category": "credit_card",
+    "card_category_display": "Credit Card",
+    "card_type": "visa",
+    "card_type_display": "Visa",
+    "card_number": "XXXX-XXXX-XXXX-4155",
+    "card_holder_name": "SMITH RHODES",
+    "expiry_date": "07/29",
+    "status": "active",
+    "status_display": "Active",
+    "is_primary": true,
+    "created_at": "2025-01-15T10:30:00Z",
+    "updated_at": "2025-01-15T10:30:00Z"
+  }
+}
+```
+
+#### Update Credit Card
+
+```http
+PATCH /api/syndicate/settings/bank-details/card/<card_id>/
+```
+
+**Request Body:**
+```json
+{
+  "status": "suspended",
+  "is_primary": false
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Credit card updated successfully",
+  "data": {
+    "id": 1,
+    "card_category": "credit_card",
+    "card_category_display": "Credit Card",
+    "card_type": "visa",
+    "card_type_display": "Visa",
+    "card_number": "XXXX-XXXX-XXXX-4155",
+    "card_holder_name": "SMITH RHODES",
+    "expiry_date": "07/29",
+    "status": "suspended",
+    "status_display": "Suspended",
+    "is_primary": false,
+    "created_at": "2025-01-15T10:30:00Z",
+    "updated_at": "2025-01-20T16:00:00Z"
+  }
+}
+```
+
+#### Delete Credit Card
+
+```http
+DELETE /api/syndicate/settings/bank-details/card/<card_id>/
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Credit card deleted successfully"
+}
+```
+
+#### Get Specific Bank Account
+
+```http
+GET /api/syndicate/settings/bank-details/account/<account_id>/
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Bank account details retrieved successfully",
+  "data": {
+    "id": 1,
+    "bank_name": "ICICI Bank",
+    "account_type": "checking",
+    "account_type_display": "Checking",
+    "account_number": "XXXX-XXXX-XXXX-9025",
+    "routing_number": "021000021",
+    "swift_code": "ICICINBB",
+    "iban": null,
+    "account_holder_name": "Tech Ventures LLC",
+    "status": "active",
+    "status_display": "Active",
+    "is_primary": true,
+    "created_at": "2025-01-10T09:15:00Z",
+    "updated_at": "2025-01-10T09:15:00Z"
+  }
+}
+```
+
+#### Update Bank Account
+
+```http
+PATCH /api/syndicate/settings/bank-details/account/<account_id>/
+```
+
+**Request Body:**
+```json
+{
+  "status": "inactive",
+  "is_primary": false
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Bank account updated successfully",
+  "data": {
+    "id": 1,
+    "bank_name": "ICICI Bank",
+    "account_type": "checking",
+    "account_type_display": "Checking",
+    "account_number": "XXXX-XXXX-XXXX-9025",
+    "routing_number": "021000021",
+    "swift_code": "ICICINBB",
+    "iban": null,
+    "account_holder_name": "Tech Ventures LLC",
+    "status": "inactive",
+    "status_display": "Inactive",
+    "is_primary": false,
+    "created_at": "2025-01-10T09:15:00Z",
+    "updated_at": "2025-01-20T16:30:00Z"
+  }
+}
+```
+
+#### Delete Bank Account
+
+```http
+DELETE /api/syndicate/settings/bank-details/account/<account_id>/
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Bank account deleted successfully"
 }
 ```
 
@@ -522,11 +1047,11 @@ Based on Figma screens, here's the navigation structure:
 | **35 - KYB Verification** | `/settings/kyb-verification/` | GET, PATCH | Company legal name, full name, position, documents |
 | **37 - Compliance** | `/settings/compliance/` | GET, PATCH | Upload compliance documents, view status |
 | Compliance & Accreditation | `/settings/compliance/` | GET, PATCH | Risk attestations, compliance docs |
-| Jurisdictional Settings | `/settings/jurisdictional/` | GET | Geography compliance settings |
-| Portfolio Company Outreach | `/settings/portfolio/` | GET | Sectors, LP network access |
-| Notifications & Communication | `/settings/notifications/` | GET | Email/SMS preferences, 2FA |
-| Fee Recipient Setup | `/settings/fee-recipient/` | GET | Payment recipient configuration |
-| Bank Details | `/settings/bank-details/` | GET | Bank account information |
+| Jurisdictional Settings | `/settings/jurisdictional/` | GET, PATCH | Geography compliance settings |
+| Portfolio Company Outreach | `/settings/portfolio/` | GET, PATCH | Sectors, LP network access |
+| Notifications & Communication | `/settings/notifications/` | GET, PATCH | Email/SMS preferences, 2FA |
+| Fee Recipient Setup | `/settings/fee-recipient/` | GET, POST, PATCH, DELETE | Payment recipient configuration |
+| **45 - Bank Details** | `/settings/bank-details/` | GET, POST, PATCH, DELETE | Credit cards and bank accounts |
 
 ---
 

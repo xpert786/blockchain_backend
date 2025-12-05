@@ -10,6 +10,7 @@ from . import syndicate_views
 from . import syndicate_settings_views
 from . import team_management_views
 from . import compliance_views
+from .views import GoogleLoginWithRoleView
 
 # Create router for ViewSets
 router = DefaultRouter()
@@ -107,6 +108,7 @@ urlpatterns = [
     
     # CORS preflight handler
     path('cors-preflight/', cors_views.cors_preflight, name='cors-preflight'),
+    path('auth/google/', GoogleLoginWithRoleView.as_view(), name='google_login'),
     
     # Include router URLs for ViewSets
     path('', include(router.urls)),

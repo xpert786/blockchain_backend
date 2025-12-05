@@ -28,6 +28,7 @@ class InvestorProfileSerializer(serializers.ModelSerializer):
             'email_address',
             'phone_number',
             'country_of_residence',
+            'national_id',
             # Step 2: KYC / Identity Verification
             'government_id',
             'date_of_birth',
@@ -85,6 +86,7 @@ class InvestorProfileCreateSerializer(serializers.ModelSerializer):
             'email_address',
             'phone_number',
             'country_of_residence',
+            'national_id',
         ]
     
     def create(self, validated_data):
@@ -108,6 +110,7 @@ class InvestorProfileStep1Serializer(serializers.ModelSerializer):
             'email_address',
             'phone_number',
             'country_of_residence',
+            'national_id',
         ]
     
     def validate(self, data):

@@ -17,6 +17,8 @@ class InvestorProfileAdmin(admin.ModelAdmin):
         'is_accredited_investor',
         'application_status',
         'current_step',
+        'two_factor_authentication_enabled',
+        'preferred_investment_currency',
         'created_at',
         'submitted_at'
     ]
@@ -26,6 +28,11 @@ class InvestorProfileAdmin(admin.ModelAdmin):
         'is_accredited_investor',
         'meets_local_investment_thresholds',
         'country_of_residence',
+        'preferred_investment_currency',
+        'two_factor_authentication_enabled',
+        'us_person_status',
+        'delaware_spvs_allowed',
+        'bvi_spvs_allowed',
         'created_at',
         'submitted_at'
     ]
@@ -34,9 +41,13 @@ class InvestorProfileAdmin(admin.ModelAdmin):
         'user__username',
         'user__email',
         'full_name',
+        'full_legal_name',
         'email_address',
         'phone_number',
-        'country_of_residence'
+        'country_of_residence',
+        'national_id',
+        'tax_identification_number',
+        'escrow_partner_selection'
     ]
     
     readonly_fields = [
@@ -62,6 +73,7 @@ class InvestorProfileAdmin(admin.ModelAdmin):
                 'email_address',
                 'phone_number',
                 'country_of_residence',
+                'national_id',
             )
         }),
         ('Step 2: KYC / Identity Verification', {
@@ -93,6 +105,7 @@ class InvestorProfileAdmin(admin.ModelAdmin):
                 'proof_of_income_net_worth',
                 'is_accredited_investor',
                 'meets_local_investment_thresholds',
+                'accreditation_expiry_date',
             )
         }),
         ('Step 5: Accept Agreements', {
@@ -109,6 +122,63 @@ class InvestorProfileAdmin(admin.ModelAdmin):
                 'application_submitted',
                 'submitted_at',
             )
+        }),
+        ('Tax & Compliance Settings', {
+            'fields': (
+                'tax_identification_number',
+                'us_person_status',
+                'w9_form_submitted',
+                'k1_acceptance',
+                'tax_reporting_consent',
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Eligibility Settings', {
+            'fields': (
+                'delaware_spvs_allowed',
+                'bvi_spvs_allowed',
+                'auto_reroute_consent',
+                'max_annual_commitment',
+                'deal_stage_preferences',
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Financial Settings', {
+            'fields': (
+                'preferred_investment_currency',
+                'escrow_partner_selection',
+                'capital_call_notification_preferences',
+                'carry_fees_display_preference',
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Portfolio Settings', {
+            'fields': (
+                'portfolio_view_settings',
+                'secondary_transfer_consent',
+                'liquidity_preference',
+                'whitelist_secondary_trading',
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Security & Privacy Settings', {
+            'fields': (
+                'two_factor_authentication_enabled',
+                'session_timeout_minutes',
+                'soft_wall_deal_preview',
+                'discovery_opt_in',
+                'anonymity_preference',
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Communication Settings', {
+            'fields': (
+                'preferred_contact_method',
+                'update_frequency',
+                'event_alerts',
+                'marketing_consent',
+            ),
+            'classes': ('collapse',)
         }),
         ('Progress Tracking', {
             'fields': (
@@ -139,6 +209,7 @@ class InvestorProfileAdmin(admin.ModelAdmin):
                 'email_address',
                 'phone_number',
                 'country_of_residence',
+                'national_id',
                 'government_id',
                 'date_of_birth',
                 'street_address',

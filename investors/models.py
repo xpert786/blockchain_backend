@@ -97,6 +97,7 @@ class InvestorProfile(models.Model):
     email_address = models.EmailField(blank=True, null=True, help_text="Email Address")
     phone_number = models.CharField(max_length=20, blank=True, null=True, help_text="Phone Number")
     country_of_residence = models.CharField(max_length=100, default='United States', blank=True, null=True, help_text="Country of Residence")
+    national_id = models.CharField(max_length=100, blank=True, null=True, help_text="National ID")
     
     # Step 2: KYC / Identity Verification
     government_id = models.FileField(upload_to=investor_upload_path, blank=True, null=True, help_text="Upload Government-Issued ID")
@@ -147,6 +148,92 @@ class InvestorProfile(models.Model):
     )
     application_submitted = models.BooleanField(default=False)
     submitted_at = models.DateTimeField(blank=True, null=True)
+    
+    # ============================================
+    # INVESTOR SETTINGS FIELDS
+    # ============================================
+    
+    # Tax & Compliance Settings
+    tax_identification_number = models.CharField(max_length=50, blank=True, null=True, help_text="Tax Identification Number (TIN/SSN)")
+    us_person_status = models.BooleanField(default=False, help_text="U.S. Person Status for tax reporting purposes")
+    w9_form_submitted = models.BooleanField(default=False, help_text="W-9 Form Submitted")
+    k1_acceptance = models.BooleanField(default=True, help_text="Accept K-1 tax documents")
+    tax_reporting_consent = models.BooleanField(default=True, help_text="Receive tax documents electronically")
+    accreditation_expiry_date = models.DateField(blank=True, null=True, help_text="Accreditation Expiry/Review Date")
+    
+    # Eligibility Settings
+    delaware_spvs_allowed = models.BooleanField(default=True, help_text="Allow investment in Delaware entities")
+    bvi_spvs_allowed = models.BooleanField(default=False, help_text="Allow investment in British Virgin Islands entities")
+    auto_reroute_consent = models.BooleanField(default=True, help_text="Offer alternative jurisdiction if ineligible")
+    max_annual_commitment = models.DecimalField(max_digits=15, decimal_places=2, blank=True, null=True, help_text="Self-imposed annual investment limit")
+    deal_stage_preferences = models.JSONField(default=list, blank=True, help_text="Deal stage preferences: ['early_stage', 'growth', 'late_stage']")
+    
+    # Financial Settings
+    CURRENCY_CHOICES = [
+        ('USD', 'USD (US Dollar)'),
+        ('EUR', 'EUR (Euro)'),
+        ('GBP', 'GBP (British Pound)'),
+        ('JPY', 'JPY (Japanese Yen)'),
+        ('CAD', 'CAD (Canadian Dollar)'),
+    ]
+    preferred_investment_currency = models.CharField(max_length=10, choices=CURRENCY_CHOICES, default='USD', help_text="Preferred Investment Currency")
+    escrow_partner_selection = models.CharField(max_length=255, blank=True, null=True, help_text="Escrow Partner Selection (e.g., Silicon Valley Bank)")
+    capital_call_notification_preferences = models.JSONField(default=dict, blank=True, help_text="Capital Call Notification Preferences: {'email': bool, 'sms': bool, 'in_app': bool}")
+    CARRY_FEES_DISPLAY_CHOICES = [
+        ('detailed_breakdown', 'Detailed Breakdown'),
+        ('summary', 'Summary'),
+        ('hidden', 'Hidden'),
+    ]
+    carry_fees_display_preference = models.CharField(max_length=20, choices=CARRY_FEES_DISPLAY_CHOICES, default='detailed_breakdown', help_text="Carry/Fees Display Preference")
+    
+    # Portfolio Settings
+    PORTFOLIO_VIEW_CHOICES = [
+        ('deal_by_deal', 'Deal-by-Deal'),
+        ('aggregated', 'Aggregated'),
+        ('performance', 'Performance View'),
+    ]
+    portfolio_view_settings = models.CharField(max_length=20, choices=PORTFOLIO_VIEW_CHOICES, default='deal_by_deal', help_text="Portfolio View Settings")
+    secondary_transfer_consent = models.BooleanField(default=True, help_text="Allow listing holdings for resale")
+    LIQUIDITY_PREFERENCE_CHOICES = [
+        ('long_term', 'Long-term Holdings'),
+        ('medium_term', 'Medium-term Holdings'),
+        ('short_term', 'Short-term Holdings'),
+        ('flexible', 'Flexible'),
+    ]
+    liquidity_preference = models.CharField(max_length=20, choices=LIQUIDITY_PREFERENCE_CHOICES, default='long_term', help_text="Liquidity Preference")
+    whitelist_secondary_trading = models.BooleanField(default=False, help_text="Pre-approved counterparties for secondary trading")
+    
+    # Security & Privacy Settings
+    two_factor_authentication_enabled = models.BooleanField(default=False, help_text="Two-Factor Authentication Enabled")
+    SESSION_TIMEOUT_CHOICES = [
+        (15, '15 minutes'),
+        (30, '30 minutes'),
+        (60, '60 minutes'),
+        (120, '120 minutes'),
+        (240, '240 minutes'),
+    ]
+    session_timeout_minutes = models.IntegerField(choices=SESSION_TIMEOUT_CHOICES, default=30, help_text="Session Timeout (minutes)")
+    soft_wall_deal_preview = models.BooleanField(default=True, help_text="Show teaser info before full KYC")
+    discovery_opt_in = models.BooleanField(default=False, help_text="Allow syndicate leads outside network to invite you")
+    anonymity_preference = models.BooleanField(default=False, help_text="Hide name from other LPs in same SPV")
+    
+    # Communication Settings
+    CONTACT_METHOD_CHOICES = [
+        ('email', 'Email'),
+        ('sms', 'SMS'),
+        ('phone', 'Phone'),
+        ('in_app', 'In App'),
+    ]
+    preferred_contact_method = models.CharField(max_length=20, choices=CONTACT_METHOD_CHOICES, default='email', help_text="Preferred Contact Method")
+    UPDATE_FREQUENCY_CHOICES = [
+        ('real_time', 'Real-time'),
+        ('daily', 'Daily Digest'),
+        ('weekly', 'Weekly Digest'),
+        ('monthly', 'Monthly Digest'),
+    ]
+    update_frequency = models.CharField(max_length=20, choices=UPDATE_FREQUENCY_CHOICES, default='weekly', help_text="Update Frequency")
+    event_alerts = models.JSONField(default=dict, blank=True, help_text="Event Alerts: {'capital_calls': bool, 'secondary_offers': bool, 'portfolio_updates': bool, 'distributions': bool}")
+    marketing_consent = models.BooleanField(default=False, help_text="Product updates and partner offers")
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

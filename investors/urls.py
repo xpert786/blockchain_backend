@@ -18,6 +18,13 @@ from .investor_detail_views import (
     spv_documents,
     investor_identity_settings,
     investor_accreditation_settings,
+    investor_tax_compliance_settings,
+    investor_eligibility_settings,
+    investor_financial_settings,
+    investor_portfolio_settings,
+    investor_security_privacy_settings,
+    investor_change_password,
+    investor_communication_settings,
 )
 
 # Create a router and register our viewsets
@@ -31,6 +38,14 @@ router.register(r'notifications', NotificationViewSet, basename='notification')
 urlpatterns = [
     # Investor Settings - Must come first to avoid router conflicts
     path('settings/identity/', investor_identity_settings, name='investor-identity-settings'),
+    path('settings/accreditation/', investor_accreditation_settings, name='investor-accreditation-settings'),
+    path('settings/tax-compliance/', investor_tax_compliance_settings, name='investor-tax-compliance-settings'),
+    path('settings/eligibility/', investor_eligibility_settings, name='investor-eligibility-settings'),
+    path('settings/financial/', investor_financial_settings, name='investor-financial-settings'),
+    path('settings/portfolio/', investor_portfolio_settings, name='investor-portfolio-settings'),
+    path('settings/security-privacy/', investor_security_privacy_settings, name='investor-security-privacy-settings'),
+    path('settings/change-password/', investor_change_password, name='investor-change-password'),
+    path('settings/communication/', investor_communication_settings, name='investor-communication-settings'),
     
     # Investor Detail Endpoints - Must come before router patterns to avoid conflicts
     path('investor/<int:investor_id>/', investor_detail, name='investor-detail'),

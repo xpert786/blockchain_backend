@@ -565,3 +565,39 @@ def get_registration_status(request):
         'current_step': current_step,
         'user_data': CustomUserSerializer(user).data
     }, status=status.HTTP_200_OK)
+
+##############=====================Google Login With Role=====================
+from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from allauth.socialaccount.providers.oauth2.client import OAuth2Client
+from dj_rest_auth.registration.views import SocialLoginView
+from rest_framework.permissions import AllowAny
+
+
+class GoogleLoginWithRoleView(SocialLoginView):
+    adapter_class = GoogleOAuth2Adapter
+    client_class = OAuth2Client
+    permission_classes = (AllowAny,)
+    authentication_classes = []
+    callback_url = "http://localhost:3000"  
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        
+        if response.status_code != 200:
+            return response
+
+        user = self.user 
+        
+        requested_role = request.data.get('role')
+
+        if not user.role and requested_role:
+            
+            allowed_roles = ['investor', 'syndicate']
+            
+            if requested_role in allowed_roles:
+                user.role = requested_role
+                user.save()
+            else:
+                pass 
+
+        return response
