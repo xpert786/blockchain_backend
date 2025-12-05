@@ -11,11 +11,13 @@ from rest_framework.response import Response
 from django.utils import timezone
 
 from investors.models import InvestorProfile
-from investors.dashboard_models import Investment
+from investors.dashboard_models import Investment, KYCStatus
 from spv.models import SPV
-from users.models import TeamMember
+from users.models import TeamMember, CustomUser
 from documents.models import Document
 from django.db.models import Sum, Count
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 
 
 def _safe_decimal(value):
@@ -906,7 +908,7 @@ def investor_identity_settings(request):
                 'full_legal_name': investor_profile.full_legal_name or investor_profile.full_name or '',
                 'country_of_residence': investor_profile.country_of_residence or '',
                 'tax_domicile': investor_profile.country_of_residence or '',  # Using same as residence for now
-                'national_id_passport': '',  # Can be extracted from government_id filename if needed
+                'national_id': investor_profile.national_id or '',
                 'date_of_birth': dob_formatted or '',
                 'date_of_birth_raw': str(investor_profile.date_of_birth) if investor_profile.date_of_birth else None,
                 'full_address': full_address or '',
@@ -984,9 +986,9 @@ def investor_identity_settings(request):
             if not investor_profile.country_of_residence:
                 investor_profile.country_of_residence = data['tax_domicile']
         
-        # National ID/Passport (can be stored in a note or separate field)
-        # For now, we'll just acknowledge it's provided
-        national_id_provided = 'national_id_passport' in data and data['national_id_passport']
+        # National ID/Passport
+        if 'national_id' in data:
+            investor_profile.national_id = data['national_id']
         
         investor_profile.save()
         
@@ -1012,7 +1014,7 @@ def investor_identity_settings(request):
                 'full_legal_name': investor_profile.full_legal_name or investor_profile.full_name or '',
                 'country_of_residence': investor_profile.country_of_residence or '',
                 'tax_domicile': investor_profile.country_of_residence or '',
-                'national_id_passport': 'Provided' if national_id_provided else '',
+                'national_id': investor_profile.national_id or '',
                 'date_of_birth': dob_formatted or '',
                 'date_of_birth_raw': str(investor_profile.date_of_birth) if investor_profile.date_of_birth else None,
                 'full_address': full_address or '',
@@ -1088,11 +1090,13 @@ def investor_accreditation_settings(request):
         net_worth_statement_uploaded = bool(investor_profile.proof_of_income_net_worth)
         professional_license_uploaded = investor_profile.accreditation_method == 'series_7_65_82'
         
-        # Format expiry date (default to 1 year from now if accredited, or None)
-        expiry_date = None
+        # Format expiry date from model field or default
+        expiry_date = investor_profile.accreditation_expiry_date
         expiry_date_formatted = None
-        if investor_profile.is_accredited_investor:
-            # Default to 1 year from submission or current date
+        if expiry_date:
+            expiry_date_formatted = expiry_date.strftime('%m/%d/%Y')
+        elif investor_profile.is_accredited_investor:
+            # Default to 1 year from submission or current date if not set
             from datetime import timedelta
             if investor_profile.submitted_at:
                 expiry_date = (investor_profile.submitted_at + timedelta(days=365)).date()
@@ -1158,21 +1162,25 @@ def investor_accreditation_settings(request):
         if 'meets_local_investment_thresholds' in data:
             investor_profile.meets_local_investment_thresholds = bool(data['meets_local_investment_thresholds'])
         
-        # Handle expiry date (can be stored in a note or metadata)
+        # Handle expiry date
         if 'accreditation_expiry_date' in data:
-            # Store expiry date - for now we'll note it, can be enhanced with a dedicated field
             expiry_date_str = data['accreditation_expiry_date']
             try:
                 from datetime import datetime
-                for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d-%m-%Y']:
+                for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d-%m-%Y', '%d/%m/%Y']:
                     try:
-                        expiry_date = datetime.strptime(expiry_date_str, fmt).date()
-                        # Could store in a JSON field or note
+                        investor_profile.accreditation_expiry_date = datetime.strptime(expiry_date_str, fmt).date()
                         break
                     except ValueError:
                         continue
-            except Exception:
-                pass
+                else:
+                    return Response({
+                        'error': 'Invalid date format. Use YYYY-MM-DD, MM/DD/YYYY, or DD-MM-YYYY'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response({
+                    'error': f'Invalid accreditation expiry date: {str(e)}'
+                }, status=status.HTTP_400_BAD_REQUEST)
         
         investor_profile.save()
         
@@ -1199,9 +1207,11 @@ def investor_accreditation_settings(request):
         net_worth_statement_uploaded = bool(investor_profile.proof_of_income_net_worth)
         professional_license_uploaded = investor_profile.accreditation_method == 'series_7_65_82'
         
-        expiry_date = None
+        expiry_date = investor_profile.accreditation_expiry_date
         expiry_date_formatted = None
-        if investor_profile.is_accredited_investor:
+        if expiry_date:
+            expiry_date_formatted = expiry_date.strftime('%m/%d/%Y')
+        elif investor_profile.is_accredited_investor:
             from datetime import timedelta
             if investor_profile.submitted_at:
                 expiry_date = (investor_profile.submitted_at + timedelta(days=365)).date()
@@ -1241,6 +1251,869 @@ def investor_accreditation_settings(request):
                     'name': 'Professional License',
                     'uploaded': professional_license_uploaded,
                     'status': 'Uploaded' if professional_license_uploaded else 'Not Uploaded',
+                },
+            },
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'PUT', 'PATCH'])
+@permission_classes([permissions.IsAuthenticated])
+def investor_tax_compliance_settings(request):
+    """
+    Get or update investor tax and compliance settings
+    
+    GET /api/investors/settings/tax-compliance/ - Get current tax and compliance information
+    PUT /api/investors/settings/tax-compliance/ - Update tax and compliance information
+    
+    PUT/PATCH Payload:
+    {
+        "tax_identification_number": "123-45-6789",
+        "us_person_status": true,
+        "w9_form_submitted": true,
+        "k1_acceptance": true,
+        "tax_reporting_consent": true
+    }
+    """
+    user = request.user
+    
+    # Get or create investor profile
+    try:
+        investor_profile = InvestorProfile.objects.get(user=user)
+    except InvestorProfile.DoesNotExist:
+        return Response({
+            'error': 'Investor profile not found. Please complete onboarding first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Get KYC status for AML/KYC status
+    try:
+        kyc_status = KYCStatus.objects.get(user=user)
+        aml_kyc_status = kyc_status.status
+    except KYCStatus.DoesNotExist:
+        aml_kyc_status = 'not_started'
+    
+    if request.method == 'GET':
+        # Get tax identification number from model field
+        tax_id = investor_profile.tax_identification_number or ''
+        
+        # Get US Person Status from model field
+        us_person_status = investor_profile.us_person_status
+        
+        # Get W-9 Form Submitted from model field
+        w9_submitted = investor_profile.w9_form_submitted
+        
+        # Get K-1 Acceptance and Tax Reporting Consent from model fields
+        k1_acceptance = investor_profile.k1_acceptance
+        tax_reporting_consent = investor_profile.tax_reporting_consent
+        
+        # Map AML/KYC status
+        aml_kyc_status_map = {
+            'verified': 'passed',
+            'approved': 'passed',
+            'pending': 'pending',
+            'in_review': 'pending',
+            'rejected': 'failed',
+            'not_started': 'pending',
+        }
+        aml_kyc_display = aml_kyc_status_map.get(aml_kyc_status, 'pending')
+        
+        response_data = {
+            'success': True,
+            'tax_compliance': {
+                'tax_identification_number': tax_id,
+                'us_person_status': us_person_status,
+                'us_person_status_label': 'U.S. Person' if us_person_status else 'Non-U.S. Person',
+                'w9_form_submitted': w9_submitted,
+                'w9_form_submitted_label': 'Submitted' if w9_submitted else 'Not Submitted',
+                'k1_acceptance': k1_acceptance,
+                'k1_acceptance_label': 'Accepted' if k1_acceptance else 'Not Accepted',
+                'tax_reporting_consent': tax_reporting_consent,
+                'tax_reporting_consent_label': 'Consented' if tax_reporting_consent else 'Not Consented',
+            },
+            'aml_kyc': {
+                'status': aml_kyc_display,
+                'status_label': 'Passed' if aml_kyc_display == 'passed' else 'Pending' if aml_kyc_display == 'pending' else 'Failed',
+                'message': 'Anti-money laundering verification',
+            },
+        }
+        
+        return Response(response_data)
+    
+    elif request.method in ['PUT', 'PATCH']:
+        # Update tax and compliance information
+        data = request.data
+        
+        # Update tax identification number
+        if 'tax_identification_number' in data:
+            investor_profile.tax_identification_number = data['tax_identification_number']
+        
+        # Update US Person Status
+        if 'us_person_status' in data:
+            investor_profile.us_person_status = bool(data['us_person_status'])
+        
+        # Update W-9 Form Submitted
+        if 'w9_form_submitted' in data:
+            investor_profile.w9_form_submitted = bool(data['w9_form_submitted'])
+        
+        # Update K-1 Acceptance
+        if 'k1_acceptance' in data:
+            investor_profile.k1_acceptance = bool(data['k1_acceptance'])
+        
+        # Update Tax Reporting Consent
+        if 'tax_reporting_consent' in data:
+            investor_profile.tax_reporting_consent = bool(data['tax_reporting_consent'])
+        
+        investor_profile.save()
+        
+        # Get updated values
+        tax_id = investor_profile.tax_identification_number or ''
+        us_person_status = investor_profile.us_person_status
+        w9_submitted = investor_profile.w9_form_submitted
+        k1_acceptance = investor_profile.k1_acceptance
+        tax_reporting_consent = investor_profile.tax_reporting_consent
+        
+        # Get updated KYC status
+        try:
+            kyc_status = KYCStatus.objects.get(user=user)
+            aml_kyc_status = kyc_status.status
+        except KYCStatus.DoesNotExist:
+            aml_kyc_status = 'not_started'
+        
+        aml_kyc_status_map = {
+            'verified': 'passed',
+            'approved': 'passed',
+            'pending': 'pending',
+            'in_review': 'pending',
+            'rejected': 'failed',
+            'not_started': 'pending',
+        }
+        aml_kyc_display = aml_kyc_status_map.get(aml_kyc_status, 'pending')
+        
+        response_data = {
+            'success': True,
+            'message': 'Tax & Compliance settings updated successfully',
+            'tax_compliance': {
+                'tax_identification_number': tax_id,
+                'us_person_status': us_person_status,
+                'us_person_status_label': 'U.S. Person' if us_person_status else 'Non-U.S. Person',
+                'w9_form_submitted': w9_submitted,
+                'w9_form_submitted_label': 'Submitted' if w9_submitted else 'Not Submitted',
+                'k1_acceptance': k1_acceptance,
+                'k1_acceptance_label': 'Accepted' if k1_acceptance else 'Not Accepted',
+                'tax_reporting_consent': tax_reporting_consent,
+                'tax_reporting_consent_label': 'Consented' if tax_reporting_consent else 'Not Consented',
+            },
+            'aml_kyc': {
+                'status': aml_kyc_display,
+                'status_label': 'Passed' if aml_kyc_display == 'passed' else 'Pending' if aml_kyc_display == 'pending' else 'Failed',
+                'message': 'Anti-money laundering verification',
+            },
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'PUT', 'PATCH'])
+@permission_classes([permissions.IsAuthenticated])
+def investor_eligibility_settings(request):
+    """
+    Get or update investor eligibility settings
+    
+    GET /api/investors/settings/eligibility/ - Get current eligibility information
+    PUT /api/investors/settings/eligibility/ - Update eligibility information
+    
+    PUT/PATCH Payload:
+    {
+        "delaware_spvs_allowed": true,
+        "bvi_spvs_allowed": false,
+        "auto_reroute_consent": true,
+        "max_annual_commitment": 500000,
+        "deal_stage_preferences": ["early_stage", "growth", "late_stage"]
+    }
+    """
+    user = request.user
+    
+    try:
+        investor_profile = InvestorProfile.objects.get(user=user)
+    except InvestorProfile.DoesNotExist:
+        return Response({
+            'error': 'Investor profile not found. Please complete onboarding first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    if request.method == 'GET':
+        response_data = {
+            'success': True,
+            'eligibility': {
+                'jurisdiction_preferences': {
+                    'delaware_spvs': {
+                        'allowed': investor_profile.delaware_spvs_allowed,
+                        'description': 'Allow investment in Delaware entities',
+                    },
+                    'bvi_spvs': {
+                        'allowed': investor_profile.bvi_spvs_allowed,
+                        'description': 'Allow investment in British Virgin Islands entities',
+                    },
+                    'auto_reroute_consent': {
+                        'enabled': investor_profile.auto_reroute_consent,
+                        'description': 'Offer alternative jurisdiction if ineligible',
+                    },
+                },
+                'max_annual_commitment': float(investor_profile.max_annual_commitment) if investor_profile.max_annual_commitment else None,
+                'max_annual_commitment_formatted': f'${investor_profile.max_annual_commitment:,.0f}' if investor_profile.max_annual_commitment else None,
+                'deal_stage_preferences': investor_profile.deal_stage_preferences or [],
+            },
+        }
+        
+        return Response(response_data)
+    
+    elif request.method in ['PUT', 'PATCH']:
+        data = request.data
+        
+        if 'delaware_spvs_allowed' in data:
+            investor_profile.delaware_spvs_allowed = bool(data['delaware_spvs_allowed'])
+        if 'bvi_spvs_allowed' in data:
+            investor_profile.bvi_spvs_allowed = bool(data['bvi_spvs_allowed'])
+        if 'auto_reroute_consent' in data:
+            investor_profile.auto_reroute_consent = bool(data['auto_reroute_consent'])
+        if 'max_annual_commitment' in data:
+            investor_profile.max_annual_commitment = data['max_annual_commitment']
+        if 'deal_stage_preferences' in data:
+            investor_profile.deal_stage_preferences = data['deal_stage_preferences']
+        
+        investor_profile.save()
+        
+        response_data = {
+            'success': True,
+            'message': 'Eligibility rules updated successfully',
+            'eligibility': {
+                'jurisdiction_preferences': {
+                    'delaware_spvs': {
+                        'allowed': investor_profile.delaware_spvs_allowed,
+                        'description': 'Allow investment in Delaware entities',
+                    },
+                    'bvi_spvs': {
+                        'allowed': investor_profile.bvi_spvs_allowed,
+                        'description': 'Allow investment in British Virgin Islands entities',
+                    },
+                    'auto_reroute_consent': {
+                        'enabled': investor_profile.auto_reroute_consent,
+                        'description': 'Offer alternative jurisdiction if ineligible',
+                    },
+                },
+                'max_annual_commitment': float(investor_profile.max_annual_commitment) if investor_profile.max_annual_commitment else None,
+                'max_annual_commitment_formatted': f'${investor_profile.max_annual_commitment:,.0f}' if investor_profile.max_annual_commitment else None,
+                'deal_stage_preferences': investor_profile.deal_stage_preferences or [],
+            },
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'PUT', 'PATCH'])
+@permission_classes([permissions.IsAuthenticated])
+def investor_financial_settings(request):
+    """
+    Get or update investor financial settings
+    
+    GET /api/investors/settings/financial/ - Get current financial information
+    PUT /api/investors/settings/financial/ - Update financial information
+    
+    PUT/PATCH Payload:
+    {
+        "preferred_investment_currency": "USD",
+        "escrow_partner_selection": "Silicon Valley Bank",
+        "capital_call_notification_preferences": {
+            "email": false,
+            "sms": true,
+            "in_app": false
+        },
+        "carry_fees_display_preference": "detailed_breakdown"
+    }
+    """
+    user = request.user
+    
+    try:
+        investor_profile = InvestorProfile.objects.get(user=user)
+    except InvestorProfile.DoesNotExist:
+        return Response({
+            'error': 'Investor profile not found. Please complete onboarding first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    if request.method == 'GET':
+        # Count linked bank accounts (from bank details)
+        linked_bank_accounts_count = 0
+        if investor_profile.bank_account_number:
+            linked_bank_accounts_count = 1  # Can be enhanced to count multiple accounts
+        
+        response_data = {
+            'success': True,
+            'financial': {
+                'preferred_investment_currency': investor_profile.preferred_investment_currency,
+                'preferred_investment_currency_display': investor_profile.get_preferred_investment_currency_display(),
+                'currency_choices': [{'value': choice[0], 'label': choice[1]} for choice in InvestorProfile.CURRENCY_CHOICES],
+                'linked_bank_accounts': {
+                    'count': linked_bank_accounts_count,
+                    'description': 'For wires and distributions',
+                },
+                'escrow_partner_selection': investor_profile.escrow_partner_selection or '',
+                'capital_call_notification_preferences': investor_profile.capital_call_notification_preferences or {
+                    'email': False,
+                    'sms': True,
+                    'in_app': False,
+                },
+                'carry_fees_display_preference': investor_profile.carry_fees_display_preference,
+                'carry_fees_display_preference_display': investor_profile.get_carry_fees_display_preference_display(),
+                'carry_fees_choices': [{'value': choice[0], 'label': choice[1]} for choice in InvestorProfile.CARRY_FEES_DISPLAY_CHOICES],
+            },
+        }
+        
+        return Response(response_data)
+    
+    elif request.method in ['PUT', 'PATCH']:
+        data = request.data
+        
+        # Validate preferred_investment_currency
+        if 'preferred_investment_currency' in data:
+            currency = data['preferred_investment_currency']
+            valid_currencies = [choice[0] for choice in InvestorProfile.CURRENCY_CHOICES]
+            if currency not in valid_currencies:
+                return Response({
+                    'error': f'Invalid currency. Must be one of: {", ".join(valid_currencies)}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            investor_profile.preferred_investment_currency = currency
+        
+        # Validate escrow_partner_selection
+        if 'escrow_partner_selection' in data:
+            investor_profile.escrow_partner_selection = data['escrow_partner_selection']
+        
+        # Validate capital_call_notification_preferences
+        if 'capital_call_notification_preferences' in data:
+            prefs = data['capital_call_notification_preferences']
+            if not isinstance(prefs, dict):
+                return Response({
+                    'error': 'capital_call_notification_preferences must be a dictionary with email, sms, and in_app keys'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            # Ensure all keys exist
+            default_prefs = {
+                'email': prefs.get('email', False),
+                'sms': prefs.get('sms', True),
+                'in_app': prefs.get('in_app', False),
+            }
+            investor_profile.capital_call_notification_preferences = default_prefs
+        
+        # Validate carry_fees_display_preference
+        if 'carry_fees_display_preference' in data:
+            preference = data['carry_fees_display_preference']
+            valid_preferences = [choice[0] for choice in InvestorProfile.CARRY_FEES_DISPLAY_CHOICES]
+            if preference not in valid_preferences:
+                return Response({
+                    'error': f'Invalid carry/fees display preference. Must be one of: {", ".join(valid_preferences)}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            investor_profile.carry_fees_display_preference = preference
+        
+        investor_profile.save()
+        
+        linked_bank_accounts_count = 0
+        if investor_profile.bank_account_number:
+            linked_bank_accounts_count = 1
+        
+        response_data = {
+            'success': True,
+            'message': 'Financial settings updated successfully',
+            'financial': {
+                'preferred_investment_currency': investor_profile.preferred_investment_currency,
+                'preferred_investment_currency_display': investor_profile.get_preferred_investment_currency_display(),
+                'currency_choices': [{'value': choice[0], 'label': choice[1]} for choice in InvestorProfile.CURRENCY_CHOICES],
+                'linked_bank_accounts': {
+                    'count': linked_bank_accounts_count,
+                    'description': 'For wires and distributions',
+                },
+                'escrow_partner_selection': investor_profile.escrow_partner_selection or '',
+                'capital_call_notification_preferences': investor_profile.capital_call_notification_preferences or {
+                    'email': False,
+                    'sms': True,
+                    'in_app': False,
+                },
+                'carry_fees_display_preference': investor_profile.carry_fees_display_preference,
+                'carry_fees_display_preference_display': investor_profile.get_carry_fees_display_preference_display(),
+                'carry_fees_choices': [{'value': choice[0], 'label': choice[1]} for choice in InvestorProfile.CARRY_FEES_DISPLAY_CHOICES],
+            },
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'PUT', 'PATCH'])
+@permission_classes([permissions.IsAuthenticated])
+def investor_portfolio_settings(request):
+    """
+    Get or update investor portfolio settings
+    
+    GET /api/investors/settings/portfolio/ - Get current portfolio settings
+    PUT /api/investors/settings/portfolio/ - Update portfolio settings
+    
+    PUT/PATCH Payload:
+    {
+        "portfolio_view_settings": "deal_by_deal",
+        "secondary_transfer_consent": true,
+        "liquidity_preference": "long_term",
+        "whitelist_secondary_trading": false
+    }
+    """
+    user = request.user
+    
+    try:
+        investor_profile = InvestorProfile.objects.get(user=user)
+    except InvestorProfile.DoesNotExist:
+        return Response({
+            'error': 'Investor profile not found. Please complete onboarding first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    if request.method == 'GET':
+        response_data = {
+            'success': True,
+            'portfolio': {
+                'portfolio_view_settings': investor_profile.portfolio_view_settings,
+                'portfolio_view_settings_display': investor_profile.get_portfolio_view_settings_display(),
+                'portfolio_view_choices': [{'value': choice[0], 'label': choice[1]} for choice in InvestorProfile.PORTFOLIO_VIEW_CHOICES],
+                'secondary_transfer_consent': {
+                    'enabled': investor_profile.secondary_transfer_consent,
+                    'description': 'Allow listing holdings for resale',
+                },
+                'liquidity_preference': investor_profile.liquidity_preference,
+                'liquidity_preference_display': investor_profile.get_liquidity_preference_display(),
+                'liquidity_preference_choices': [{'value': choice[0], 'label': choice[1]} for choice in InvestorProfile.LIQUIDITY_PREFERENCE_CHOICES],
+                'whitelist_secondary_trading': {
+                    'enabled': investor_profile.whitelist_secondary_trading,
+                    'description': 'Pre-approved counterparties',
+                },
+            },
+        }
+        
+        return Response(response_data)
+    
+    elif request.method in ['PUT', 'PATCH']:
+        data = request.data
+        
+        # Validate portfolio_view_settings
+        if 'portfolio_view_settings' in data:
+            view_setting = data['portfolio_view_settings']
+            valid_settings = [choice[0] for choice in InvestorProfile.PORTFOLIO_VIEW_CHOICES]
+            if view_setting not in valid_settings:
+                return Response({
+                    'error': f'Invalid portfolio view setting. Must be one of: {", ".join(valid_settings)}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            investor_profile.portfolio_view_settings = view_setting
+        
+        # Validate secondary_transfer_consent
+        if 'secondary_transfer_consent' in data:
+            investor_profile.secondary_transfer_consent = bool(data['secondary_transfer_consent'])
+        
+        # Validate liquidity_preference
+        if 'liquidity_preference' in data:
+            preference = data['liquidity_preference']
+            valid_preferences = [choice[0] for choice in InvestorProfile.LIQUIDITY_PREFERENCE_CHOICES]
+            if preference not in valid_preferences:
+                return Response({
+                    'error': f'Invalid liquidity preference. Must be one of: {", ".join(valid_preferences)}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            investor_profile.liquidity_preference = preference
+        
+        # Validate whitelist_secondary_trading
+        if 'whitelist_secondary_trading' in data:
+            investor_profile.whitelist_secondary_trading = bool(data['whitelist_secondary_trading'])
+        
+        investor_profile.save()
+        
+        response_data = {
+            'success': True,
+            'message': 'Portfolio settings updated successfully',
+            'portfolio': {
+                'portfolio_view_settings': investor_profile.portfolio_view_settings,
+                'portfolio_view_settings_display': investor_profile.get_portfolio_view_settings_display(),
+                'portfolio_view_choices': [{'value': choice[0], 'label': choice[1]} for choice in InvestorProfile.PORTFOLIO_VIEW_CHOICES],
+                'secondary_transfer_consent': {
+                    'enabled': investor_profile.secondary_transfer_consent,
+                    'description': 'Allow listing holdings for resale',
+                },
+                'liquidity_preference': investor_profile.liquidity_preference,
+                'liquidity_preference_display': investor_profile.get_liquidity_preference_display(),
+                'liquidity_preference_choices': [{'value': choice[0], 'label': choice[1]} for choice in InvestorProfile.LIQUIDITY_PREFERENCE_CHOICES],
+                'whitelist_secondary_trading': {
+                    'enabled': investor_profile.whitelist_secondary_trading,
+                    'description': 'Pre-approved counterparties',
+                },
+            },
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'PUT', 'PATCH'])
+@permission_classes([permissions.IsAuthenticated])
+def investor_security_privacy_settings(request):
+    """
+    Get or update investor security and privacy settings
+    
+    GET /api/investors/settings/security-privacy/ - Get current security and privacy settings
+    PUT /api/investors/settings/security-privacy/ - Update security and privacy settings
+    
+    PUT/PATCH Payload:
+    {
+        "two_factor_authentication_enabled": true,
+        "session_timeout_minutes": 30,
+        "soft_wall_deal_preview": true,
+        "discovery_opt_in": false,
+        "anonymity_preference": false
+    }
+    """
+    user = request.user
+    
+    try:
+        investor_profile = InvestorProfile.objects.get(user=user)
+    except InvestorProfile.DoesNotExist:
+        return Response({
+            'error': 'Investor profile not found. Please complete onboarding first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    if request.method == 'GET':
+        response_data = {
+            'success': True,
+            'security': {
+                'two_factor_authentication': {
+                    'enabled': investor_profile.two_factor_authentication_enabled,
+                    'description': 'Email, SMS, or authenticator app',
+                    'status_message': '2FA Enabled. Two-factor authentication is active on your account.' if investor_profile.two_factor_authentication_enabled else '2FA Disabled',
+                },
+                'session_timeout_minutes': investor_profile.session_timeout_minutes,
+                'session_timeout_display': investor_profile.get_session_timeout_minutes_display(),
+                'session_timeout_choices': [{'value': choice[0], 'label': choice[1]} for choice in InvestorProfile.SESSION_TIMEOUT_CHOICES],
+                'device_management': {
+                    'description': 'View and remove logged-in devices',
+                },
+            },
+            'privacy': {
+                'soft_wall_deal_preview': {
+                    'enabled': investor_profile.soft_wall_deal_preview,
+                    'description': 'Show teaser info before full KYC',
+                },
+                'discovery_opt_in': {
+                    'enabled': investor_profile.discovery_opt_in,
+                    'description': 'Allow syndicate leads outside network to invite you',
+                },
+                'anonymity_preference': {
+                    'enabled': investor_profile.anonymity_preference,
+                    'description': 'Hide name from other LPs in same SPV',
+                },
+            },
+        }
+        
+        return Response(response_data)
+    
+    elif request.method in ['PUT', 'PATCH']:
+        data = request.data
+        
+        if 'two_factor_authentication_enabled' in data:
+            investor_profile.two_factor_authentication_enabled = bool(data['two_factor_authentication_enabled'])
+        # Validate session_timeout_minutes
+        if 'session_timeout_minutes' in data:
+            timeout = data['session_timeout_minutes']
+            valid_timeouts = [choice[0] for choice in InvestorProfile.SESSION_TIMEOUT_CHOICES]
+            if timeout not in valid_timeouts:
+                return Response({
+                    'error': f'Invalid session timeout. Must be one of: {", ".join(map(str, valid_timeouts))} minutes'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            investor_profile.session_timeout_minutes = timeout
+        if 'soft_wall_deal_preview' in data:
+            investor_profile.soft_wall_deal_preview = bool(data['soft_wall_deal_preview'])
+        if 'discovery_opt_in' in data:
+            investor_profile.discovery_opt_in = bool(data['discovery_opt_in'])
+        if 'anonymity_preference' in data:
+            investor_profile.anonymity_preference = bool(data['anonymity_preference'])
+        
+        investor_profile.save()
+        
+        response_data = {
+            'success': True,
+            'message': 'Security & Privacy settings updated successfully',
+            'security': {
+                'two_factor_authentication': {
+                    'enabled': investor_profile.two_factor_authentication_enabled,
+                    'description': 'Email, SMS, or authenticator app',
+                    'status_message': '2FA Enabled. Two-factor authentication is active on your account.' if investor_profile.two_factor_authentication_enabled else '2FA Disabled',
+                },
+                'session_timeout_minutes': investor_profile.session_timeout_minutes,
+                'session_timeout_display': investor_profile.get_session_timeout_minutes_display(),
+                'session_timeout_choices': [{'value': choice[0], 'label': choice[1]} for choice in InvestorProfile.SESSION_TIMEOUT_CHOICES],
+                'device_management': {
+                    'description': 'View and remove logged-in devices',
+                },
+            },
+            'privacy': {
+                'soft_wall_deal_preview': {
+                    'enabled': investor_profile.soft_wall_deal_preview,
+                    'description': 'Show teaser info before full KYC',
+                },
+                'discovery_opt_in': {
+                    'enabled': investor_profile.discovery_opt_in,
+                    'description': 'Allow syndicate leads outside network to invite you',
+                },
+                'anonymity_preference': {
+                    'enabled': investor_profile.anonymity_preference,
+                    'description': 'Hide name from other LPs in same SPV',
+                },
+            },
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def investor_change_password(request):
+    """
+    Change investor password
+    
+    POST /api/investors/settings/change-password/ - Change password
+    
+    POST Payload:
+    {
+        "current_password": "old_password_here",
+        "new_password": "new_password_here",
+        "confirm_password": "new_password_here"
+    }
+    """
+    user = request.user
+    
+    # Get investor profile to ensure user has completed onboarding
+    try:
+        investor_profile = InvestorProfile.objects.get(user=user)
+    except InvestorProfile.DoesNotExist:
+        return Response({
+            'error': 'Investor profile not found. Please complete onboarding first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    data = request.data
+    
+    # Validate required fields
+    current_password = data.get('current_password')
+    new_password = data.get('new_password')
+    confirm_password = data.get('confirm_password')
+    
+    if not current_password:
+        return Response({
+            'error': 'Current password is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    if not new_password:
+        return Response({
+            'error': 'New password is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    if not confirm_password:
+        return Response({
+            'error': 'Password confirmation is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Verify current password
+    if not user.check_password(current_password):
+        return Response({
+            'error': 'Current password is incorrect'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if new password matches confirmation
+    if new_password != confirm_password:
+        return Response({
+            'error': 'New password and confirmation password do not match'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if new password is different from current password
+    if user.check_password(new_password):
+        return Response({
+            'error': 'New password must be different from current password'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Validate new password strength using Django's password validators
+    try:
+        validate_password(new_password, user=user)
+    except ValidationError as e:
+        errors = list(e.messages)
+        return Response({
+            'error': 'Password validation failed',
+            'details': errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Set new password
+    user.set_password(new_password)
+    user.save()
+    
+    return Response({
+        'success': True,
+        'message': 'Password changed successfully'
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'PUT', 'PATCH'])
+@permission_classes([permissions.IsAuthenticated])
+def investor_communication_settings(request):
+    """
+    Get or update investor communication settings
+    
+    GET /api/investors/settings/communication/ - Get current communication settings
+    PUT /api/investors/settings/communication/ - Update communication settings
+    
+    PUT/PATCH Payload:
+    {
+        "preferred_contact_method": "email",
+        "update_frequency": "weekly",
+        "event_alerts": {
+            "capital_calls": true,
+            "secondary_offers": true,
+            "portfolio_updates": true,
+            "distributions": true
+        },
+        "marketing_consent": false
+    }
+    """
+    user = request.user
+    
+    try:
+        investor_profile = InvestorProfile.objects.get(user=user)
+    except InvestorProfile.DoesNotExist:
+        return Response({
+            'error': 'Investor profile not found. Please complete onboarding first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    if request.method == 'GET':
+        # Default event alerts if not set
+        event_alerts = investor_profile.event_alerts or {
+            'capital_calls': True,
+            'secondary_offers': True,
+            'portfolio_updates': True,
+            'distributions': True,
+        }
+        
+        response_data = {
+            'success': True,
+            'communication': {
+                'preferred_contact_method': investor_profile.preferred_contact_method,
+                'preferred_contact_method_display': investor_profile.get_preferred_contact_method_display(),
+                'contact_method_choices': [{'value': choice[0], 'label': choice[1]} for choice in InvestorProfile.CONTACT_METHOD_CHOICES],
+                'update_frequency': investor_profile.update_frequency,
+                'update_frequency_display': investor_profile.get_update_frequency_display(),
+                'update_frequency_choices': [{'value': choice[0], 'label': choice[1]} for choice in InvestorProfile.UPDATE_FREQUENCY_CHOICES],
+                'event_alerts': {
+                    'capital_calls': {
+                        'enabled': event_alerts.get('capital_calls', True),
+                        'description': 'Investment funding requests',
+                    },
+                    'secondary_offers': {
+                        'enabled': event_alerts.get('secondary_offers', True),
+                        'description': 'Secondary market opportunities',
+                    },
+                    'portfolio_updates': {
+                        'enabled': event_alerts.get('portfolio_updates', True),
+                        'description': 'Performance and valuation changes',
+                    },
+                    'distributions': {
+                        'enabled': event_alerts.get('distributions', True),
+                        'description': 'Dividend and return payments',
+                    },
+                },
+                'marketing_consent': {
+                    'enabled': investor_profile.marketing_consent,
+                    'description': 'Product updates and partner offers',
+                },
+            },
+        }
+        
+        return Response(response_data)
+    
+    elif request.method in ['PUT', 'PATCH']:
+        data = request.data
+        
+        # Validate preferred_contact_method
+        if 'preferred_contact_method' in data:
+            contact_method = data['preferred_contact_method']
+            valid_methods = [choice[0] for choice in InvestorProfile.CONTACT_METHOD_CHOICES]
+            if contact_method not in valid_methods:
+                return Response({
+                    'error': f'Invalid contact method. Must be one of: {", ".join(valid_methods)}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            investor_profile.preferred_contact_method = contact_method
+        
+        # Validate update_frequency
+        if 'update_frequency' in data:
+            frequency = data['update_frequency']
+            valid_frequencies = [choice[0] for choice in InvestorProfile.UPDATE_FREQUENCY_CHOICES]
+            if frequency not in valid_frequencies:
+                return Response({
+                    'error': f'Invalid update frequency. Must be one of: {", ".join(valid_frequencies)}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            investor_profile.update_frequency = frequency
+        
+        # Validate event_alerts
+        if 'event_alerts' in data:
+            event_alerts_data = data['event_alerts']
+            if not isinstance(event_alerts_data, dict):
+                return Response({
+                    'error': 'event_alerts must be a dictionary with capital_calls, secondary_offers, portfolio_updates, and distributions keys'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Ensure all keys exist with boolean values
+            validated_event_alerts = {
+                'capital_calls': bool(event_alerts_data.get('capital_calls', True)),
+                'secondary_offers': bool(event_alerts_data.get('secondary_offers', True)),
+                'portfolio_updates': bool(event_alerts_data.get('portfolio_updates', True)),
+                'distributions': bool(event_alerts_data.get('distributions', True)),
+            }
+            investor_profile.event_alerts = validated_event_alerts
+        
+        # Validate marketing_consent
+        if 'marketing_consent' in data:
+            investor_profile.marketing_consent = bool(data['marketing_consent'])
+        
+        investor_profile.save()
+        
+        event_alerts = investor_profile.event_alerts or {
+            'capital_calls': True,
+            'secondary_offers': True,
+            'portfolio_updates': True,
+            'distributions': True,
+        }
+        
+        response_data = {
+            'success': True,
+            'message': 'Communication settings updated successfully',
+            'communication': {
+                'preferred_contact_method': investor_profile.preferred_contact_method,
+                'preferred_contact_method_display': investor_profile.get_preferred_contact_method_display(),
+                'contact_method_choices': [{'value': choice[0], 'label': choice[1]} for choice in InvestorProfile.CONTACT_METHOD_CHOICES],
+                'update_frequency': investor_profile.update_frequency,
+                'update_frequency_display': investor_profile.get_update_frequency_display(),
+                'update_frequency_choices': [{'value': choice[0], 'label': choice[1]} for choice in InvestorProfile.UPDATE_FREQUENCY_CHOICES],
+                'event_alerts': {
+                    'capital_calls': {
+                        'enabled': event_alerts.get('capital_calls', True),
+                        'description': 'Investment funding requests',
+                    },
+                    'secondary_offers': {
+                        'enabled': event_alerts.get('secondary_offers', True),
+                        'description': 'Secondary market opportunities',
+                    },
+                    'portfolio_updates': {
+                        'enabled': event_alerts.get('portfolio_updates', True),
+                        'description': 'Performance and valuation changes',
+                    },
+                    'distributions': {
+                        'enabled': event_alerts.get('distributions', True),
+                        'description': 'Dividend and return payments',
+                    },
+                },
+                'marketing_consent': {
+                    'enabled': investor_profile.marketing_consent,
+                    'description': 'Product updates and partner offers',
                 },
             },
         }
