@@ -6,7 +6,7 @@ from django.utils import timezone
 from datetime import timedelta
 import random
 import string
-
+from .sms_utils import send_twilio_sms
 
 class CustomUserSerializer(serializers.ModelSerializer):
     """Serializer for CustomUser model"""
@@ -192,13 +192,14 @@ class TwoFactorAuthSerializer(serializers.ModelSerializer):
     class Meta:
         model = TwoFactorAuth
         fields = ['phone_number', 'code']
+        read_only_fields = ['code']
     
     def create(self, validated_data):
         user = self.context['user']
         phone_number = validated_data['phone_number']
         
         # Generate 6-digit code
-        code = ''.join(random.choices(string.digits, k=6))
+        code = ''.join(random.choices(string.digits, k=4))
         
         # Set expiration time (10 minutes from now)
         expires_at = timezone.now() + timedelta(minutes=10)
@@ -215,7 +216,11 @@ class TwoFactorAuthSerializer(serializers.ModelSerializer):
         )
         
         # Send SMS with verification code
-        send_sms_verification(phone_number, code)
+        success, msg = send_twilio_sms(phone_number, code)
+        
+        if not success:
+            # Agar SMS fail ho jaye to error raise karein ya handle karein
+            raise serializers.ValidationError({"phone_number": f"Failed to send SMS: {msg}"})
         
         return two_fa
 
@@ -289,7 +294,7 @@ class VerifyEmailSerializer(serializers.Serializer):
 class VerifyTwoFactorSerializer(serializers.Serializer):
     """Serializer for two-factor authentication verification"""
     phone_number = serializers.CharField(max_length=20)
-    code = serializers.CharField(max_length=6)
+    code = serializers.CharField(max_length=4, min_length=4)
     
     def validate(self, attrs):
         phone_number = attrs['phone_number']

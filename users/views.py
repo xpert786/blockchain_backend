@@ -332,6 +332,7 @@ def verify_email(request):
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@authentication_classes([])
 def send_two_factor(request):
     """
     Step 4: Send two-factor authentication code
@@ -362,7 +363,7 @@ def send_two_factor(request):
         
         return Response({
             'success': True,
-            'message': f'Two-factor authentication code sent to {phone_number}',
+            'message': f'4-digit verification code sent to {phone_number}',
             'two_fa_id': two_fa.id,
             'next_step': 'verify_two_factor'
         }, status=status.HTTP_201_CREATED)
@@ -372,9 +373,10 @@ def send_two_factor(request):
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@authentication_classes([])
 def verify_two_factor(request):
     """
-    Step 5: Verify two-factor authentication code
+    Step 5: Verify 4-digit two-factor authentication code
     POST /api/registration/verify_two_factor/
     """
     serializer = VerifyTwoFactorSerializer(data=request.data)
@@ -393,7 +395,7 @@ def verify_two_factor(request):
         
         return Response({
             'success': True,
-            'message': 'Two-factor authentication verified successfully',
+            'message': 'Phone number verified successfully',
             'user_id': user.id,
             'next_step': 'accept_terms'
         }, status=status.HTTP_200_OK)
