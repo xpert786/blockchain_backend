@@ -8,6 +8,9 @@ import random
 import string
 from .sms_utils import send_twilio_sms
 from investors.models import InvestorProfile
+import os
+import json
+from django.conf import settings
 
 class CustomUserSerializer(serializers.ModelSerializer):
     """Serializer for CustomUser model"""
@@ -1176,9 +1179,63 @@ class QuickProfileSerializer(serializers.ModelSerializer):
             'investor_type': {'required': True},
         }
 
+    def _load_blocked_countries(self):
+        """Load blocked_countries list from accreditation_rules.json; return uppercased codes."""
+        try:
+            rules_file = os.path.join(settings.BASE_DIR, 'accreditation_rules.json')
+            with open(rules_file, 'r', encoding='utf-8') as f:
+                all_rules = json.load(f)
+            blocked = all_rules.get('blocked_countries', []) or []
+            return {c.upper() for c in blocked}
+        except Exception:
+            return set()
+
+    def _country_name_to_code(self, name):
+        """Simple mapping for common blocked country names to ISO codes.
+        Add names as needed. Falls back to uppercased input if already a code.
+        """
+        if not name:
+            return None
+        mapping = {
+            'india': 'IN',
+            'china': 'CN',
+            'brazil': 'BR',
+            'south korea': 'KR',
+            'korea, republic of': 'KR',
+            'russia': 'RU',
+            'iran': 'IR',
+            'cuba': 'CU',
+            'syria': 'SY',
+            'north korea': 'KP',
+            'korea, democratic people\'s republic of': 'KP',
+            'sudan': 'SD'
+        }
+        name_norm = name.strip().lower()
+        if name_norm in mapping:
+            return mapping[name_norm]
+        # If user provided 2-letter code already
+        if len(name.strip()) == 2:
+            return name.strip().upper()
+        return None
+
     def validate_country_of_residence(self, value):
-        # Optional: Add logic here to block restricted countries immediately
-        restricted_countries = ['North Korea', 'Iran']
-        if value in restricted_countries:
+        blocked = self._load_blocked_countries()
+        # Try map name to code
+        code = self._country_name_to_code(value) or (value.strip().upper() if value else None)
+        if code and code in blocked:
             raise serializers.ValidationError("We cannot support investments from your jurisdiction.")
         return value
+
+    def validate_tax_residency(self, value):
+        blocked = self._load_blocked_countries()
+        code = self._country_name_to_code(value) or (value.strip().upper() if value else None)
+        if code and code in blocked:
+            raise serializers.ValidationError("Tax residency in a blocked jurisdiction is not supported.")
+        return value
+
+    def validate(self, data):
+        # Ensure investor_type is present
+        it = data.get('investor_type')
+        if not it:
+            raise serializers.ValidationError({'investor_type': 'This field is required.'})
+        return data
