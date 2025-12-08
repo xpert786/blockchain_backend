@@ -58,7 +58,7 @@ urlpatterns = [
     path('investment-opportunity/<int:spv_id>/financials/', spv_financials, name='spv-financials'),
     path('investment-opportunity/<int:spv_id>/team/', spv_team, name='spv-team'),
     path('investment-opportunity/<int:spv_id>/documents/', spv_documents, name='spv-documents'),
-    path('investor/progress/', InvestorProgressView.as_view(), name='investor-progress'),
+    path('investor-progress/', InvestorProgressView.as_view(), name='investor-progress'),
     
     # Router patterns (mounted under 'investors/' so frontend can call
     # /blockchain-backend/api/investors/...)

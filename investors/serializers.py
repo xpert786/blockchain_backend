@@ -408,14 +408,12 @@ class InvestorOnboardingProgressSerializer(serializers.ModelSerializer):
         ]
 
     def get_email_verified(self, obj):
-        # Assuming if the email is saved in the profile, it was verified during signup
-        # You might want to check obj.user.emailaddress_set.filter(verified=True).exists() if using allauth
-        return bool(obj.email_address)
+        # Check the CustomUser model's email_verified field
+        return obj.user.email_verified
 
     def get_phone_verified(self, obj):
-        # Checks if phone number exists. 
-        # Integration with SMS verification logic would happen elsewhere.
-        return bool(obj.phone_number)
+        # Check the CustomUser model's phone_verified field
+        return obj.user.phone_verified
 
     def get_accredited_verified(self, obj):
         # Directly from your model field
