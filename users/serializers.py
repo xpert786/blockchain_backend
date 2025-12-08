@@ -191,6 +191,9 @@ class EmailVerificationSerializer(serializers.ModelSerializer):
 class TwoFactorAuthSerializer(serializers.ModelSerializer):
     """Serializer for two-factor authentication"""
     
+    # Make code optional/read-only so it's not required in input
+    code = serializers.CharField(required=False, read_only=True)
+    
     class Meta:
         model = TwoFactorAuth
         fields = ['phone_number', 'code']
