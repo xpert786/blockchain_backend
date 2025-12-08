@@ -59,6 +59,7 @@ urlpatterns = [
     path('investment-opportunity/<int:spv_id>/team/', spv_team, name='spv-team'),
     path('investment-opportunity/<int:spv_id>/documents/', spv_documents, name='spv-documents'),
     
-    # Router patterns
-    path('', include(router.urls)),
+    # Router patterns (mounted under 'investors/' so frontend can call
+    # /blockchain-backend/api/investors/...)
+    path('investors/', include(router.urls)),
 ]

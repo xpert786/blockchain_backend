@@ -7,6 +7,7 @@ from datetime import timedelta
 import random
 import string
 from .sms_utils import send_twilio_sms
+from investors.models import InvestorProfile
 
 class CustomUserSerializer(serializers.ModelSerializer):
     """Serializer for CustomUser model"""
@@ -1160,3 +1161,21 @@ class ComplianceDocumentStatusUpdateSerializer(serializers.Serializer):
             raise serializers.ValidationError(f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
         return value
 
+
+
+class QuickProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InvestorProfile
+        fields = ['country_of_residence', 'tax_residency', 'investor_type']
+        extra_kwargs = {
+            'country_of_residence': {'required': True},
+            'tax_residency': {'required': True},
+            'investor_type': {'required': True},
+        }
+
+    def validate_country_of_residence(self, value):
+        # Optional: Add logic here to block restricted countries immediately
+        restricted_countries = ['North Korea', 'Iran']
+        if value in restricted_countries:
+            raise serializers.ValidationError("We cannot support investments from your jurisdiction.")
+        return value

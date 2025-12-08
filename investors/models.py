@@ -14,10 +14,12 @@ class InvestorProfile(models.Model):
     
     # Investor Type Choices
     INVESTOR_TYPE_CHOICES = [
-        ('individual', 'Individual'),
-        ('trust', 'Trust'),
-        ('firm_or_fund', 'Firm or Fund'),
+    ('individual', 'Individual'),
+    ('family_office', 'Family Office'),
+    ('corporate_vehicle', 'Corporate Vehicle'),
+    ('trust_foundation', 'Trust / Foundation'),
     ]
+
     
     # Accreditation Method Choices
     ACCREDITATION_METHOD_CHOICES = [
@@ -97,6 +99,7 @@ class InvestorProfile(models.Model):
     email_address = models.EmailField(blank=True, null=True, help_text="Email Address")
     phone_number = models.CharField(max_length=20, blank=True, null=True, help_text="Phone Number")
     country_of_residence = models.CharField(max_length=100, default='United States', blank=True, null=True, help_text="Country of Residence")
+    tax_residency = models.CharField(max_length=100, blank=True, null=True, help_text="Tax Residency Country")
     national_id = models.CharField(max_length=100, blank=True, null=True, help_text="National ID")
     
     # Step 2: KYC / Identity Verification
@@ -116,6 +119,12 @@ class InvestorProfile(models.Model):
     account_holder_name = models.CharField(max_length=255, blank=True, null=True, help_text="Account Holder's Name")
     swift_ifsc_code = models.CharField(max_length=50, blank=True, null=True, help_text="SWIFT/IFSC/Sort Code")
     proof_of_bank_ownership = models.FileField(upload_to=investor_upload_path, blank=True, null=True, help_text="Upload Proof of Bank Ownership")
+    
+    # Step 3.5: Jurisdiction-Aware Accreditation Check (NEW SCREEN)
+    accreditation_jurisdiction = models.CharField(max_length=10, blank=True, null=True, help_text="Country/Jurisdiction code for accreditation (e.g., 'US', 'SG')")
+    accreditation_rules_selected = models.JSONField(default=list, blank=True, help_text="List of selected accreditation rule IDs that user checked")
+    accreditation_check_completed = models.BooleanField(default=False, help_text="Whether the jurisdiction-aware accreditation check was completed")
+    accreditation_check_completed_at = models.DateTimeField(blank=True, null=True, help_text="Timestamp when accreditation check was completed")
     
     # Step 4: Accreditation (If Applicable)
     investor_type = models.CharField(max_length=20, choices=INVESTOR_TYPE_CHOICES, blank=True, null=True, help_text="Will you be investing money as an Individual, a Trust, or a Firm or Fund?")

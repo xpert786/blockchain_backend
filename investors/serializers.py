@@ -43,6 +43,11 @@ class InvestorProfileSerializer(serializers.ModelSerializer):
             'account_holder_name',
             'swift_ifsc_code',
             'proof_of_bank_ownership',
+            # Step 3.5: Jurisdiction-Aware Accreditation Check
+            'accreditation_jurisdiction',
+            'accreditation_rules_selected',
+            'accreditation_check_completed',
+            'accreditation_check_completed_at',
             # Step 4: Accreditation (If Applicable)
             'investor_type',
             'full_legal_name',
@@ -222,6 +227,40 @@ class InvestorProfileStep3Serializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"bank_name": "Bank name is required"})
             if not data.get('account_holder_name') and not self.instance.account_holder_name:
                 raise serializers.ValidationError({"account_holder_name": "Account holder name is required"})
+        return data
+
+
+class InvestorProfileAccreditationCheckSerializer(serializers.ModelSerializer):
+    """Serializer for Jurisdiction-Aware Accreditation Check (New Screen before Step 4)"""
+    
+    class Meta:
+        model = InvestorProfile
+        fields = [
+            'accreditation_jurisdiction',
+            'accreditation_rules_selected',
+            'accreditation_check_completed',
+            'accreditation_check_completed_at',
+        ]
+    
+    def validate_accreditation_rules_selected(self, value):
+        """Validate that at least one rule is selected"""
+        if not isinstance(value, list):
+            raise serializers.ValidationError("accreditation_rules_selected must be a list")
+        # Do not enforce non-empty here; the overall validate() will require
+        # at least one rule when the user marks the check as completed.
+        return value
+    
+    def validate(self, data):
+        """Validate that jurisdiction is provided when completing the check"""
+        if data.get('accreditation_check_completed'):
+            if not data.get('accreditation_jurisdiction'):
+                raise serializers.ValidationError({
+                    "accreditation_jurisdiction": "Jurisdiction is required when completing accreditation check"
+                })
+            if not data.get('accreditation_rules_selected'):
+                raise serializers.ValidationError({
+                    "accreditation_rules_selected": "At least one accreditation rule must be selected"
+                })
         return data
 
 
