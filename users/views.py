@@ -18,8 +18,12 @@ from .serializers import (
     TwoFactorAuthSerializer,
     TermsAcceptanceSerializer,
     VerifyEmailSerializer,
-    VerifyTwoFactorSerializer
+    VerifyTwoFactorSerializer,
+    QuickProfileSerializer
 )
+from investors.models import InvestorProfile
+from rest_framework import generics, permissions, authentication
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.conf import settings
 
 
@@ -604,3 +608,15 @@ class GoogleLoginWithRoleView(SocialLoginView):
                 pass 
 
         return response
+    
+
+class QuickProfileView(generics.RetrieveUpdateAPIView):
+    serializer_class = QuickProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    # Support JWT, Basic, and Token authentication
+    authentication_classes = [JWTAuthentication, authentication.BasicAuthentication, authentication.TokenAuthentication]
+
+    def get_object(self):
+        profile, created = InvestorProfile.objects.get_or_create(user=self.request.user)
+        return profile
