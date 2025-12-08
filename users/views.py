@@ -8,6 +8,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from .models import CustomUser, Sector, Geography, EmailVerification, TwoFactorAuth, TermsAcceptance
 from .email_utils import send_verification_email, send_sms_verification, send_2fa_code_email
+from .sms_utils import send_twilio_sms
 from .serializers import (
     CustomUserSerializer, 
     UserRegistrationSerializer,
@@ -361,22 +362,35 @@ def send_two_factor(request):
     # method will generate the code. Passing an explicit empty 'code' value
     # can trigger "This field may not be blank" on some deployments, so
     # avoid sending it.
-    serializer = TwoFactorAuthSerializer(
-        data={'phone_number': phone_number},
-        context={'user': user}
-    )
-    
-    if serializer.is_valid():
-        two_fa = serializer.save()
-        
+    # Generate code and create TwoFactorAuth record directly to avoid
+    # serializer-level validation issues on some deployments.
+    try:
+        code = ''.join(random.choices(string.digits, k=4))
+        expires_at = timezone.now() + timedelta(minutes=10)
+
+        two_fa, created = TwoFactorAuth.objects.update_or_create(
+            user=user,
+            phone_number=phone_number,
+            defaults={
+                'code': code,
+                'is_verified': False,
+                'expires_at': expires_at
+            }
+        )
+
+        # Send SMS
+        success, msg = send_twilio_sms(phone_number, code)
+        if not success:
+            return Response({'error': f'Failed to send SMS: {msg}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
         return Response({
             'success': True,
             'message': f'4-digit verification code sent to {phone_number}',
             'two_fa_id': two_fa.id,
             'next_step': 'verify_two_factor'
         }, status=status.HTTP_201_CREATED)
-    
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
