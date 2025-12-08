@@ -357,8 +357,12 @@ def send_two_factor(request):
             'error': 'User not found'
         }, status=status.HTTP_404_NOT_FOUND)
     
+    # Only send the phone number to the serializer; the serializer's create()
+    # method will generate the code. Passing an explicit empty 'code' value
+    # can trigger "This field may not be blank" on some deployments, so
+    # avoid sending it.
     serializer = TwoFactorAuthSerializer(
-        data={'phone_number': phone_number, 'code': ''},  # Code will be generated in create method
+        data={'phone_number': phone_number},
         context={'user': user}
     )
     

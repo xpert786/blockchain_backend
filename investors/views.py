@@ -1,5 +1,6 @@
 import json
 import os
+from rest_framework.views import APIView
 from django.conf import settings
 from django.shortcuts import render
 from django.utils import timezone
@@ -8,6 +9,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .models import InvestorProfile
+from django.shortcuts import get_object_or_404
+from rest_framework.permissions import IsAuthenticated
 from .serializers import (
     InvestorProfileSerializer,
     InvestorProfileCreateSerializer,
@@ -18,7 +21,8 @@ from .serializers import (
     InvestorProfileStep4Serializer,
     InvestorProfileStep5Serializer,
     InvestorProfileStep6Serializer,
-    InvestorProfileSubmitSerializer
+    InvestorProfileSubmitSerializer,
+    InvestorOnboardingProgressSerializer
 )
 
 # Create your views here.
@@ -518,3 +522,29 @@ class InvestorProfileViewSet(viewsets.ModelViewSet):
             'application_submitted': profile.application_submitted,
         })
 
+
+
+class InvestorProgressView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Get the profile associated with the current user
+        profile = get_object_or_404(InvestorProfile, user=request.user)
+        
+        serializer = InvestorOnboardingProgressSerializer(profile)
+        
+        # We can also add global status logic here to match your screenshot's "Almost Ready" text
+        data = serializer.data
+        
+        # Determine overall status text for the UI header
+        if data['completion_percentage'] == 100:
+            status_message = "You're All Set!"
+        elif data['completion_percentage'] > 0:
+            status_message = "You're Almost Ready!"
+        else:
+            status_message = "Let's Get Started"
+
+        return Response({
+            "status_message": status_message,
+            "steps": data
+        })

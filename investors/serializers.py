@@ -378,3 +378,65 @@ class InvestorProfileSubmitSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Please complete Step 5: Accept Agreements")
         
         return data
+
+
+
+
+class InvestorOnboardingProgressSerializer(serializers.ModelSerializer):
+    """
+    Serializer to power the 'You're Almost Ready!' progress UI.
+    Returns boolean status for each verification step.
+    """
+    email_verified = serializers.SerializerMethodField()
+    phone_verified = serializers.SerializerMethodField()
+    accredited_verified = serializers.SerializerMethodField()
+    kyc_completed = serializers.SerializerMethodField()
+    tax_forms_completed = serializers.SerializerMethodField()
+    
+    # helper to calculate overall percentage if needed
+    completion_percentage = serializers.SerializerMethodField()
+
+    class Meta:
+        model = InvestorProfile
+        fields = [
+            'email_verified',
+            'phone_verified',
+            'accredited_verified',
+            'kyc_completed',
+            'tax_forms_completed',
+            'completion_percentage',
+        ]
+
+    def get_email_verified(self, obj):
+        # Assuming if the email is saved in the profile, it was verified during signup
+        # You might want to check obj.user.emailaddress_set.filter(verified=True).exists() if using allauth
+        return bool(obj.email_address)
+
+    def get_phone_verified(self, obj):
+        # Checks if phone number exists. 
+        # Integration with SMS verification logic would happen elsewhere.
+        return bool(obj.phone_number)
+
+    def get_accredited_verified(self, obj):
+        # Directly from your model field
+        return obj.is_accredited_investor
+
+    def get_kyc_completed(self, obj):
+        # Reusing the logic you already wrote in the model's @property
+        # This checks government_id, DOB, and address fields
+        return obj.step2_completed
+
+    def get_tax_forms_completed(self, obj):
+        # Checks if W9 is submitted and TIN is present
+        return bool(obj.w9_form_submitted and obj.tax_identification_number)
+
+    def get_completion_percentage(self, obj):
+        steps = [
+            self.get_email_verified(obj),
+            self.get_phone_verified(obj),
+            self.get_accredited_verified(obj),
+            self.get_kyc_completed(obj),
+            self.get_tax_forms_completed(obj)
+        ]
+        completed = sum(steps)
+        return int((completed / len(steps)) * 100)
