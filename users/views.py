@@ -347,10 +347,34 @@ def send_two_factor(request):
     Step 4: Send two-factor authentication code
     POST /api/registration/send_two_factor/
     """
-    user_id = request.data.get('user_id')
-    phone_number = request.data.get('phone_number')
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Log raw request details
+    logger.info(f"send_two_factor request method: {request.method}")
+    logger.info(f"Content-Type: {request.META.get('CONTENT_TYPE', 'Not set')}")
+    logger.info(f"Raw body: {request.body[:500]}")  # First 500 bytes
+    
+    # Try to parse data
+    try:
+        if isinstance(request.data, dict):
+            user_id = request.data.get('user_id')
+            phone_number = request.data.get('phone_number')
+        else:
+            logger.error(f"request.data is not a dict: {type(request.data)}")
+            return Response({
+                'error': 'Invalid request format. Expected JSON.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        logger.error(f"Error parsing request data: {str(e)}", exc_info=True)
+        return Response({
+            'error': f'Error parsing request: {str(e)}'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    logger.info(f"Parsed user_id={user_id}, phone_number={phone_number}")
     
     if not user_id or not phone_number:
+        logger.warning(f"Missing required fields: user_id={user_id}, phone_number={phone_number}")
         return Response({
             'error': 'user_id and phone_number are required'
         }, status=status.HTTP_400_BAD_REQUEST)
@@ -358,14 +382,18 @@ def send_two_factor(request):
     try:
         user = CustomUser.objects.get(id=user_id)
     except CustomUser.DoesNotExist:
+        logger.error(f"User not found with id={user_id}")
         return Response({
             'error': 'User not found'
         }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error fetching user: {str(e)}", exc_info=True)
+        return Response({
+            'error': f'Error fetching user: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     # Generate code and create TwoFactorAuth record directly to avoid
     # serializer-level validation issues on some deployments.
-    import logging
-    logger = logging.getLogger(__name__)
     
     try:
         logger.info(f"send_two_factor called with user_id={user_id}, phone_number={phone_number}")
