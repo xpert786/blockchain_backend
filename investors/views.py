@@ -144,6 +144,25 @@ class InvestorProfileViewSet(viewsets.ModelViewSet):
             })
         
         # PATCH method
+        # If client is trying to update country_of_residence, check blocked list
+        if request.method == 'PATCH':
+            new_country = request.data.get('country_of_residence')
+            if new_country:
+                try:
+                    rules_file = os.path.join(settings.BASE_DIR, 'accreditation_rules.json')
+                    with open(rules_file, 'r', encoding='utf-8') as f:
+                        all_rules = json.load(f)
+                    blocked = all_rules.get('blocked_countries', []) or []
+                except Exception:
+                    blocked = []
+
+                # Normalize to 2-letter code uppercase if provided as such
+                code = (new_country or '').strip()
+                code_upper = code.upper()
+                # Accept either two-letter code or full country name 'India' -> 'IN' not covered here
+                if code_upper in blocked or code_upper[:2] in blocked:
+                    return Response({'detail': f"Investors from '{new_country}' are blocked and cannot set this country."}, status=status.HTTP_400_BAD_REQUEST)
+
         serializer = self.get_serializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -254,13 +273,25 @@ class InvestorProfileViewSet(viewsets.ModelViewSet):
             })
         
         # PATCH method
-        # Ensure previous steps are completed
-        if not profile.step1_completed or not profile.step2_completed or not profile.step3_completed:
-            return Response(
-                {'detail': 'Please complete Steps 1-3 first'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+        # NOTE: allow short-profile updates here (do not require Steps 1-3 to be completed)
+
+        # If client is trying to set a jurisdiction that is blocked, reject early
+        submitted_j = request.data.get('accreditation_jurisdiction')
+        try:
+            rules_file = os.path.join(settings.BASE_DIR, 'accreditation_rules.json')
+            with open(rules_file, 'r', encoding='utf-8') as f:
+                all_rules = json.load(f)
+            blocked = all_rules.get('blocked_countries', []) or []
+        except Exception:
+            blocked = []
+
+        if submitted_j:
+            # Normalize possible inputs: two-letter codes or lowercase keys
+            maybe_code = submitted_j.strip().upper()
+            # If client passed a lowercase key like 'in' or 'india', handle simple cases
+            if maybe_code in blocked or maybe_code[:2] in blocked:
+                return Response({'detail': f"Investors from jurisdiction '{submitted_j}' are blocked and cannot complete accreditation."}, status=status.HTTP_400_BAD_REQUEST)
+
         serializer = InvestorProfileAccreditationCheckSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         
