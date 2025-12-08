@@ -67,8 +67,9 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         
         validated_data.pop('password2')
         password = validated_data.pop('password')
-        email = validated_data.get('email')
-        
+        # Remove email from validated_data so it's not passed twice
+        email = validated_data.pop('email', None)
+
         user = CustomUser.objects.create(
             username=email,
             email=email,
@@ -128,9 +129,9 @@ class RegistrationSerializer(serializers.ModelSerializer):
         
         validated_data.pop('confirm_password')
         password = validated_data.pop('password')
-        
         # Generate username from email (part before @)
-        email = validated_data['email']
+        # Pop email so it is not passed twice in **validated_data
+        email = validated_data.pop('email')
         base_username = email.split('@')[0]
         username = base_username
         
