@@ -280,18 +280,27 @@ class InvestorProfileViewSet(viewsets.ModelViewSet):
     def _get_jurisdiction_code(self, country):
         """Map country name to jurisdiction code"""
         country_mapping = {
-            'United States': 'US',
-            'US': 'US',
-            'USA': 'US',
-            'Singapore': 'SG',
-            'SG': 'SG',
-            'United Kingdom': 'GB',
-            'UK': 'GB',
-            'GB': 'GB',
-            'Canada': 'CA',
-            'CA': 'CA',
+            'United States': 'us',
+            'US': 'us',
+            'USA': 'us',
+            'Singapore': 'sg',
+            'SG': 'sg',
+            'United Kingdom': 'uk',
+            'UK': 'uk',
+            'GB': 'uk',
+            'Canada': 'default',
+            'CA': 'default',
+            'United Arab Emirates': 'uae',
+            'UAE': 'uae',
+            'Australia': 'au',
+            'AU': 'au',
+            'Hong Kong': 'hk',
+            'HK': 'hk',
+            'European Union': 'eu',
+            'EU': 'eu',
         }
-        return country_mapping.get(country, 'US')  # Default to US
+        # Return the JSON-friendly lowercase jurisdiction key; default to 'default'
+        return country_mapping.get(country, 'default')
     
     def _load_accreditation_rules(self, jurisdiction_code):
         """Load accreditation rules from JSON file"""
@@ -302,10 +311,18 @@ class InvestorProfileViewSet(viewsets.ModelViewSet):
             
             with open(rules_file_path, 'r', encoding='utf-8') as f:
                 all_rules = json.load(f)
-            
-            # Return rules for the specific jurisdiction, or US as default
-            jurisdiction_rules = all_rules.get(jurisdiction_code, all_rules.get('US', {}))
-            return jurisdiction_rules
+
+            # Normalize key
+            key = (jurisdiction_code or '').lower()
+
+            # If exact key exists, return it; otherwise fall back to 'default'
+            if key in all_rules:
+                return all_rules.get(key)
+            if 'default' in all_rules:
+                return all_rules.get('default')
+
+            # As an extra fallback, try 'us' then any top-level entry
+            return all_rules.get('us') or next(iter(all_rules.values()), {})
         except FileNotFoundError:
             # Return default US rules if file not found
             return {

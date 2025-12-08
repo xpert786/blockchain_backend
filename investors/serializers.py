@@ -1,6 +1,9 @@
 from rest_framework import serializers
 from .models import InvestorProfile
 from users.models import CustomUser
+import json
+import os
+from django.conf import settings
 
 
 class InvestorProfileSerializer(serializers.ModelSerializer):
@@ -246,6 +249,11 @@ class InvestorProfileAccreditationCheckSerializer(serializers.ModelSerializer):
         """Validate that at least one rule is selected"""
         if not isinstance(value, list):
             raise serializers.ValidationError("accreditation_rules_selected must be a list")
+        # Ensure items are strings (we expect clients to submit textual rules)
+        for item in value:
+            if not isinstance(item, str):
+                raise serializers.ValidationError("Each accreditation rule must be a string matching the rule text")
+
         # Do not enforce non-empty here; the overall validate() will require
         # at least one rule when the user marks the check as completed.
         return value
@@ -261,6 +269,38 @@ class InvestorProfileAccreditationCheckSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     "accreditation_rules_selected": "At least one accreditation rule must be selected"
                 })
+
+            # Validate that selected rules exist in the jurisdiction rules JSON
+            try:
+                rules_file = os.path.join(settings.BASE_DIR, 'accreditation_rules.json')
+                with open(rules_file, 'r', encoding='utf-8') as f:
+                    all_rules = json.load(f)
+            except Exception:
+                # If we cannot load the file, skip strict validation
+                all_rules = {}
+
+            jurisdiction = (data.get('accreditation_jurisdiction') or '').lower()
+            jurisdiction_rules = all_rules.get(jurisdiction) or all_rules.get('default') or {}
+
+            # Build allowed rule texts from natural_person_rules and entity_rules if present
+            allowed = set()
+            if isinstance(jurisdiction_rules, dict):
+                npr = jurisdiction_rules.get('natural_person_rules') or []
+                er = jurisdiction_rules.get('entity_rules') or []
+                for r in npr:
+                    if isinstance(r, str):
+                        allowed.add(r.strip())
+                for r in er:
+                    if isinstance(r, str):
+                        allowed.add(r.strip())
+
+            # If allowed set is empty, we can't validate strictly
+            if allowed:
+                invalid = [s for s in data.get('accreditation_rules_selected', []) if s.strip() not in allowed]
+                if invalid:
+                    raise serializers.ValidationError({
+                        'accreditation_rules_selected': f"Invalid rule(s) for jurisdiction '{jurisdiction}': {invalid}"
+                    })
         return data
 
 

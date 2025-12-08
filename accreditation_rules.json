@@ -1,86 +1,236 @@
 {
-  "US": {
-    "jurisdiction": "United States",
-    "regulation": "Reg D Rule 501(a)",
-    "rules": [
-      {
-        "id": "income_200k_2_years",
-        "text": "My income exceeded $200,000 ($300,000 joint) for the last two years",
-        "required": false
-      },
-      {
-        "id": "net_worth_1m",
-        "text": "My net worth exceeds $1 million (excluding primary residence)",
-        "required": false
-      },
-      {
-        "id": "series_7_65_82",
-        "text": "I hold a Series 7, 65, or 82 license",
-        "required": false
-      }
-    ],
-    "note": "You may be asked to upload documentation before investing."
-  },
-  "SG": {
-    "jurisdiction": "Singapore",
-    "regulation": "Accredited Investor (A/I)",
-    "rules": [
-      {
-        "id": "financial_assets_1m_sgd",
-        "text": "Financial assets ≥ SGD 1M",
-        "required": false
-      },
-      {
-        "id": "net_personal_assets_2m_sgd",
-        "text": "Net personal assets ≥ SGD 2M",
-        "required": false
-      },
-      {
-        "id": "income_300k_sgd",
-        "text": "Income ≥ SGD 300k",
-        "required": false
-      }
-    ],
-    "note": "You may be asked to upload documentation before investing."
-  },
-  "GB": {
-    "jurisdiction": "United Kingdom",
-    "regulation": "High Net Worth Individual",
-    "rules": [
-      {
-        "id": "income_100k_gbp",
-        "text": "Annual income of at least £100,000",
-        "required": false
-      },
-      {
-        "id": "net_worth_250k_gbp",
-        "text": "Net assets of at least £250,000 (excluding primary residence)",
-        "required": false
-      }
-    ],
-    "note": "You may be asked to upload documentation before investing."
-  },
-  "CA": {
-    "jurisdiction": "Canada",
-    "regulation": "Accredited Investor",
-    "rules": [
-      {
-        "id": "income_200k_cad",
-        "text": "Annual income of at least CAD $200,000 (or CAD $300,000 with spouse)",
-        "required": false
-      },
-      {
-        "id": "net_worth_1m_cad",
-        "text": "Net assets of at least CAD $1 million (excluding primary residence)",
-        "required": false
-      },
-      {
-        "id": "financial_assets_1m_cad",
-        "text": "Financial assets of at least CAD $1 million",
-        "required": false
-      }
-    ],
-    "note": "You may be asked to upload documentation before investing."
+    "default": {
+      "code": "DEFAULT",
+      "label": "Accredited Investor (Global – using U.S. standard)",
+      "jurisdiction": "Global",
+      "user_facing_summary": "For most countries, Unlocksley uses the U.S. Accredited Investor definition (Regulation D, Rule 501) as the qualification standard.",
+      "natural_person_rules": [
+        "Individual income ≥ USD 200,000 in each of the last 2 years, with expectation of same this year.",
+        "Joint income with spouse / partner ≥ USD 300,000 in each of the last 2 years, with expectation of same this year.",
+        "Net worth ≥ USD 1,000,000 (individually or jointly), excluding primary residence.",
+        "Holds certain professional licenses (e.g. Series 7, 65, or 82) or is a knowledgeable employee of a private fund."
+      ],
+      "entity_rules": [
+        "Banks, insurance companies, registered investment companies, business development companies, and similar regulated institutions.",
+        "Corporations, partnerships, LLCs, trusts, or family offices with ≥ USD 5,000,000 in assets, not formed solely to acquire this investment.",
+        "Certain entities in which all equity owners are Accredited Investors."
+      ],
+      "references": [
+        {
+          "label": "SEC – Assessing Accredited Investors (Reg D)",
+          "url": "https://www.sec.gov/resources-small-businesses/capital-raising-building-blocks/assessing-accredited-investors-under-regulation-d"
+        },
+        {
+          "label": "SEC – Rule 501 Accredited Investor Definition (eCFR §230.501)",
+          "url": "https://www.ecfr.gov/current/title-17/chapter-II/part-230/section-230.501"
+        }
+      ],
+      "notes": "Used as the default investor qualification standard where no local definition is applied. This is self-attested on Unlocksley."
+    },
+  
+    "us": {
+      "code": "US",
+      "label": "Accredited Investor (United States – SEC Regulation D, Rule 501)",
+      "jurisdiction": "United States",
+      "user_facing_summary": "To invest, you must qualify as an Accredited Investor under U.S. securities law (Regulation D, Rule 501).",
+      "natural_person_rules": [
+        "Individual income ≥ USD 200,000 (or joint ≥ USD 300,000) in each of the last 2 years, with expectation of same this year.",
+        "Net worth ≥ USD 1,000,000 (alone or with spouse / partner), excluding the value of primary residence.",
+        "Holds certain professional licenses or certifications (e.g. Series 7, 65, 82) approved by the SEC.",
+        "A 'knowledgeable employee' of a private fund investing in that fund."
+      ],
+      "entity_rules": [
+        "Banks, insurance companies, registered investment companies, business development companies, and similar regulated financial institutions.",
+        "Corporations, partnerships, LLCs, trusts, or 501(c)(3) organizations with ≥ USD 5,000,000 in assets, not formed just for this investment.",
+        "Family offices with ≥ USD 5,000,000 in assets under management and their family clients, meeting SEC requirements.",
+        "Any entity with ≥ USD 5,000,000 in investments, or where all equity owners are Accredited Investors."
+      ],
+      "references": [
+        {
+          "label": "SEC – Assessing Accredited Investors",
+          "url": "https://www.sec.gov/resources-small-businesses/capital-raising-building-blocks/assessing-accredited-investors-under-regulation-d"
+        },
+        {
+          "label": "SEC – Rule 501 Definition (Reg D)",
+          "url": "https://www.ecfr.gov/current/title-17/chapter-II/part-230/section-230.501"
+        }
+      ],
+      "notes": "Unlocksley uses this definition for U.S. investors and as the baseline model for global accreditation."
+    },
+  
+    "uk": {
+      "code": "UK",
+      "label": "High Net Worth / Self-Certified Sophisticated Investor (UK – FCA COBS)",
+      "jurisdiction": "United Kingdom",
+      "user_facing_summary": "UK investors must confirm they are either a High Net Worth Individual or a Self-Certified Sophisticated Investor under FCA rules.",
+      "natural_person_rules": [
+        "High Net Worth: Annual income ≥ GBP 100,000 or net assets ≥ GBP 250,000, as set out in FCA-prescribed statements.",
+        "Self-Certified Sophisticated: Meets at least one FCA test (e.g. angel group membership, direct private investments, director of a company with ≥ GBP 1M turnover, or similar experience).",
+        "Must sign the FCA investor statement acknowledging reduced regulatory protections and the risks of these investments."
+      ],
+      "entity_rules": [
+        "Professional clients under MiFID or per se professional clients under FCA rules are generally eligible.",
+        "Corporate or partnership investors may qualify where they meet MiFID/FCA professional client criteria."
+      ],
+      "references": [
+        {
+          "label": "FCA Handbook – COBS 4.12B (Non-Mass Market Investments)",
+          "url": "https://www.handbook.fca.org.uk/handbook/COBS/4/12B.html"
+        },
+        {
+          "label": "FCA – Self-Certified Sophisticated Investor Statement (COBS 4 Annex 4)",
+          "url": "https://www.handbook.fca.org.uk/handbook/COBS/4/Annex4.html"
+        }
+      ],
+      "notes": "Unlocksley can present the FCA HNW and Sophisticated Investor statements for self-certification by UK investors."
+    },
+  
+    "sg": {
+      "code": "SG",
+      "label": "Accredited Investor (Singapore – MAS SFA Section 4A)",
+      "jurisdiction": "Singapore",
+      "user_facing_summary": "Singapore investors must qualify as Accredited Investors under the Securities and Futures Act (SFA) and related MAS regulations.",
+      "natural_person_rules": [
+        "Net personal assets > SGD 2 million, of which up to SGD 1 million of primary residence value may be counted (subject to MAS guidance).",
+        "Financial assets (e.g. deposits, investment products) > SGD 1 million in value.",
+        "Income in the preceding 12 months ≥ SGD 300,000."
+      ],
+      "entity_rules": [
+        "Corporations with net assets > SGD 10 million.",
+        "Trusts and partnerships meeting Accredited Investor criteria under the SFA and Classes of Investors Regulations.",
+        "Other entities that qualify as Accredited or Institutional Investors under Singapore law."
+      ],
+      "references": [
+        {
+          "label": "Singapore SFA – Section 4A (Definition of Accredited Investor)",
+          "url": "https://sso.agc.gov.sg/Act/SFA2001"
+        },
+        {
+          "label": "MAS – FAQs on Accredited Investors and Opt-In Process",
+          "url": "https://www.mas.gov.sg/-/media/mas-media-library/20241008_faqs-on-the-definition-of-accredited-investor-and-opt-in-process.pdf"
+        }
+      ],
+      "notes": "Unlocksley can use MAS thresholds for Singapore-resident investors and the global default definition for others."
+    },
+  
+    "uae": {
+      "code": "UAE",
+      "label": "Qualified / Professional Investor (UAE – SCA and local regulators)",
+      "jurisdiction": "United Arab Emirates",
+      "user_facing_summary": "UAE investors generally need to qualify as Professional or Qualified Investors under UAE Securities and Commodities Authority (SCA) and relevant free-zone rules.",
+      "natural_person_rules": [
+        "Meets SCA or relevant regulator tests for knowledge, experience, and financial capacity (e.g. minimum net worth or portfolio size thresholds, as set by local rules).",
+        "Often includes individuals accredited or licensed by SCA or another IOSCO-member regulator to perform financial services functions.",
+        "May need to opt in to be treated as a Professional/Qualified Investor and acknowledge reduced protections."
+      ],
+      "entity_rules": [
+        "Institutional investors and large undertakings meeting SCA/DFSA/FSRA professional client criteria.",
+        "Corporates, funds, and financial institutions that satisfy balance sheet, turnover, or assets thresholds defined in local rules."
+      ],
+      "references": [
+        {
+          "label": "SCA – Qualified Investor Amendments (summary – Simmons & Simmons)",
+          "url": "https://www.simmons-simmons.com/en/publications/ck4ik76b52n840b286wuzxsmg/the-uae-securities-commodities-authority-amends-qualified-investor-definition"
+        },
+        {
+          "label": "UNCTAD – UAE New Qualified Investor Definition (overview)",
+          "url": "https://investmentpolicy.unctad.org/investment-policy-monitor/measures/3489/united-arab-emirates-new-qualified-investor-definition"
+        },
+        {
+          "label": "Standard Chartered UAE – Professional Investor Overview",
+          "url": "https://www.sc.com/ae/professional-investor/"
+        }
+      ],
+      "notes": "Details differ between SCA (onshore), DFSA (DIFC) and FSRA (ADGM). For MVP, treat UAE HNW clients as needing professional/qualified investor classification."
+    },
+  
+    "eu": {
+      "code": "EU",
+      "label": "Professional Client / Professional Investor (EU – MiFID II / AIFMD)",
+      "jurisdiction": "European Union (MiFID II)",
+      "user_facing_summary": "EU investors typically invest as Professional Clients under MiFID II or Professional Investors under AIFMD.",
+      "natural_person_rules": [
+        "Individuals generally treated as retail clients unless they opt up to Professional Client status and meet MiFID experience, knowledge and volume tests.",
+        "Elective Professionals must satisfy at least two of several criteria (e.g. trade frequency, portfolio size, professional background) as set out in MiFID II."
+      ],
+      "entity_rules": [
+        "Per se Professional Clients: regulated firms, large undertakings, institutional investors and certain public bodies.",
+        "Elective Professional Clients: other clients who meet MiFID professional tests and opt in.",
+        "Professional Investors under AIFMD reference the MiFID Professional Client definition."
+      ],
+      "references": [
+        {
+          "label": "ESMA – MiFID II Annex II: Professional Clients",
+          "url": "https://www.esma.europa.eu/publications-and-data/interactive-single-rulebook/mifid-ii/annex-ii"
+        },
+        {
+          "label": "MiFID Professional Investors Overview (PartnerVine article)",
+          "url": "https://www.partnervine.com/blog/professional-investors-under-mifid"
+        }
+      ],
+      "notes": "For MVP, you can either (a) accept EU investors only as Professional Clients via intermediary firms, or (b) apply the global default (Reg D) for direct high-net-worths where local promotion rules permit."
+    },
+  
+    "hk": {
+      "code": "HK",
+      "label": "Professional Investor (Hong Kong – SFO / Professional Investor Rules)",
+      "jurisdiction": "Hong Kong",
+      "user_facing_summary": "Hong Kong investors generally need to qualify as Professional Investors under the Securities and Futures Ordinance and related rules.",
+      "natural_person_rules": [
+        "Individual: Investment portfolio of at least HKD 8,000,000 (or equivalent in foreign currency).",
+        "Portfolio may include securities, deposits and certain other financial assets, including joint accounts and shares of joint portfolios."
+      ],
+      "entity_rules": [
+        "Corporation / partnership: Portfolio ≥ HKD 8,000,000 or total assets ≥ HKD 40,000,000.",
+        "Trust corporation: Total assets ≥ HKD 40,000,000.",
+        "Other categories defined as Professional Investors in SFO and related rules."
+      ],
+      "references": [
+        {
+          "label": "SFC FAQ – Offers of Investments & Professional Investors",
+          "url": "https://www.sfc.hk/en/faqs/publicly-offered-investment-products/offers-of-investments-under-the-securities-and-futures-ordinance"
+        },
+        {
+          "label": "Investor and Financial Education Council – Professional Investor Qualification",
+          "url": "https://www.ifec.org.hk/web/en/investment/investment-products/market-intermediaries/financial-market/professional-investors/qualification-of-prof-investors.page"
+        }
+      ],
+      "notes": "For HK, treat Professional Investor qualification as the standard; retail investors should not be targeted with private SPV offerings."
+    },
+  
+    "au": {
+      "code": "AU",
+      "label": "Wholesale / Sophisticated Investor (Australia – Corporations Act / ASIC)",
+      "jurisdiction": "Australia",
+      "user_facing_summary": "Australian investors generally participate as Wholesale or Sophisticated Investors under the Corporations Act and ASIC guidance.",
+      "natural_person_rules": [
+        "Has a qualifying accountant’s certificate confirming either: gross income ≥ AUD 250,000 per year for each of the last 2 years; or net assets ≥ AUD 2,500,000.",
+        "Alternatively, may qualify under a product value test or as a professional investor (e.g. financial services licensee, certain entities)."
+      ],
+      "entity_rules": [
+        "Professional investors (e.g. AFSL licensees, regulated funds, large listed entities) as defined in the Corporations Act.",
+        "Companies or trusts meeting net asset / income thresholds or product value tests for Wholesale/Sophisticated status."
+      ],
+      "references": [
+        {
+          "label": "ASIC – Certificates Issued by a Qualified Accountant (Wholesale/Sophisticated Investor)",
+          "url": "https://www.asic.gov.au/regulatory-resources/financial-services/financial-product-disclosure/certificates-issued-by-a-qualified-accountant/"
+        }
+      ],
+      "notes": "Thresholds are under review; for now use current ASIC income and asset criteria."
+    },
+  
+    "blocked_countries": [
+      "IN",
+      "CN",
+      "BR",
+      "KR",
+      "RU",
+      "IR",
+      "CU",
+      "SY",
+      "KP",
+      "SD"
+    ]
   }
-}
-
+  
