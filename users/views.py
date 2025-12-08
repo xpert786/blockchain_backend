@@ -3,6 +3,10 @@ from rest_framework.decorators import api_view, permission_classes, authenticati
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
+from django.utils import timezone
+from datetime import timedelta
+import random
+import string
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -358,15 +362,18 @@ def send_two_factor(request):
             'error': 'User not found'
         }, status=status.HTTP_404_NOT_FOUND)
     
-    # Only send the phone number to the serializer; the serializer's create()
-    # method will generate the code. Passing an explicit empty 'code' value
-    # can trigger "This field may not be blank" on some deployments, so
-    # avoid sending it.
     # Generate code and create TwoFactorAuth record directly to avoid
     # serializer-level validation issues on some deployments.
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
+        logger.info(f"send_two_factor called with user_id={user_id}, phone_number={phone_number}")
+        
         code = ''.join(random.choices(string.digits, k=4))
         expires_at = timezone.now() + timedelta(minutes=10)
+
+        logger.info(f"Generated code: {code}, expires_at: {expires_at}")
 
         two_fa, created = TwoFactorAuth.objects.update_or_create(
             user=user,
@@ -378,11 +385,18 @@ def send_two_factor(request):
             }
         )
 
+        logger.info(f"Created/updated TwoFactorAuth record: {two_fa.id}")
+
         # Send SMS
         success, msg = send_twilio_sms(phone_number, code)
+        logger.info(f"SMS send result: success={success}, msg={msg}")
+        
         if not success:
+            logger.error(f"Failed to send SMS: {msg}")
             return Response({'error': f'Failed to send SMS: {msg}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+        logger.info(f"SMS sent successfully to {phone_number}")
+        
         return Response({
             'success': True,
             'message': f'4-digit verification code sent to {phone_number}',
@@ -390,6 +404,7 @@ def send_two_factor(request):
             'next_step': 'verify_two_factor'
         }, status=status.HTTP_201_CREATED)
     except Exception as e:
+        logger.error(f"Exception in send_two_factor: {str(e)}", exc_info=True)
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
