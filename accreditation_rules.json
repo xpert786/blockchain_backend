@@ -1,0 +1,86 @@
+{
+  "US": {
+    "jurisdiction": "United States",
+    "regulation": "Reg D Rule 501(a)",
+    "rules": [
+      {
+        "id": "income_200k_2_years",
+        "text": "My income exceeded $200,000 ($300,000 joint) for the last two years",
+        "required": false
+      },
+      {
+        "id": "net_worth_1m",
+        "text": "My net worth exceeds $1 million (excluding primary residence)",
+        "required": false
+      },
+      {
+        "id": "series_7_65_82",
+        "text": "I hold a Series 7, 65, or 82 license",
+        "required": false
+      }
+    ],
+    "note": "You may be asked to upload documentation before investing."
+  },
+  "SG": {
+    "jurisdiction": "Singapore",
+    "regulation": "Accredited Investor (A/I)",
+    "rules": [
+      {
+        "id": "financial_assets_1m_sgd",
+        "text": "Financial assets ≥ SGD 1M",
+        "required": false
+      },
+      {
+        "id": "net_personal_assets_2m_sgd",
+        "text": "Net personal assets ≥ SGD 2M",
+        "required": false
+      },
+      {
+        "id": "income_300k_sgd",
+        "text": "Income ≥ SGD 300k",
+        "required": false
+      }
+    ],
+    "note": "You may be asked to upload documentation before investing."
+  },
+  "GB": {
+    "jurisdiction": "United Kingdom",
+    "regulation": "High Net Worth Individual",
+    "rules": [
+      {
+        "id": "income_100k_gbp",
+        "text": "Annual income of at least £100,000",
+        "required": false
+      },
+      {
+        "id": "net_worth_250k_gbp",
+        "text": "Net assets of at least £250,000 (excluding primary residence)",
+        "required": false
+      }
+    ],
+    "note": "You may be asked to upload documentation before investing."
+  },
+  "CA": {
+    "jurisdiction": "Canada",
+    "regulation": "Accredited Investor",
+    "rules": [
+      {
+        "id": "income_200k_cad",
+        "text": "Annual income of at least CAD $200,000 (or CAD $300,000 with spouse)",
+        "required": false
+      },
+      {
+        "id": "net_worth_1m_cad",
+        "text": "Net assets of at least CAD $1 million (excluding primary residence)",
+        "required": false
+      },
+      {
+        "id": "financial_assets_1m_cad",
+        "text": "Financial assets of at least CAD $1 million",
+        "required": false
+      }
+    ],
+    "note": "You may be asked to upload documentation before investing."
+  }
+}
+

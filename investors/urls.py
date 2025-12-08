@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import InvestorProfileViewSet
+from .views import InvestorProfileViewSet, InvestorProgressView
 from .dashboard_views import (
     DashboardViewSet,
     PortfolioViewSet,
@@ -58,7 +58,9 @@ urlpatterns = [
     path('investment-opportunity/<int:spv_id>/financials/', spv_financials, name='spv-financials'),
     path('investment-opportunity/<int:spv_id>/team/', spv_team, name='spv-team'),
     path('investment-opportunity/<int:spv_id>/documents/', spv_documents, name='spv-documents'),
+    path('investor/progress/', InvestorProgressView.as_view(), name='investor-progress'),
     
-    # Router patterns
-    path('', include(router.urls)),
+    # Router patterns (mounted under 'investors/' so frontend can call
+    # /blockchain-backend/api/investors/...)
+    path('investors/', include(router.urls)),
 ]

@@ -14,6 +14,9 @@ class InvestorProfileAdmin(admin.ModelAdmin):
         'user',
         'full_name',
         'email_address',
+        'accreditation_jurisdiction',
+        'accreditation_check_completed',
+        'accreditation_check_completed_at',
         'is_accredited_investor',
         'application_status',
         'current_step',
@@ -73,6 +76,7 @@ class InvestorProfileAdmin(admin.ModelAdmin):
                 'email_address',
                 'phone_number',
                 'country_of_residence',
+                'tax_residency',
                 'national_id',
             )
         }),
@@ -94,6 +98,14 @@ class InvestorProfileAdmin(admin.ModelAdmin):
                 'account_holder_name',
                 'swift_ifsc_code',
                 'proof_of_bank_ownership',
+            )
+        }),
+        ('Step 3.5: Jurisdiction-Aware Accreditation Check', {
+            'fields': (
+                'accreditation_jurisdiction',
+                'accreditation_rules_selected',
+                'accreditation_check_completed',
+                'accreditation_check_completed_at',
             )
         }),
         ('Step 4: Accreditation (If Applicable)', {

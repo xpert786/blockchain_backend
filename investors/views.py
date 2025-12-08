@@ -1,3 +1,7 @@
+import json
+import os
+from rest_framework.views import APIView
+from django.conf import settings
 from django.shortcuts import render
 from django.utils import timezone
 from rest_framework import viewsets, status, permissions
@@ -5,16 +9,20 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .models import InvestorProfile
+from django.shortcuts import get_object_or_404
+from rest_framework.permissions import IsAuthenticated
 from .serializers import (
     InvestorProfileSerializer,
     InvestorProfileCreateSerializer,
     InvestorProfileStep1Serializer,
     InvestorProfileStep2Serializer,
     InvestorProfileStep3Serializer,
+    InvestorProfileAccreditationCheckSerializer,
     InvestorProfileStep4Serializer,
     InvestorProfileStep5Serializer,
     InvestorProfileStep6Serializer,
-    InvestorProfileSubmitSerializer
+    InvestorProfileSubmitSerializer,
+    InvestorOnboardingProgressSerializer
 )
 
 # Create your views here.
@@ -51,6 +59,8 @@ class InvestorProfileViewSet(viewsets.ModelViewSet):
             return InvestorProfileStep2Serializer
         elif self.action == 'update_step3':
             return InvestorProfileStep3Serializer
+        elif self.action == 'accreditation_check':
+            return InvestorProfileAccreditationCheckSerializer
         elif self.action == 'update_step4':
             return InvestorProfileStep4Serializer
         elif self.action == 'update_step5':
@@ -219,6 +229,136 @@ class InvestorProfileViewSet(viewsets.ModelViewSet):
         })
     
     @action(detail=True, methods=['get', 'patch'])
+    def accreditation_check(self, request, pk=None):
+        """Get or Update Jurisdiction-Aware Accreditation Check (New Screen before Step 4)"""
+        profile = self.get_object()
+        
+        if request.method == 'GET':
+            # Get accreditation rules based on user's country
+            country = profile.country_of_residence or 'US'
+            jurisdiction_code = self._get_jurisdiction_code(country)
+            
+            # Load accreditation rules
+            rules_data = self._load_accreditation_rules(jurisdiction_code)
+            
+            serializer = InvestorProfileAccreditationCheckSerializer(profile)
+            return Response({
+                'step': 'accreditation_check',
+                'step_name': 'Jurisdiction-Aware Accreditation Check',
+                'completed': profile.accreditation_check_completed,
+                'can_access': profile.step1_completed and profile.step2_completed and profile.step3_completed,
+                'jurisdiction': jurisdiction_code,
+                'country': country,
+                'rules': rules_data,
+                'data': serializer.data
+            })
+        
+        # PATCH method
+        # Ensure previous steps are completed
+        if not profile.step1_completed or not profile.step2_completed or not profile.step3_completed:
+            return Response(
+                {'detail': 'Please complete Steps 1-3 first'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        serializer = InvestorProfileAccreditationCheckSerializer(profile, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        
+        # Set completion timestamp if completing the check
+        if request.data.get('accreditation_check_completed') and not profile.accreditation_check_completed:
+            serializer.save(accreditation_check_completed_at=timezone.now())
+        else:
+            serializer.save()
+        
+        # Return full profile with progress
+        full_serializer = InvestorProfileSerializer(profile)
+        return Response({
+            'message': 'Accreditation check completed successfully',
+            'profile': full_serializer.data
+        })
+    
+    def _get_jurisdiction_code(self, country):
+        """Map country name to jurisdiction code"""
+        country_mapping = {
+            'United States': 'US',
+            'US': 'US',
+            'USA': 'US',
+            'Singapore': 'SG',
+            'SG': 'SG',
+            'United Kingdom': 'GB',
+            'UK': 'GB',
+            'GB': 'GB',
+            'Canada': 'CA',
+            'CA': 'CA',
+        }
+        return country_mapping.get(country, 'US')  # Default to US
+    
+    def _load_accreditation_rules(self, jurisdiction_code):
+        """Load accreditation rules from JSON file"""
+        try:
+            # Get the path to accreditation_rules.json
+            base_dir = settings.BASE_DIR
+            rules_file_path = os.path.join(base_dir, 'accreditation_rules.json')
+            
+            with open(rules_file_path, 'r', encoding='utf-8') as f:
+                all_rules = json.load(f)
+            
+            # Return rules for the specific jurisdiction, or US as default
+            jurisdiction_rules = all_rules.get(jurisdiction_code, all_rules.get('US', {}))
+            return jurisdiction_rules
+        except FileNotFoundError:
+            # Return default US rules if file not found
+            return {
+                "jurisdiction": "United States",
+                "regulation": "Reg D Rule 501(a)",
+                "rules": [
+                    {
+                        "id": "income_200k_2_years",
+                        "text": "My income exceeded $200,000 ($300,000 joint) for the last two years",
+                        "required": False
+                    },
+                    {
+                        "id": "net_worth_1m",
+                        "text": "My net worth exceeds $1 million (excluding primary residence)",
+                        "required": False
+                    },
+                    {
+                        "id": "series_7_65_82",
+                        "text": "I hold a Series 7, 65, or 82 license",
+                        "required": False
+                    }
+                ],
+                "note": "You may be asked to upload documentation before investing."
+            }
+        except Exception as e:
+            # Return error message
+            return {
+                "error": f"Failed to load accreditation rules: {str(e)}",
+                "jurisdiction": jurisdiction_code,
+                "rules": [],
+                "note": "You may be asked to upload documentation before investing."
+            }
+    
+    @action(detail=False, methods=['get'])
+    def accreditation_rules(self, request):
+        """Get accreditation rules for a specific jurisdiction"""
+        jurisdiction_code = request.query_params.get('jurisdiction', 'US')
+        country = request.query_params.get('country', None)
+        
+        # If country is provided, map it to jurisdiction code
+        if country:
+            jurisdiction_code = self._get_jurisdiction_code(country)
+        
+        # Load rules
+        rules_data = self._load_accreditation_rules(jurisdiction_code)
+        
+        return Response({
+            'jurisdiction': jurisdiction_code,
+            'country': country,
+            'rules': rules_data
+        })
+    
+    @action(detail=True, methods=['get', 'patch'])
     def update_step4(self, request, pk=None):
         """Get or Update Step 4: Accreditation (If Applicable)"""
         profile = self.get_object()
@@ -380,4 +520,31 @@ class InvestorProfileViewSet(viewsets.ModelViewSet):
             ]),
             'application_status': profile.application_status,
             'application_submitted': profile.application_submitted,
+        })
+
+
+
+class InvestorProgressView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Get the profile associated with the current user
+        profile = get_object_or_404(InvestorProfile, user=request.user)
+        
+        serializer = InvestorOnboardingProgressSerializer(profile)
+        
+        # We can also add global status logic here to match your screenshot's "Almost Ready" text
+        data = serializer.data
+        
+        # Determine overall status text for the UI header
+        if data['completion_percentage'] == 100:
+            status_message = "You're All Set!"
+        elif data['completion_percentage'] > 0:
+            status_message = "You're Almost Ready!"
+        else:
+            status_message = "Let's Get Started"
+
+        return Response({
+            "status_message": status_message,
+            "steps": data
         })

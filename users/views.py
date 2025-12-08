@@ -3,11 +3,16 @@ from rest_framework.decorators import api_view, permission_classes, authenticati
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
+from django.utils import timezone
+from datetime import timedelta
+import random
+import string
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from .models import CustomUser, Sector, Geography, EmailVerification, TwoFactorAuth, TermsAcceptance
 from .email_utils import send_verification_email, send_sms_verification, send_2fa_code_email
+from .sms_utils import send_twilio_sms
 from .serializers import (
     CustomUserSerializer, 
     UserRegistrationSerializer,
@@ -18,8 +23,13 @@ from .serializers import (
     TwoFactorAuthSerializer,
     TermsAcceptanceSerializer,
     VerifyEmailSerializer,
-    VerifyTwoFactorSerializer
+    VerifyTwoFactorSerializer,
+    QuickProfileSerializer
 )
+from investors.models import InvestorProfile
+from rest_framework import generics, permissions, authentication
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from django.conf import settings
 
 
 
@@ -331,15 +341,40 @@ def verify_email(request):
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@authentication_classes([])
 def send_two_factor(request):
     """
     Step 4: Send two-factor authentication code
     POST /api/registration/send_two_factor/
     """
-    user_id = request.data.get('user_id')
-    phone_number = request.data.get('phone_number')
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Log raw request details
+    logger.info(f"send_two_factor request method: {request.method}")
+    logger.info(f"Content-Type: {request.META.get('CONTENT_TYPE', 'Not set')}")
+    logger.info(f"Raw body: {request.body[:500]}")  # First 500 bytes
+    
+    # Try to parse data
+    try:
+        if isinstance(request.data, dict):
+            user_id = request.data.get('user_id')
+            phone_number = request.data.get('phone_number')
+        else:
+            logger.error(f"request.data is not a dict: {type(request.data)}")
+            return Response({
+                'error': 'Invalid request format. Expected JSON.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        logger.error(f"Error parsing request data: {str(e)}", exc_info=True)
+        return Response({
+            'error': f'Error parsing request: {str(e)}'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    logger.info(f"Parsed user_id={user_id}, phone_number={phone_number}")
     
     if not user_id or not phone_number:
+        logger.warning(f"Missing required fields: user_id={user_id}, phone_number={phone_number}")
         return Response({
             'error': 'user_id and phone_number are required'
         }, status=status.HTTP_400_BAD_REQUEST)
@@ -347,33 +382,66 @@ def send_two_factor(request):
     try:
         user = CustomUser.objects.get(id=user_id)
     except CustomUser.DoesNotExist:
+        logger.error(f"User not found with id={user_id}")
         return Response({
             'error': 'User not found'
         }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error fetching user: {str(e)}", exc_info=True)
+        return Response({
+            'error': f'Error fetching user: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    serializer = TwoFactorAuthSerializer(
-        data={'phone_number': phone_number, 'code': ''},  # Code will be generated in create method
-        context={'user': user}
-    )
+    # Generate code and create TwoFactorAuth record directly to avoid
+    # serializer-level validation issues on some deployments.
     
-    if serializer.is_valid():
-        two_fa = serializer.save()
+    try:
+        logger.info(f"send_two_factor called with user_id={user_id}, phone_number={phone_number}")
+        
+        code = ''.join(random.choices(string.digits, k=4))
+        expires_at = timezone.now() + timedelta(minutes=10)
+
+        logger.info(f"Generated code: {code}, expires_at: {expires_at}")
+
+        two_fa, created = TwoFactorAuth.objects.update_or_create(
+            user=user,
+            phone_number=phone_number,
+            defaults={
+                'code': code,
+                'is_verified': False,
+                'expires_at': expires_at
+            }
+        )
+
+        logger.info(f"Created/updated TwoFactorAuth record: {two_fa.id}")
+
+        # Send SMS
+        success, msg = send_twilio_sms(phone_number, code)
+        logger.info(f"SMS send result: success={success}, msg={msg}")
+        
+        if not success:
+            logger.error(f"Failed to send SMS: {msg}")
+            return Response({'error': f'Failed to send SMS: {msg}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        logger.info(f"SMS sent successfully to {phone_number}")
         
         return Response({
             'success': True,
-            'message': f'Two-factor authentication code sent to {phone_number}',
+            'message': f'4-digit verification code sent to {phone_number}',
             'two_fa_id': two_fa.id,
             'next_step': 'verify_two_factor'
         }, status=status.HTTP_201_CREATED)
-    
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        logger.error(f"Exception in send_two_factor: {str(e)}", exc_info=True)
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@authentication_classes([])
 def verify_two_factor(request):
     """
-    Step 5: Verify two-factor authentication code
+    Step 5: Verify 4-digit two-factor authentication code
     POST /api/registration/verify_two_factor/
     """
     serializer = VerifyTwoFactorSerializer(data=request.data)
@@ -392,7 +460,7 @@ def verify_two_factor(request):
         
         return Response({
             'success': True,
-            'message': 'Two-factor authentication verified successfully',
+            'message': 'Phone number verified successfully',
             'user_id': user.id,
             'next_step': 'accept_terms'
         }, status=status.HTTP_200_OK)
@@ -565,3 +633,51 @@ def get_registration_status(request):
         'current_step': current_step,
         'user_data': CustomUserSerializer(user).data
     }, status=status.HTTP_200_OK)
+
+##############=====================Google Login With Role=====================
+from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from allauth.socialaccount.providers.oauth2.client import OAuth2Client
+from dj_rest_auth.registration.views import SocialLoginView
+from rest_framework.permissions import AllowAny
+
+
+class GoogleLoginWithRoleView(SocialLoginView):
+    adapter_class = GoogleOAuth2Adapter
+    client_class = OAuth2Client
+    permission_classes = (AllowAny,)
+    authentication_classes = []
+    callback_url = settings.CALLBACK_URL  
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        
+        if response.status_code != 200:
+            return response
+
+        user = self.user 
+        
+        requested_role = request.data.get('role')
+
+        if not user.role and requested_role:
+            
+            allowed_roles = ['investor', 'syndicate']
+            
+            if requested_role in allowed_roles:
+                user.role = requested_role
+                user.save()
+            else:
+                pass 
+
+        return response
+    
+
+class QuickProfileView(generics.RetrieveUpdateAPIView):
+    serializer_class = QuickProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    # Support JWT, Basic, and Token authentication
+    authentication_classes = [JWTAuthentication, authentication.BasicAuthentication, authentication.TokenAuthentication]
+
+    def get_object(self):
+        profile, created = InvestorProfile.objects.get_or_create(user=self.request.user)
+        return profile

@@ -6,7 +6,8 @@ from django.utils import timezone
 from datetime import timedelta
 import random
 import string
-
+from .sms_utils import send_twilio_sms
+from investors.models import InvestorProfile
 
 class CustomUserSerializer(serializers.ModelSerializer):
     """Serializer for CustomUser model"""
@@ -67,8 +68,9 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         
         validated_data.pop('password2')
         password = validated_data.pop('password')
-        email = validated_data.get('email')
-        
+        # Remove email from validated_data so it's not passed twice
+        email = validated_data.pop('email', None)
+
         user = CustomUser.objects.create(
             username=email,
             email=email,
@@ -128,9 +130,9 @@ class RegistrationSerializer(serializers.ModelSerializer):
         
         validated_data.pop('confirm_password')
         password = validated_data.pop('password')
-        
         # Generate username from email (part before @)
-        email = validated_data['email']
+        # Pop email so it is not passed twice in **validated_data
+        email = validated_data.pop('email')
         base_username = email.split('@')[0]
         username = base_username
         
@@ -189,16 +191,20 @@ class EmailVerificationSerializer(serializers.ModelSerializer):
 class TwoFactorAuthSerializer(serializers.ModelSerializer):
     """Serializer for two-factor authentication"""
     
+    # Make code optional/read-only so it's not required in input
+    code = serializers.CharField(required=False, read_only=True)
+    
     class Meta:
         model = TwoFactorAuth
         fields = ['phone_number', 'code']
+        read_only_fields = ['code']
     
     def create(self, validated_data):
         user = self.context['user']
         phone_number = validated_data['phone_number']
         
         # Generate 6-digit code
-        code = ''.join(random.choices(string.digits, k=6))
+        code = ''.join(random.choices(string.digits, k=4))
         
         # Set expiration time (10 minutes from now)
         expires_at = timezone.now() + timedelta(minutes=10)
@@ -215,7 +221,11 @@ class TwoFactorAuthSerializer(serializers.ModelSerializer):
         )
         
         # Send SMS with verification code
-        send_sms_verification(phone_number, code)
+        success, msg = send_twilio_sms(phone_number, code)
+        
+        if not success:
+            # Agar SMS fail ho jaye to error raise karein ya handle karein
+            raise serializers.ValidationError({"phone_number": f"Failed to send SMS: {msg}"})
         
         return two_fa
 
@@ -289,7 +299,7 @@ class VerifyEmailSerializer(serializers.Serializer):
 class VerifyTwoFactorSerializer(serializers.Serializer):
     """Serializer for two-factor authentication verification"""
     phone_number = serializers.CharField(max_length=20)
-    code = serializers.CharField(max_length=6)
+    code = serializers.CharField(max_length=4, min_length=4)
     
     def validate(self, attrs):
         phone_number = attrs['phone_number']
@@ -1154,3 +1164,21 @@ class ComplianceDocumentStatusUpdateSerializer(serializers.Serializer):
             raise serializers.ValidationError(f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
         return value
 
+
+
+class QuickProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InvestorProfile
+        fields = ['country_of_residence', 'tax_residency', 'investor_type']
+        extra_kwargs = {
+            'country_of_residence': {'required': True},
+            'tax_residency': {'required': True},
+            'investor_type': {'required': True},
+        }
+
+    def validate_country_of_residence(self, value):
+        # Optional: Add logic here to block restricted countries immediately
+        restricted_countries = ['North Korea', 'Iran']
+        if value in restricted_countries:
+            raise serializers.ValidationError("We cannot support investments from your jurisdiction.")
+        return value
