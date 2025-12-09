@@ -637,6 +637,7 @@ def get_registration_status(request):
 ##############=====================Google Login With Role=====================
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
+from allauth.socialaccount.models import SocialAccount
 from dj_rest_auth.registration.views import SocialLoginView
 from rest_framework.permissions import AllowAny
 
@@ -649,29 +650,93 @@ class GoogleLoginWithRoleView(SocialLoginView):
     callback_url = settings.CALLBACK_URL  
 
     def post(self, request, *args, **kwargs):
+        # Try to extract email from id_token (if provided) or request data.
+        def _extract_email_from_id_token(id_token: str):
+            try:
+                parts = id_token.split('.')
+                if len(parts) < 2:
+                    return None
+                import base64, json
+                payload = parts[1]
+                # pad base64
+                padding = '=' * (-len(payload) % 4)
+                decoded = base64.urlsafe_b64decode(payload + padding)
+                data = json.loads(decoded.decode('utf-8'))
+                return data.get('email')
+            except Exception:
+                return None
+
+        email = None
+        if 'id_token' in request.data:
+            email = _extract_email_from_id_token(request.data.get('id_token'))
+        if not email:
+            email = request.data.get('email')
+
+        # If we can determine the email, require that a Google social account
+        # for that email already exists (i.e., user previously signed up with Google).
+        if email:
+            exists = SocialAccount.objects.filter(user__email__iexact=email, provider='google').exists()
+            if not exists:
+                return Response({
+                    'success': False,
+                    'detail': 'No Google signup found for this account. Please sign up with Google first.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
         response = super().post(request, *args, **kwargs)
-        
+
         if response.status_code != 200:
             return response
 
-        user = self.user 
-        
-        requested_role = request.data.get('role')
-
-        if not user.role and requested_role:
-            
-            allowed_roles = ['investor', 'syndicate']
-            
-            if requested_role in allowed_roles:
-                user.role = requested_role
-                user.save()
-            else:
-                pass 
+        user = self.user
 
         # Generate JWT tokens for frontend login
         refresh = RefreshToken.for_user(user)
-        
-        # Modify response to include tokens
+
+        # Modify response to include tokens, but do not expose the user's role on login
+        response_data = response.data.copy() if isinstance(response.data, dict) else {}
+        response_data['tokens'] = {
+            'access': str(refresh.access_token),
+            'refresh': str(refresh)
+        }
+        response_data['user'] = {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'phone_number': user.phone_number,
+            'email_verified': user.email_verified,
+            'phone_verified': user.phone_verified
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+class GoogleSignupWithRoleView(SocialLoginView):
+    adapter_class = GoogleOAuth2Adapter
+    client_class = OAuth2Client
+    permission_classes = (AllowAny,)
+    authentication_classes = []
+    callback_url = settings.CALLBACK_URL
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+
+        if response.status_code != 200:
+            return response
+
+        user = self.user
+
+        requested_role = request.data.get('role')
+        if not user.role and requested_role:
+            allowed_roles = ['investor', 'syndicate']
+            if requested_role in allowed_roles:
+                user.role = requested_role
+                user.save()
+
+        # Generate JWT tokens for frontend
+        refresh = RefreshToken.for_user(user)
+
         response_data = response.data.copy() if isinstance(response.data, dict) else {}
         response_data['tokens'] = {
             'access': str(refresh.access_token),
@@ -688,7 +753,77 @@ class GoogleLoginWithRoleView(SocialLoginView):
             'email_verified': user.email_verified,
             'phone_verified': user.phone_verified
         }
-        
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+class GoogleSigninView(SocialLoginView):
+    adapter_class = GoogleOAuth2Adapter
+    client_class = OAuth2Client
+    permission_classes = (AllowAny,)
+    authentication_classes = []
+    callback_url = settings.CALLBACK_URL
+
+    def post(self, request, *args, **kwargs):
+        # Try to extract email from id_token (if provided) or request data.
+        def _extract_email_from_id_token(id_token: str):
+            try:
+                parts = id_token.split('.')
+                if len(parts) < 2:
+                    return None
+                import base64, json
+                payload = parts[1]
+                # pad base64
+                padding = '=' * (-len(payload) % 4)
+                decoded = base64.urlsafe_b64decode(payload + padding)
+                data = json.loads(decoded.decode('utf-8'))
+                return data.get('email')
+            except Exception:
+                return None
+
+        email = None
+        if 'id_token' in request.data:
+            email = _extract_email_from_id_token(request.data.get('id_token'))
+        if not email:
+            email = request.data.get('email')
+
+        # If we can determine the email, require that a Google social account
+        # for that email already exists (i.e., user previously signed up with Google).
+        if email:
+            exists = SocialAccount.objects.filter(user__email__iexact=email, provider='google').exists()
+            if not exists:
+                return Response({
+                    'success': False,
+                    'detail': 'No Google signup found for this account. Please sign up with Google first.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        response = super().post(request, *args, **kwargs)
+
+        if response.status_code != 200:
+            return response
+
+        user = self.user
+
+        # Generate JWT tokens for frontend login
+        refresh = RefreshToken.for_user(user)
+
+        # Modify response to include tokens, but do not expose the user's role on login
+        response_data = response.data.copy() if isinstance(response.data, dict) else {}
+        response_data['tokens'] = {
+            'access': str(refresh.access_token),
+            'refresh': str(refresh)
+        }
+        response_data['user'] = {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'phone_number': user.phone_number,
+            'email_verified': user.email_verified,
+            'phone_verified': user.phone_verified
+        }
+
         return Response(response_data, status=status.HTTP_200_OK)
 
 
