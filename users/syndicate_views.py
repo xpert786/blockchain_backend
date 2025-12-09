@@ -10,6 +10,7 @@ import logging
 from .models import CustomUser, SyndicateProfile, Sector, Geography
 from .serializers import (
     SyndicateProfileSerializer, SyndicateStep1Serializer, 
+    SyndicateStep1InvestmentFocusSerializer,
     SyndicateStep2Serializer, SyndicateStep3Serializer, SyndicateStep4Serializer
 )
 
@@ -92,14 +93,14 @@ def syndicate_step1(request):
     
     # Handle GET request
     if request.method == 'GET':
-        step1_serializer = SyndicateStep1Serializer(profile)
+        serializer = SyndicateStep1Serializer(profile)
         profile_serializer = SyndicateProfileSerializer(profile)
         return Response({
             'success': True,
-            'step_data': step1_serializer.data,
+            'message': 'Personal and accreditation info retrieved',
+            'data': serializer.data,
             'profile': profile_serializer.data,
             'step_completed': profile.step1_completed,
-            'next_step': 'step2' if profile.step1_completed else 'step1'
         }, status=status.HTTP_200_OK)
     
     # Handle POST/PATCH request
@@ -111,12 +112,63 @@ def syndicate_step1(request):
         profile_serializer = SyndicateProfileSerializer(profile)
         return Response({
             'success': True,
-            'message': 'Step 1 completed successfully',
+            'message': 'Personal and accreditation info updated successfully',
+            'data': serializer.data,
             'profile': profile_serializer.data,
-            'next_step': 'step2' if profile.step1_completed else 'step1'
         }, status=status.HTTP_200_OK)
     
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response({
+        'success': False,
+        'errors': serializer.errors
+    }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'POST', 'PATCH'])
+@permission_classes([permissions.IsAuthenticated])
+def syndicate_step1_investment_focus(request):
+    """
+    Step 1: Lead Info - Investment Focus and LP Network
+    GET /api/syndicate/step1/investment-focus/ - Get investment focus data
+    POST /api/syndicate/step1/investment-focus/ - Create or update investment focus
+    PATCH /api/syndicate/step1/investment-focus/ - Update investment focus
+    """
+    user = request.user
+    
+    # Check if user has syndicate role
+    if user.role != 'syndicate':
+        return Response({
+            'error': 'Only users with syndicate role can access this endpoint'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    # Get or create syndicate profile
+    profile, created = SyndicateProfile.objects.get_or_create(user=user)
+    
+    # Handle GET request
+    if request.method == 'GET':
+        serializer = SyndicateStep1InvestmentFocusSerializer(profile)
+        return Response({
+            'success': True,
+            'message': 'Investment focus info retrieved',
+            'data': serializer.data,
+        }, status=status.HTTP_200_OK)
+    
+    # Handle POST/PATCH request
+    serializer = SyndicateStep1InvestmentFocusSerializer(profile, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        
+        # Return updated data
+        updated_serializer = SyndicateStep1InvestmentFocusSerializer(profile)
+        return Response({
+            'success': True,
+            'message': 'Investment focus info updated successfully',
+            'data': updated_serializer.data,
+        }, status=status.HTTP_200_OK)
+    
+    return Response({
+        'success': False,
+        'errors': serializer.errors
+    }, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET', 'POST', 'PATCH'])

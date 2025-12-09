@@ -669,6 +669,52 @@ class GoogleLoginWithRoleView(SocialLoginView):
                 pass 
 
         return response
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def update_user_phone(request):
+    """
+    Update phone number for authenticated user after Google login
+    POST /api/users/update-phone/
+    
+    Request Body:
+    {
+        "phone_number": "+1234567890"
+    }
+    """
+    user = request.user
+    phone_number = request.data.get('phone_number')
+    
+    if not phone_number:
+        return Response({
+            'success': False,
+            'error': 'phone_number is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Validate phone number format (basic validation)
+    if not isinstance(phone_number, str) or len(phone_number) < 7:
+        return Response({
+            'success': False,
+            'error': 'Invalid phone number format'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Update user's phone number
+    user.phone_number = phone_number
+    user.save()
+    
+    return Response({
+        'success': True,
+        'message': 'Phone number updated successfully',
+        'user': {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'phone_number': user.phone_number,
+            'role': user.role
+        }
+    }, status=status.HTTP_200_OK)
+
     
 
 class QuickProfileView(generics.RetrieveUpdateAPIView):

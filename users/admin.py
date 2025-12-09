@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
-from .models import CustomUser, Sector, Geography, TwoFactorAuth, EmailVerification, TermsAcceptance, SyndicateProfile, TeamMember, ComplianceDocument, FeeRecipient, CreditCard, BankAccount
+from .models import CustomUser, Sector, Geography, TwoFactorAuth, EmailVerification, TermsAcceptance, SyndicateProfile, Syndicate, TeamMember, ComplianceDocument, FeeRecipient, CreditCard, BankAccount
 
 # Register CustomUser with Django admin
 @admin.register(CustomUser)
@@ -84,6 +84,14 @@ class FeeRecipientAdmin(admin.ModelAdmin):
     syndicate_name.short_description = 'Syndicate'
 
 
+# Register proxy model Syndicate using the same admin as SyndicateProfile
+try:
+    admin.site.register(Syndicate, SyndicateProfileAdmin)
+except Exception:
+    # If Syndicate is already registered or SyndicateProfileAdmin incompatible, ignore
+    pass
+
+
 @admin.register(SyndicateProfile)
 class SyndicateProfileAdmin(admin.ModelAdmin):
     list_display = ('user', 'firm_name', 'is_accredited', 'application_status', 'current_step', 'created_at')
@@ -96,8 +104,18 @@ class SyndicateProfileAdmin(admin.ModelAdmin):
         ('User Information', {
             'fields': ('user', 'created_at', 'updated_at')
         }),
-        ('Step 1: Lead Info', {
-            'fields': ('is_accredited', 'understands_regulatory_requirements', 'sectors', 'geographies', 'existing_lp_count', 'enable_platform_lp_access')
+        ('Step 1: Lead Info - Personal & Accreditation', {
+            'fields': (
+                'country_of_residence', 'current_role_title', 'years_of_experience',
+                'linkedin_profile', 'typical_check_size',
+                'is_accredited', 'understands_regulatory_requirements'
+            )
+        }),
+        ('Step 1: Lead Info - Investment Focus & LP Network', {
+            'fields': (
+                'sectors', 'geographies', 'existing_lp_count', 'lp_base_size',
+                'enable_platform_lp_access'
+            )
         }),
         ('Step 2: Entity Profile', {
             'fields': ('firm_name', 'description', 'logo')

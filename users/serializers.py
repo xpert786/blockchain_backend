@@ -358,28 +358,18 @@ class SyndicateProfileSerializer(serializers.ModelSerializer):
 
 
 class SyndicateStep1Serializer(serializers.ModelSerializer):
-    """Serializer for Step 1: Lead Info"""
-    sector_ids = serializers.PrimaryKeyRelatedField(
-        queryset=Sector.objects.all(),
-        source='sectors',
-        many=True,
-        write_only=True,
-        required=True
-    )
-    geography_ids = serializers.PrimaryKeyRelatedField(
-        queryset=Geography.objects.all(),
-        source='geographies',
-        many=True,
-        write_only=True,
-        required=True
-    )
+    """Serializer for Step 1: Lead Info (Personal & Accreditation)"""
     
     class Meta:
         model = SyndicateProfile
         fields = [
-            'is_accredited', 'understands_regulatory_requirements',
-            'sector_ids', 'geography_ids', 'existing_lp_count',
-            'enable_platform_lp_access'
+            'country_of_residence',
+            'current_role_title',
+            'years_of_experience',
+            'linkedin_profile',
+            'typical_check_size',
+            'is_accredited',
+            'understands_regulatory_requirements'
         ]
     
     def validate(self, attrs):
@@ -389,6 +379,42 @@ class SyndicateStep1Serializer(serializers.ModelSerializer):
         if not attrs.get('understands_regulatory_requirements'):
             raise serializers.ValidationError("You must acknowledge regulatory requirements.")
         
+        return attrs
+
+
+class SyndicateStep1InvestmentFocusSerializer(serializers.ModelSerializer):
+    """Serializer for Step 1: Lead Info (Investment Focus & LP Network)"""
+    sector_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Sector.objects.all(),
+        source='sectors',
+        many=True,
+        write_only=True,
+        required=False
+    )
+    sectors = SectorSerializer(many=True, read_only=True)
+    
+    geography_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Geography.objects.all(),
+        source='geographies',
+        many=True,
+        write_only=True,
+        required=False
+    )
+    geographies = GeographySerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = SyndicateProfile
+        fields = [
+            'sectors',
+            'sector_ids',
+            'geographies',
+            'geography_ids',
+            'existing_lp_count',
+            'lp_base_size',
+            'enable_platform_lp_access'
+        ]
+    
+    def validate(self, attrs):
         if not attrs.get('sectors'):
             raise serializers.ValidationError("At least one sector must be selected.")
         

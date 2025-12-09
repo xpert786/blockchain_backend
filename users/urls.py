@@ -63,6 +63,9 @@ urlpatterns = [
     path('auth/disable_2fa/', simple_auth_views.disable_2fa, name='disable-2fa'),
     path('auth/get_2fa_status/', simple_auth_views.get_2fa_status, name='get-2fa-status'),
     
+    # User profile endpoints
+    path('update-phone/', views.update_user_phone, name='update-user-phone'),
+    
     # Test email endpoints
     path('test-email/send_test_email/', test_views.send_test_email, name='send-test-email'),
     path('test-email/send_verification_email/', test_views.send_verification_email, name='send-verification-email'),
@@ -81,6 +84,7 @@ urlpatterns = [
     path('syndicate/profile/', syndicate_views.get_syndicate_profile, name='get-syndicate-profile'),
     path('syndicate/profile/create/', syndicate_views.create_syndicate_profile, name='create-syndicate-profile'),
     path('syndicate/step1/', syndicate_views.syndicate_step1, name='syndicate-step1'),
+    path('syndicate/step1/investment-focus/', syndicate_views.syndicate_step1_investment_focus, name='syndicate-step1-investment-focus'),
     path('syndicate/step2/', syndicate_views.syndicate_step2, name='syndicate-step2'),
     path('syndicate/step3/', syndicate_views.syndicate_step3, name='syndicate-step3'),
     path('syndicate/step4/', syndicate_views.syndicate_step4, name='syndicate-step4'),

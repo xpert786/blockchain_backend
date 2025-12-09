@@ -158,11 +158,39 @@ class SyndicateProfile(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='syndicate_profile')
     
     # Step 1: Lead Info
+    # Personal Details
+    country_of_residence = models.CharField(max_length=100, blank=True, null=True, help_text="Country of residence")
+    current_role_title = models.CharField(max_length=150, blank=True, null=True, help_text="Current role or job title")
+    years_of_experience = models.CharField(
+        max_length=50,
+        choices=[
+            ('0-2', '0-2 years'),
+            ('2-5', '2-5 years'),
+            ('5-10', '5-10 years'),
+            ('10-15', '10-15 years'),
+            ('15+', '15+ years'),
+        ],
+        blank=True,
+        null=True,
+        help_text="Years of investing experience"
+    )
+    linkedin_profile = models.URLField(max_length=500, blank=True, null=True, help_text="LinkedIn profile URL")
+    typical_check_size = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="Typical investment check size"
+    )
+    
+    # Accreditation & Compliance
     is_accredited = models.CharField(max_length=3, choices=ACCREDITED_CHOICES, blank=True, null=True)
     understands_regulatory_requirements = models.BooleanField(default=False)
+    
+    # Investment Preferences
     sectors = models.ManyToManyField(Sector, blank=True, related_name='syndicate_profiles')
     geographies = models.ManyToManyField(Geography, blank=True, related_name='syndicate_profiles')
     existing_lp_count = models.CharField(max_length=10, choices=LP_NETWORK_CHOICES, blank=True, null=True)
+    lp_base_size = models.IntegerField(blank=True, null=True, help_text="Total number of LPs in your network")
     enable_platform_lp_access = models.BooleanField(default=False)
     allow_platform_contact = models.BooleanField(
         default=True,
