@@ -668,7 +668,28 @@ class GoogleLoginWithRoleView(SocialLoginView):
             else:
                 pass 
 
-        return response
+        # Generate JWT tokens for frontend login
+        refresh = RefreshToken.for_user(user)
+        
+        # Modify response to include tokens
+        response_data = response.data.copy() if isinstance(response.data, dict) else {}
+        response_data['tokens'] = {
+            'access': str(refresh.access_token),
+            'refresh': str(refresh)
+        }
+        response_data['user'] = {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'role': user.role,
+            'phone_number': user.phone_number,
+            'email_verified': user.email_verified,
+            'phone_verified': user.phone_verified
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
