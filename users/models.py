@@ -207,9 +207,12 @@ class SyndicateProfile(models.Model):
     )
     
     # Settings: General Info
+    # Keep per-name fields and also provide convenient full_name/short_bio
     first_name = models.CharField(max_length=100, blank=True, null=True)
     last_name = models.CharField(max_length=100, blank=True, null=True)
+    full_name = models.CharField(max_length=200, blank=True, null=True)
     bio = models.TextField(blank=True, null=True)
+    short_bio = models.TextField(blank=True, null=True)
     link = models.URLField(max_length=500, blank=True, null=True)
     
     # KYB Verification Fields
