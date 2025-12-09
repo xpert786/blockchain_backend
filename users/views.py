@@ -683,8 +683,13 @@ def update_user_phone(request):
         "phone_number": "+1234567890"
     }
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     user = request.user
-    phone_number = request.data.get('phone_number')
+    phone_number = request.data.get('phone_number', '').strip()
+    
+    logger.info(f"update_user_phone called - User ID: {user.id}, Phone: {phone_number}")
     
     if not phone_number:
         return Response({
@@ -696,12 +701,45 @@ def update_user_phone(request):
     if not isinstance(phone_number, str) or len(phone_number) < 7:
         return Response({
             'success': False,
-            'error': 'Invalid phone number format'
+            'error': 'Invalid phone number format (minimum 7 characters)'
         }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if phone number already exists for another user (case-insensitive)
+    existing_user = CustomUser.objects.filter(
+        phone_number__iexact=phone_number
+    ).exclude(id=user.id).first()
+    
+    logger.info(f"Checking for existing phone: {phone_number} - Found: {existing_user is not None}")
+    
+    if existing_user:
+        logger.warning(f"Phone {phone_number} already exists for user {existing_user.id}")
+        return Response({
+            'success': False,
+            'error': f'This phone number is already registered with another account (User: {existing_user.username})',
+            'existing_user_id': existing_user.id,
+            'existing_username': existing_user.username
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if updating to same phone number (no change needed but allow it)
+    if user.phone_number and user.phone_number.lower() == phone_number.lower():
+        logger.info(f"User {user.id} trying to update with same phone number: {phone_number}")
+        return Response({
+            'success': True,
+            'message': 'Phone number is already set to this value',
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'phone_number': user.phone_number,
+                'role': user.role
+            }
+        }, status=status.HTTP_200_OK)
     
     # Update user's phone number
     user.phone_number = phone_number
     user.save()
+    
+    logger.info(f"Phone number updated successfully for user {user.id}")
     
     return Response({
         'success': True,
