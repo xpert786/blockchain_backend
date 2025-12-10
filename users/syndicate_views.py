@@ -7,11 +7,14 @@ from django.utils import timezone
 from django.shortcuts import get_object_or_404
 import logging
 
-from .models import CustomUser, SyndicateProfile, Sector, Geography
+from .models import CustomUser, SyndicateProfile, Sector, Geography, BeneficialOwner
 from .serializers import (
     SyndicateProfileSerializer, SyndicateStep1Serializer, 
     SyndicateStep1InvestmentFocusSerializer,
-    SyndicateStep2Serializer, SyndicateStep3Serializer, SyndicateStep4Serializer
+    SyndicateStep2Serializer, SyndicateStep3Serializer, SyndicateStep4Serializer,
+    EntityKYBDetailsSerializer,
+    BeneficialOwnerSerializer, BeneficialOwnerListSerializer,
+    BeneficialOwnerCreateSerializer, BeneficialOwnerUpdateSerializer
 )
 
 logger = logging.getLogger(__name__)
@@ -236,6 +239,251 @@ def syndicate_step2(request):
         'success': False,
         'errors': serializer.errors
     }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'POST', 'PATCH'])
+@permission_classes([permissions.IsAuthenticated])
+def syndicate_step3a_kyb_details(request):
+    """
+    Step 3a: Entity KYB Details - Required Business Info
+    GET /api/syndicate/step3a/ - Get entity KYB details
+    POST /api/syndicate/step3a/ - Create or update entity KYB details
+    PATCH /api/syndicate/step3a/ - Update entity KYB details (partial)
+    
+    Supports multipart/form-data for document uploads.
+    
+    Fields:
+    - entity_legal_name: string (required)
+    - entity_type: string (trust, individual, company, partnership) (required)
+    - country_of_incorporation: string
+    - registration_number: string
+    - Registered Address: registered_street_address, registered_area_landmark, etc.
+    - Operating Address: operating_street_address, operating_area_landmark, etc.
+    - Documents: certificate_of_incorporation, registered_address_proof, directors_register, trust_deed, partnership_agreement
+    """
+    user = request.user
+    
+    # Check if user has syndicate role
+    if user.role != 'syndicate':
+        return Response({
+            'error': 'Only users with syndicate role can access this endpoint'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    # Get or create syndicate profile
+    profile, created = SyndicateProfile.objects.get_or_create(user=user)
+    
+    # Handle GET request
+    if request.method == 'GET':
+        serializer = EntityKYBDetailsSerializer(profile, context={'request': request})
+        return Response({
+            'success': True,
+            'message': 'Entity KYB details retrieved successfully',
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+    
+    # Handle POST/PATCH request
+    # Handle file uploads
+    file_fields = [
+        'certificate_of_incorporation', 'registered_address_proof', 
+        'directors_register', 'trust_deed', 'partnership_agreement'
+    ]
+    
+    files_uploaded = {}
+    if hasattr(request, 'FILES'):
+        for field in file_fields:
+            if field in request.FILES:
+                files_uploaded[field] = request.FILES[field]
+    
+    # Prepare data for serializer (exclude file fields as they're handled separately)
+    serializer_data = {}
+    if hasattr(request, 'data'):
+        from django.http import QueryDict
+        if isinstance(request.data, QueryDict):
+            for key in request.data.keys():
+                if key not in file_fields:
+                    serializer_data[key] = request.data[key]
+        elif isinstance(request.data, dict):
+            for key, value in request.data.items():
+                if key not in file_fields:
+                    serializer_data[key] = value
+    
+    serializer = EntityKYBDetailsSerializer(
+        profile, 
+        data=serializer_data, 
+        partial=True,
+        context={'request': request}
+    )
+    
+    if serializer.is_valid():
+        # Save files first
+        for field, file in files_uploaded.items():
+            setattr(profile, field, file)
+        
+        serializer.save()
+        profile.refresh_from_db()
+        
+        # Return updated data
+        response_serializer = EntityKYBDetailsSerializer(profile, context={'request': request})
+        return Response({
+            'success': True,
+            'message': 'Entity KYB details updated successfully',
+            'data': response_serializer.data
+        }, status=status.HTTP_200_OK)
+    
+    return Response({
+        'success': False,
+        'errors': serializer.errors
+    }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'POST', 'PATCH', 'DELETE'])
+@permission_classes([permissions.IsAuthenticated])
+def syndicate_step3b_beneficial_owners(request, owner_id=None):
+    """
+    Step 3b: Beneficial Owners (UBOs)
+    GET /api/syndicate/step3b/ - List all beneficial owners
+    GET /api/syndicate/step3b/<id>/ - Get single beneficial owner
+    POST /api/syndicate/step3b/ - Add new beneficial owner
+    PATCH /api/syndicate/step3b/<id>/ - Update beneficial owner
+    DELETE /api/syndicate/step3b/<id>/ - Remove beneficial owner
+    
+    Supports multipart/form-data for document uploads.
+    """
+    user = request.user
+    
+    # Check if user has syndicate role
+    if user.role != 'syndicate':
+        return Response({
+            'error': 'Only users with syndicate role can access this endpoint'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    # Get or create syndicate profile
+    profile, created = SyndicateProfile.objects.get_or_create(user=user)
+    
+    # Handle GET request
+    if request.method == 'GET':
+        if owner_id:
+            # Get single beneficial owner
+            try:
+                owner = BeneficialOwner.objects.get(id=owner_id, syndicate=profile)
+                serializer = BeneficialOwnerSerializer(owner, context={'request': request})
+                return Response({
+                    'success': True,
+                    'data': serializer.data
+                }, status=status.HTTP_200_OK)
+            except BeneficialOwner.DoesNotExist:
+                return Response({
+                    'success': False,
+                    'error': 'Beneficial owner not found'
+                }, status=status.HTTP_404_NOT_FOUND)
+        else:
+            # List all beneficial owners
+            owners = BeneficialOwner.objects.filter(syndicate=profile)
+            serializer = BeneficialOwnerListSerializer(owners, many=True)
+            return Response({
+                'success': True,
+                'message': 'Beneficial owners retrieved successfully',
+                'count': owners.count(),
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+    
+    # Handle POST request - Create new beneficial owner
+    elif request.method == 'POST':
+        serializer = BeneficialOwnerCreateSerializer(
+            data=request.data,
+            context={'syndicate': profile, 'added_by': user, 'request': request}
+        )
+        
+        if serializer.is_valid():
+            owner = serializer.save()
+            
+            # Handle file uploads
+            if hasattr(request, 'FILES'):
+                if 'identity_document' in request.FILES:
+                    owner.identity_document = request.FILES['identity_document']
+                if 'proof_of_address' in request.FILES:
+                    owner.proof_of_address = request.FILES['proof_of_address']
+                owner.save()
+            
+            response_serializer = BeneficialOwnerSerializer(owner, context={'request': request})
+            return Response({
+                'success': True,
+                'message': 'Beneficial owner added successfully',
+                'data': response_serializer.data
+            }, status=status.HTTP_201_CREATED)
+        
+        return Response({
+            'success': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Handle PATCH request - Update beneficial owner
+    elif request.method == 'PATCH':
+        # Get owner_id from URL or request data
+        target_id = owner_id or request.data.get('id') or request.data.get('owner_id')
+        
+        if not target_id:
+            return Response({
+                'success': False,
+                'error': 'Beneficial owner ID is required for update. Provide id in URL or request body.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            owner = BeneficialOwner.objects.get(id=target_id, syndicate=profile)
+        except BeneficialOwner.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Beneficial owner not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = BeneficialOwnerUpdateSerializer(owner, data=request.data, partial=True)
+        
+        if serializer.is_valid():
+            # Handle file uploads
+            if hasattr(request, 'FILES'):
+                if 'identity_document' in request.FILES:
+                    owner.identity_document = request.FILES['identity_document']
+                if 'proof_of_address' in request.FILES:
+                    owner.proof_of_address = request.FILES['proof_of_address']
+            
+            serializer.save()
+            owner.refresh_from_db()
+            
+            response_serializer = BeneficialOwnerSerializer(owner, context={'request': request})
+            return Response({
+                'success': True,
+                'message': 'Beneficial owner updated successfully',
+                'data': response_serializer.data
+            }, status=status.HTTP_200_OK)
+        
+        return Response({
+            'success': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Handle DELETE request
+    elif request.method == 'DELETE':
+        target_id = owner_id or request.data.get('id') or request.data.get('owner_id')
+        
+        if not target_id:
+            return Response({
+                'success': False,
+                'error': 'Beneficial owner ID is required for deletion.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            owner = BeneficialOwner.objects.get(id=target_id, syndicate=profile)
+            owner_name = owner.full_name
+            owner.delete()
+            return Response({
+                'success': True,
+                'message': f'Beneficial owner "{owner_name}" removed successfully'
+            }, status=status.HTTP_200_OK)
+        except BeneficialOwner.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Beneficial owner not found'
+            }, status=status.HTTP_404_NOT_FOUND)
 
 
 @api_view(['GET', 'POST', 'PATCH'])

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
-from .models import CustomUser, Sector, Geography, TwoFactorAuth, EmailVerification, TermsAcceptance, SyndicateProfile, Syndicate, TeamMember, ComplianceDocument, FeeRecipient, CreditCard, BankAccount
+from .models import CustomUser, Sector, Geography, TwoFactorAuth, EmailVerification, TermsAcceptance, SyndicateProfile, Syndicate, TeamMember, ComplianceDocument, FeeRecipient, CreditCard, BankAccount, BeneficialOwner
 
 # Register CustomUser with Django admin
 @admin.register(CustomUser)
@@ -94,9 +94,9 @@ except Exception:
 
 @admin.register(SyndicateProfile)
 class SyndicateProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'firm_name', 'full_name', 'is_accredited', 'application_status', 'current_step', 'created_at')
-    list_filter = ('is_accredited', 'application_status', 'enable_platform_lp_access', 'created_at')
-    search_fields = ('user__username', 'user__email', 'firm_name', 'first_name', 'last_name', 'full_name')
+    list_display = ('user', 'firm_name', 'full_name', 'entity_type', 'is_accredited', 'application_status', 'current_step', 'created_at')
+    list_filter = ('is_accredited', 'application_status', 'entity_type', 'enable_platform_lp_access', 'created_at')
+    search_fields = ('user__username', 'user__email', 'firm_name', 'first_name', 'last_name', 'full_name', 'entity_legal_name', 'registration_number')
     readonly_fields = ('created_at', 'updated_at', 'submitted_at', 'current_step')
     filter_horizontal = ('sectors', 'geographies')
     
@@ -123,10 +123,36 @@ class SyndicateProfileAdmin(admin.ModelAdmin):
         ('Step 2: Entity Profile', {
             'fields': ('firm_name', 'description', 'logo')
         }),
-        ('KYB Verification', {
+        ('Step 3a: Entity KYB - Basic Info', {
+            'fields': (
+                'entity_legal_name', 'entity_type', 'country_of_incorporation', 'registration_number'
+            )
+        }),
+        ('Step 3a: Entity KYB - Registered Address', {
+            'fields': (
+                'registered_street_address', 'registered_area_landmark', 'registered_postal_code',
+                'registered_city', 'registered_state', 'registered_country'
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Step 3a: Entity KYB - Operating Address (Optional)', {
+            'fields': (
+                'operating_street_address', 'operating_area_landmark', 'operating_postal_code',
+                'operating_city', 'operating_state', 'operating_country'
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Step 3a: Entity KYB - Documents', {
+            'fields': (
+                'certificate_of_incorporation', 'registered_address_proof', 'directors_register',
+                'trust_deed', 'partnership_agreement'
+            ),
+            'classes': ('collapse',)
+        }),
+        ('KYB Verification (Legacy)', {
             'fields': (
                 'company_legal_name', 'kyb_full_name', 'kyb_position',
-                'certificate_of_incorporation', 'company_bank_statement',
+                'company_bank_statement',
                 'address_line_1', 'address_line_2', 'town_city', 'postal_code', 'country',
                 'company_proof_of_address', 'beneficiary_owner_identity_document',
                 'beneficiary_owner_proof_of_address', 'sse_eligibility',
@@ -451,3 +477,68 @@ class TeamMemberAdmin(admin.ModelAdmin):
             return format_html('<span style="color: green;">✓ Yes</span>')
         return format_html('<span style="color: orange;">✗ No</span>')
     is_registered.short_description = 'Registered'
+
+
+@admin.register(BeneficialOwner)
+class BeneficialOwnerAdmin(admin.ModelAdmin):
+    """Admin interface for Beneficial Owners (UBOs)"""
+    list_display = (
+        'id', 'full_name', 'email', 'nationality', 'syndicate_name',
+        'role', 'ownership_percentage', 'kyc_status_badge', 'is_active', 'created_at'
+    )
+    list_filter = ('role', 'beneficiary_role', 'kyc_status', 'is_active', 'nationality', 'created_at')
+    search_fields = ('full_name', 'email', 'syndicate__firm_name', 'nationality', 'city', 'country')
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at', 'updated_at', 'full_address', 'kyc_invite_sent_at', 'kyc_completed_at')
+    
+    fieldsets = (
+        ('Syndicate Information', {
+            'fields': ('syndicate',)
+        }),
+        ('Personal Information', {
+            'fields': ('full_name', 'date_of_birth', 'nationality', 'email')
+        }),
+        ('Residential Address', {
+            'fields': (
+                'street_address', 'area_landmark', 'postal_code',
+                'city', 'state', 'country', 'full_address'
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Role & Ownership', {
+            'fields': ('role', 'ownership_percentage', 'beneficiary_role')
+        }),
+        ('KYC Verification', {
+            'fields': (
+                'kyc_status', 'kyc_invite_sent', 'kyc_invite_sent_at', 'kyc_completed_at'
+            )
+        }),
+        ('Documents', {
+            'fields': ('identity_document', 'proof_of_address'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('is_active', 'added_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def syndicate_name(self, obj):
+        """Display syndicate firm name"""
+        return obj.syndicate.firm_name or f"Syndicate {obj.syndicate.id}"
+    syndicate_name.short_description = 'Syndicate'
+    
+    def kyc_status_badge(self, obj):
+        """Display KYC status with colored badge"""
+        colors = {
+            'pending': 'orange',
+            'approved': 'green',
+            'failed': 'red',
+            'needs_reupload': 'purple'
+        }
+        color = colors.get(obj.kyc_status, 'gray')
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 3px; font-size: 11px;">{}</span>',
+            color, obj.get_kyc_status_display()
+        )
+    kyc_status_badge.short_description = 'KYC Status'

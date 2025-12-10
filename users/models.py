@@ -215,14 +215,54 @@ class SyndicateProfile(models.Model):
     short_bio = models.TextField(blank=True, null=True)
     link = models.URLField(max_length=500, blank=True, null=True)
     
-    # KYB Verification Fields
+    # KYB Verification Fields - Entity Business Info (Step 3a)
+    entity_legal_name = models.CharField(max_length=255, blank=True, null=True, help_text="Entity legal name")
+    ENTITY_TYPE_CHOICES = [
+        ('trust', 'Trust'),
+        ('individual', 'Individual'),
+        ('company', 'Company'),
+        ('partnership', 'Partnership'),
+    ]
+    entity_type = models.CharField(max_length=20, choices=ENTITY_TYPE_CHOICES, blank=True, null=True, help_text="Entity type")
+    country_of_incorporation = models.CharField(max_length=100, blank=True, null=True, help_text="Country of incorporation")
+    registration_number = models.CharField(max_length=100, blank=True, null=True, help_text="Registration Number / Company Number")
+    
+    # Legacy KYB fields (kept for backwards compatibility)
     company_legal_name = models.CharField(max_length=255, blank=True, null=True, help_text="Company legal name")
     kyb_full_name = models.CharField(max_length=255, blank=True, null=True, help_text="Your full name")
     kyb_position = models.CharField(max_length=150, blank=True, null=True, help_text="Your position in company")
-    certificate_of_incorporation = models.FileField(upload_to='kyb_documents/coi/', blank=True, null=True)
+    
+    # Registered Address
+    registered_street_address = models.CharField(max_length=255, blank=True, null=True, help_text="Registered street address")
+    registered_area_landmark = models.CharField(max_length=255, blank=True, null=True, help_text="Registered area/landmark")
+    registered_postal_code = models.CharField(max_length=20, blank=True, null=True, help_text="Registered postal code")
+    registered_city = models.CharField(max_length=150, blank=True, null=True, help_text="Registered city")
+    registered_state = models.CharField(max_length=100, blank=True, null=True, help_text="Registered state")
+    registered_country = models.CharField(max_length=100, blank=True, null=True, help_text="Registered country")
+    
+    # Operating Address (Optional)
+    operating_street_address = models.CharField(max_length=255, blank=True, null=True, help_text="Operating street address")
+    operating_area_landmark = models.CharField(max_length=255, blank=True, null=True, help_text="Operating area/landmark")
+    operating_postal_code = models.CharField(max_length=20, blank=True, null=True, help_text="Operating postal code")
+    operating_city = models.CharField(max_length=150, blank=True, null=True, help_text="Operating city")
+    operating_state = models.CharField(max_length=100, blank=True, null=True, help_text="Operating state")
+    operating_country = models.CharField(max_length=100, blank=True, null=True, help_text="Operating country")
+    
+    # KYB Documents - Company
+    certificate_of_incorporation = models.FileField(upload_to='kyb_documents/coi/', blank=True, null=True, help_text="Certificate of Incorporation")
+    registered_address_proof = models.FileField(upload_to='kyb_documents/registered_address/', blank=True, null=True, help_text="Proof of registered address")
+    directors_register = models.FileField(upload_to='kyb_documents/directors/', blank=True, null=True, help_text="Directors register (optional)")
+    
+    # KYB Documents - Trust/Foundation
+    trust_deed = models.FileField(upload_to='kyb_documents/trust/', blank=True, null=True, help_text="Trust deed document")
+    
+    # KYB Documents - Partnership
+    partnership_agreement = models.FileField(upload_to='kyb_documents/partnership/', blank=True, null=True, help_text="Partnership agreement")
+    
+    # Legacy document fields
     company_bank_statement = models.FileField(upload_to='kyb_documents/bank_statements/', blank=True, null=True)
     
-    # Address Information
+    # Legacy Address Information (kept for backwards compatibility)
     address_line_1 = models.CharField(max_length=255, blank=True, null=True)
     address_line_2 = models.CharField(max_length=255, blank=True, null=True)
     town_city = models.CharField(max_length=150, blank=True, null=True)
@@ -864,3 +904,123 @@ class TeamMember(models.Model):
         permissions = role_permissions.get(self.role, role_permissions['viewer'])
         for key, value in permissions.items():
             setattr(self, key, value)
+
+
+class BeneficialOwner(models.Model):
+    """Model for Beneficial Owners (UBOs) of a syndicate"""
+    
+    ROLE_CHOICES = [
+        ('beneficial_owner', 'Beneficial Owner'),
+        ('director', 'Director'),
+        ('trustee', 'Trustee'),
+        ('partner', 'Partner'),
+        ('protector', 'Protector'),
+    ]
+    
+    BENEFICIARY_ROLE_CHOICES = [
+        ('beneficiary', 'Beneficiary'),
+        ('director', 'Director'),
+        ('shareholder', 'Shareholder'),
+        ('psc', 'PSC'),
+        ('trustee', 'Trustee'),
+    ]
+    
+    KYC_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('failed', 'Failed'),
+        ('needs_reupload', 'Needs Re-upload'),
+    ]
+    
+    syndicate = models.ForeignKey(
+        SyndicateProfile,
+        on_delete=models.CASCADE,
+        related_name='beneficial_owners'
+    )
+    
+    # Personal Information
+    full_name = models.CharField(max_length=255, help_text="Full name of the beneficial owner")
+    date_of_birth = models.DateField(blank=True, null=True, help_text="Date of birth")
+    nationality = models.CharField(max_length=100, blank=True, null=True, help_text="Nationality")
+    email = models.EmailField(blank=True, null=True, help_text="Email address for KYC invite")
+    
+    # Residential Address
+    street_address = models.CharField(max_length=255, blank=True, null=True, help_text="Street address")
+    area_landmark = models.CharField(max_length=255, blank=True, null=True, help_text="Area/Landmark")
+    postal_code = models.CharField(max_length=20, blank=True, null=True, help_text="Postal code")
+    city = models.CharField(max_length=150, blank=True, null=True, help_text="City")
+    state = models.CharField(max_length=100, blank=True, null=True, help_text="State")
+    country = models.CharField(max_length=100, blank=True, null=True, help_text="Country")
+    
+    # Role and Ownership
+    role = models.CharField(max_length=50, choices=ROLE_CHOICES, default='beneficial_owner', help_text="Role in the entity")
+    ownership_percentage = models.DecimalField(
+        max_digits=5, decimal_places=2, 
+        default=0, 
+        help_text="Ownership percentage (0-100)"
+    )
+    beneficiary_role = models.CharField(
+        max_length=50, 
+        choices=BENEFICIARY_ROLE_CHOICES, 
+        default='beneficiary',
+        blank=True,
+        null=True,
+        help_text="Beneficiary role type"
+    )
+    
+    # KYC Status
+    kyc_status = models.CharField(
+        max_length=20, 
+        choices=KYC_STATUS_CHOICES, 
+        default='pending',
+        help_text="KYC verification status"
+    )
+    kyc_invite_sent = models.BooleanField(default=False, help_text="Whether KYC invite link has been sent")
+    kyc_invite_sent_at = models.DateTimeField(blank=True, null=True)
+    kyc_completed_at = models.DateTimeField(blank=True, null=True)
+    
+    # Documents
+    identity_document = models.FileField(
+        upload_to='kyb_documents/ubo_identity/', 
+        blank=True, 
+        null=True,
+        help_text="Identity document (passport, ID card, etc.)"
+    )
+    proof_of_address = models.FileField(
+        upload_to='kyb_documents/ubo_address/', 
+        blank=True, 
+        null=True,
+        help_text="Proof of residential address"
+    )
+    
+    # Metadata
+    is_active = models.BooleanField(default=True)
+    added_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='beneficial_owners_added'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'beneficial owner'
+        verbose_name_plural = 'beneficial owners'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.full_name} - {self.syndicate.firm_name or 'Syndicate'} ({self.get_role_display()})"
+    
+    @property
+    def full_address(self):
+        """Get formatted full address"""
+        address_parts = [
+            self.street_address,
+            self.area_landmark,
+            self.city,
+            self.state,
+            self.postal_code,
+            self.country
+        ]
+        return ', '.join(filter(None, address_parts))

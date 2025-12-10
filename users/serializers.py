@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CustomUser, Sector, Geography, EmailVerification, TwoFactorAuth, TermsAcceptance, SyndicateProfile, TeamMember, ComplianceDocument, FeeRecipient, CreditCard, BankAccount
+from .models import CustomUser, Sector, Geography, EmailVerification, TwoFactorAuth, TermsAcceptance, SyndicateProfile, TeamMember, ComplianceDocument, FeeRecipient, CreditCard, BankAccount, BeneficialOwner
 from .email_utils import send_verification_email, send_sms_verification
 from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
@@ -688,6 +688,117 @@ class SyndicateStep4Serializer(serializers.ModelSerializer):
             instance.application_status = 'submitted'
             instance.save()
         return instance
+
+
+class EntityKYBDetailsSerializer(serializers.ModelSerializer):
+    """Serializer for Step 3a: Entity KYB Details - Required Business Info"""
+    
+    # Read-only URL fields for document uploads
+    certificate_of_incorporation_url = serializers.SerializerMethodField()
+    registered_address_proof_url = serializers.SerializerMethodField()
+    directors_register_url = serializers.SerializerMethodField()
+    trust_deed_url = serializers.SerializerMethodField()
+    partnership_agreement_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = SyndicateProfile
+        fields = [
+            # Entity Basic Info
+            'entity_legal_name',
+            'entity_type',
+            'country_of_incorporation',
+            'registration_number',
+            
+            # Registered Address
+            'registered_street_address',
+            'registered_area_landmark',
+            'registered_postal_code',
+            'registered_city',
+            'registered_state',
+            'registered_country',
+            
+            # Operating Address (Optional)
+            'operating_street_address',
+            'operating_area_landmark',
+            'operating_postal_code',
+            'operating_city',
+            'operating_state',
+            'operating_country',
+            
+            # Company Documents
+            'certificate_of_incorporation',
+            'certificate_of_incorporation_url',
+            'registered_address_proof',
+            'registered_address_proof_url',
+            'directors_register',
+            'directors_register_url',
+            
+            # Trust/Foundation Documents
+            'trust_deed',
+            'trust_deed_url',
+            
+            # Partnership Documents
+            'partnership_agreement',
+            'partnership_agreement_url',
+        ]
+        extra_kwargs = {
+            'certificate_of_incorporation': {'write_only': True, 'required': False},
+            'registered_address_proof': {'write_only': True, 'required': False},
+            'directors_register': {'write_only': True, 'required': False},
+            'trust_deed': {'write_only': True, 'required': False},
+            'partnership_agreement': {'write_only': True, 'required': False},
+        }
+    
+    def get_certificate_of_incorporation_url(self, obj):
+        if obj.certificate_of_incorporation:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.certificate_of_incorporation.url)
+            return obj.certificate_of_incorporation.url
+        return None
+    
+    def get_registered_address_proof_url(self, obj):
+        if obj.registered_address_proof:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.registered_address_proof.url)
+            return obj.registered_address_proof.url
+        return None
+    
+    def get_directors_register_url(self, obj):
+        if obj.directors_register:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.directors_register.url)
+            return obj.directors_register.url
+        return None
+    
+    def get_trust_deed_url(self, obj):
+        if obj.trust_deed:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.trust_deed.url)
+            return obj.trust_deed.url
+        return None
+    
+    def get_partnership_agreement_url(self, obj):
+        if obj.partnership_agreement:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.partnership_agreement.url)
+            return obj.partnership_agreement.url
+        return None
+    
+    def validate(self, attrs):
+        # Entity legal name is required
+        if not self.partial and not attrs.get('entity_legal_name'):
+            raise serializers.ValidationError({"entity_legal_name": "Entity legal name is required."})
+        
+        # Entity type is required
+        if not self.partial and not attrs.get('entity_type'):
+            raise serializers.ValidationError({"entity_type": "Entity type is required."})
+        
+        return attrs
 
 
 # Settings Serializers
@@ -1527,3 +1638,140 @@ class GoogleSignupSerializer(GoogleAuthSerializer):
         if not attrs.get('role'):
             raise serializers.ValidationError("Role is required for signup. Provide 'investor' or 'syndicate'.")
         return attrs
+
+
+# Beneficial Owner Serializers
+
+class BeneficialOwnerSerializer(serializers.ModelSerializer):
+    """Full serializer for BeneficialOwner with all details"""
+    identity_document_url = serializers.SerializerMethodField()
+    proof_of_address_url = serializers.SerializerMethodField()
+    full_address = serializers.ReadOnlyField()
+    added_by_detail = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = BeneficialOwner
+        fields = [
+            'id', 'syndicate',
+            # Personal Info
+            'full_name', 'date_of_birth', 'nationality', 'email',
+            # Address
+            'street_address', 'area_landmark', 'postal_code', 
+            'city', 'state', 'country', 'full_address',
+            # Role & Ownership
+            'role', 'ownership_percentage', 'beneficiary_role',
+            # KYC Status
+            'kyc_status', 'kyc_invite_sent', 'kyc_invite_sent_at', 'kyc_completed_at',
+            # Documents
+            'identity_document', 'identity_document_url',
+            'proof_of_address', 'proof_of_address_url',
+            # Metadata
+            'is_active', 'added_by', 'added_by_detail', 'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'identity_document_url', 'proof_of_address_url', 
+            'full_address', 'added_by_detail', 'created_at', 'updated_at'
+        ]
+        extra_kwargs = {
+            'identity_document': {'write_only': True, 'required': False},
+            'proof_of_address': {'write_only': True, 'required': False},
+        }
+    
+    def get_identity_document_url(self, obj):
+        if obj.identity_document:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.identity_document.url)
+            return obj.identity_document.url
+        return None
+    
+    def get_proof_of_address_url(self, obj):
+        if obj.proof_of_address:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.proof_of_address.url)
+            return obj.proof_of_address.url
+        return None
+    
+    def get_added_by_detail(self, obj):
+        if obj.added_by:
+            return {
+                'id': obj.added_by.id,
+                'username': obj.added_by.username,
+                'email': obj.added_by.email
+            }
+        return None
+
+
+class BeneficialOwnerListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for listing beneficial owners"""
+    
+    class Meta:
+        model = BeneficialOwner
+        fields = [
+            'id', 'full_name', 'email', 'nationality',
+            'role', 'ownership_percentage', 'beneficiary_role',
+            'kyc_status', 'is_active', 'created_at'
+        ]
+
+
+class BeneficialOwnerCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating beneficial owners"""
+    
+    class Meta:
+        model = BeneficialOwner
+        fields = [
+            # Personal Info
+            'full_name', 'date_of_birth', 'nationality', 'email',
+            # Address
+            'street_address', 'area_landmark', 'postal_code', 
+            'city', 'state', 'country',
+            # Role & Ownership
+            'role', 'ownership_percentage', 'beneficiary_role',
+        ]
+    
+    def validate_full_name(self, value):
+        if not value or len(value.strip()) < 2:
+            raise serializers.ValidationError("Full name is required and must be at least 2 characters.")
+        return value
+    
+    def validate_ownership_percentage(self, value):
+        if value < 0 or value > 100:
+            raise serializers.ValidationError("Ownership percentage must be between 0 and 100.")
+        return value
+    
+    def create(self, validated_data):
+        syndicate = self.context.get('syndicate')
+        added_by = self.context.get('added_by')
+        
+        beneficial_owner = BeneficialOwner.objects.create(
+            syndicate=syndicate,
+            added_by=added_by,
+            **validated_data
+        )
+        return beneficial_owner
+
+
+class BeneficialOwnerUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating beneficial owners"""
+    
+    class Meta:
+        model = BeneficialOwner
+        fields = [
+            # Personal Info
+            'full_name', 'date_of_birth', 'nationality', 'email',
+            # Address
+            'street_address', 'area_landmark', 'postal_code', 
+            'city', 'state', 'country',
+            # Role & Ownership
+            'role', 'ownership_percentage', 'beneficiary_role',
+            # KYC Status (admin only)
+            'kyc_status',
+            # Status
+            'is_active'
+        ]
+    
+    def validate_ownership_percentage(self, value):
+        if value < 0 or value > 100:
+            raise serializers.ValidationError("Ownership percentage must be between 0 and 100.")
+        return value
