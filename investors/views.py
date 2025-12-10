@@ -593,6 +593,7 @@ class InvestorProgressView(APIView):
             status_message = "Let's Get Started"
 
         return Response({
+            "investor_id": profile.id,
             "status_message": status_message,
             "steps": data
         })

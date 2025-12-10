@@ -340,11 +340,20 @@ class SyndicateProfileSerializer(serializers.ModelSerializer):
         write_only=True,
         required=False
     )
+    # Computed full_name field for response
+    full_name = serializers.SerializerMethodField()
     
     class Meta:
         model = SyndicateProfile
         fields = '__all__'
         read_only_fields = ['user', 'created_at', 'updated_at', 'submitted_at']
+    
+    def get_full_name(self, obj):
+        """Dynamically generate full_name from first_name and last_name"""
+        first = obj.first_name or ''
+        last = obj.last_name or ''
+        combined = f"{first} {last}".strip()
+        return combined if combined else None
     
     def to_representation(self, instance):
         """Customize the output representation"""
@@ -359,6 +368,9 @@ class SyndicateProfileSerializer(serializers.ModelSerializer):
 
 class SyndicateStep1Serializer(serializers.ModelSerializer):
     """Serializer for Step 1: Lead Info (Personal & Accreditation)"""
+    # full_name is computed from first_name/last_name; short_bio is direct
+    full_name = serializers.SerializerMethodField(required=False)
+    short_bio = serializers.CharField(required=False, allow_blank=True)
     
     class Meta:
         model = SyndicateProfile
@@ -368,18 +380,73 @@ class SyndicateStep1Serializer(serializers.ModelSerializer):
             'years_of_experience',
             'linkedin_profile',
             'typical_check_size',
+            'full_name',
+            'short_bio',
             'is_accredited',
-            'understands_regulatory_requirements'
+            'understands_regulatory_requirements',
+            'first_name',
+            'last_name',
+            'bio'
         ]
+        extra_kwargs = {
+            'first_name': {'required': False},
+            'last_name': {'required': False},
+            'bio': {'required': False}
+        }
+    
+    def get_full_name(self, obj):
+        """Dynamically generate full_name from first_name and last_name"""
+        first = obj.first_name or ''
+        last = obj.last_name or ''
+        return f"{first} {last}".strip() or None
     
     def validate(self, attrs):
-        if not attrs.get('is_accredited'):
+        # Only enforce required fields when not doing a partial update
+        if not self.partial and not attrs.get('is_accredited'):
             raise serializers.ValidationError("Accreditation status is required.")
-        
-        if not attrs.get('understands_regulatory_requirements'):
+
+        if not self.partial and not attrs.get('understands_regulatory_requirements'):
             raise serializers.ValidationError("You must acknowledge regulatory requirements.")
         
         return attrs
+
+    def create(self, validated_data):
+        # Handle full_name -> first_name/last_name during creation
+        full_name = validated_data.pop('full_name', None)
+        if full_name:
+            name_parts = full_name.strip().split(' ', 1)
+            validated_data['first_name'] = name_parts[0] if name_parts else ''
+            validated_data['last_name'] = name_parts[1] if len(name_parts) > 1 else ''
+
+        # Map short_bio to both short_bio and bio fields
+        short_bio = validated_data.pop('short_bio', None)
+        if short_bio:
+            validated_data['short_bio'] = short_bio
+            validated_data['bio'] = short_bio
+
+        instance = super().create(validated_data)
+        return instance
+
+    def update(self, instance, validated_data):
+        # Handle full_name -> first_name/last_name during update
+        full_name = validated_data.pop('full_name', None)
+        if full_name:
+            name_parts = full_name.strip().split(' ', 1)
+            instance.first_name = name_parts[0] if name_parts else ''
+            instance.last_name = name_parts[1] if len(name_parts) > 1 else ''
+
+        # Map short_bio to both short_bio and bio fields
+        short_bio = validated_data.pop('short_bio', None)
+        if short_bio is not None:
+            instance.short_bio = short_bio
+            instance.bio = short_bio
+
+        # Update remaining fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+        return instance
 
 
 class SyndicateStep1InvestmentFocusSerializer(serializers.ModelSerializer):
@@ -1265,3 +1332,43 @@ class QuickProfileSerializer(serializers.ModelSerializer):
         if not it:
             raise serializers.ValidationError({'investor_type': 'This field is required.'})
         return data
+
+
+# Google OAuth Serializers
+
+class GoogleAuthSerializer(serializers.Serializer):
+    """Custom serializer for Google authentication using id_token"""
+    id_token = serializers.CharField(required=True, write_only=True)
+    access_token = serializers.CharField(required=False, write_only=True)
+    code = serializers.CharField(required=False, write_only=True)
+    
+    def validate_id_token(self, value):
+        """Validate and decode id_token"""
+        if not value:
+            raise serializers.ValidationError("id_token is required")
+        return value
+    
+    def validate(self, attrs):
+        """Accept either id_token, access_token, or code"""
+        if not attrs.get('id_token') and not attrs.get('access_token') and not attrs.get('code'):
+            raise serializers.ValidationError("Either id_token, access_token, or code is required")
+        return attrs
+
+
+class GoogleSignupSerializer(GoogleAuthSerializer):
+    """Serializer for Google signup with role requirement"""
+    role = serializers.CharField(required=True, write_only=True)
+    
+    def validate_role(self, value):
+        """Validate role is either investor or syndicate"""
+        allowed_roles = ['investor', 'syndicate']
+        if value not in allowed_roles:
+            raise serializers.ValidationError(f"Invalid role. Allowed roles are: {', '.join(allowed_roles)}")
+        return value
+    
+    def validate(self, attrs):
+        """Validate that role is provided"""
+        attrs = super().validate(attrs)
+        if not attrs.get('role'):
+            raise serializers.ValidationError("Role is required for signup. Provide 'investor' or 'syndicate'.")
+        return attrs
