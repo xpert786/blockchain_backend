@@ -640,23 +640,52 @@ class SyndicateStep3Serializer(serializers.ModelSerializer):
     # Note: File field is handled separately in the view to avoid pickling issues
     # This serializer handles boolean fields, file field is read-only for response
     
+    additional_compliance_policies_url = serializers.SerializerMethodField()
+    kyb_verification_status = serializers.SerializerMethodField()
+    jurisdiction = serializers.CharField(source='country_of_residence', read_only=True)
+    
     class Meta:
         model = SyndicateProfile
         fields = [
             'risk_regulatory_attestation', 'jurisdictional_compliance_acknowledged',
-            'additional_compliance_policies'
+            'additional_compliance_policies', 'additional_compliance_policies_url',
+            'kyb_verification_status', 'kyb_verification_completed', 
+            'jurisdiction'
         ]
         # Make file field read-only since it's handled separately in the view
         extra_kwargs = {
-            'additional_compliance_policies': {'read_only': True, 'required': False}
+            'additional_compliance_policies': {'write_only': True, 'required': False},
+            'kyb_verification_completed': {'read_only': True}
+        }
+    
+    def get_additional_compliance_policies_url(self, obj):
+        if obj.additional_compliance_policies:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.additional_compliance_policies.url)
+            return obj.additional_compliance_policies.url
+        return None
+    
+    def get_kyb_verification_status(self, obj):
+        """Get KYB verification status with message"""
+        if obj.kyb_verification_completed:
+            return {
+                'status': 'approved',
+                'message': 'KYB verification has been approved.'
+            }
+        return {
+            'status': 'pending',
+            'message': 'KYB verification is still pending. You can continue, but KYB must be approved before publishing SPVs or accepting LP capital.'
         }
     
     def validate(self, attrs):
-        if not attrs.get('risk_regulatory_attestation'):
-            raise serializers.ValidationError("Risk & Regulatory Attestation is required.")
-        
-        if not attrs.get('jurisdictional_compliance_acknowledged'):
-            raise serializers.ValidationError("Jurisdictional compliance acknowledgment is required.")
+        # Only validate attestations on create/update, not on partial updates with no attestation fields
+        if not self.partial:
+            if not attrs.get('risk_regulatory_attestation'):
+                raise serializers.ValidationError({"risk_regulatory_attestation": "Risk & Regulatory Attestation is required."})
+            
+            if not attrs.get('jurisdictional_compliance_acknowledged'):
+                raise serializers.ValidationError({"jurisdictional_compliance_acknowledged": "Jurisdictional compliance acknowledgment is required."})
         
         return attrs
 

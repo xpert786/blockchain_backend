@@ -20,6 +20,76 @@ from .serializers import (
 logger = logging.getLogger(__name__)
 
 
+def get_jurisdiction_requirements(country):
+    """
+    Get regulatory requirements based on jurisdiction/country.
+    Returns a dict with jurisdiction name and list of requirements.
+    """
+    # Default requirements for common jurisdictions
+    jurisdiction_requirements = {
+        'United States': {
+            'jurisdiction': 'United States',
+            'requirements': [
+                'Must comply with SEC regulations for private placements',
+                'Limited to accredited investors only',
+                'Required to file Form D within 15 days of first sale',
+                'Cannot engage in general solicitation or advertising'
+            ]
+        },
+        'United Kingdom': {
+            'jurisdiction': 'United Kingdom',
+            'requirements': [
+                'Must comply with FCA regulations for collective investment schemes',
+                'Promotions limited to certified high net worth individuals or sophisticated investors',
+                'May require authorization under FSMA 2000',
+                'Must maintain proper disclosures and risk warnings'
+            ]
+        },
+        'Singapore': {
+            'jurisdiction': 'Singapore',
+            'requirements': [
+                'Must comply with MAS regulations',
+                'Private placements limited to accredited investors or institutional investors',
+                'Required disclosures under Securities and Futures Act',
+                'May require licensing under certain conditions'
+            ]
+        },
+        'India': {
+            'jurisdiction': 'India',
+            'requirements': [
+                'Must comply with SEBI AIF Regulations',
+                'Registration as Alternative Investment Fund may be required',
+                'Limited to accredited investors with minimum investment threshold',
+                'KYC/AML compliance mandatory'
+            ]
+        },
+        'European Union': {
+            'jurisdiction': 'European Union',
+            'requirements': [
+                'May require AIFMD compliance for alternative investment funds',
+                'Marketing to retail investors subject to national regulations',
+                'PRIIPs KID requirements may apply',
+                'Cross-border marketing requires notifications'
+            ]
+        }
+    }
+    
+    # Return requirements for the country, or default to US if not found
+    if country in jurisdiction_requirements:
+        return jurisdiction_requirements[country]
+    
+    # Default requirements
+    return {
+        'jurisdiction': country or 'Unknown',
+        'requirements': [
+            'Please verify local regulatory requirements for private placements',
+            'Ensure compliance with applicable securities laws',
+            'KYC/AML verification may be required',
+            'Consult with local legal counsel for specific requirements'
+        ]
+    }
+
+
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def get_syndicate_profile(request):
@@ -523,9 +593,15 @@ def syndicate_step3(request):
     if request.method == 'GET':
         step3_serializer = SyndicateStep3Serializer(profile, context={'request': request})
         profile_serializer = SyndicateProfileSerializer(profile)
+        
+        # Get jurisdiction-based requirements
+        jurisdiction = profile.country_of_residence or 'United States'
+        jurisdiction_requirements = get_jurisdiction_requirements(jurisdiction)
+        
         return Response({
             'success': True,
             'step_data': step3_serializer.data,
+            'jurisdiction_requirements': jurisdiction_requirements,
             'profile': profile_serializer.data,
             'step_completed': profile.step3_completed,
             'next_step': 'step4' if profile.step3_completed else 'step3'
@@ -632,15 +708,98 @@ def syndicate_step4(request):
             'error': 'Step 3 must be completed before proceeding to Step 4'
         }, status=status.HTTP_400_BAD_REQUEST)
     
-    # Handle GET request
+    # Handle GET request - Return comprehensive review summary
     if request.method == 'GET':
         step4_serializer = SyndicateStep4Serializer(profile)
         profile_serializer = SyndicateProfileSerializer(profile)
+        
+        # Get team members
+        team_members = []
+        for member in profile.team_members.filter(is_active=True):
+            permissions_list = []
+            if member.can_create_spvs:
+                permissions_list.append('Create Deals')
+            if member.can_view_lp_commitments:
+                permissions_list.append('Access Cap Tables')
+            if member.can_communicate_with_lps:
+                permissions_list.append('Messaging')
+            if member.can_view_lp_list:
+                permissions_list.append('LP Data')
+            if member.can_manage_capital_calls:
+                permissions_list.append('Capital Calls')
+            if member.can_manage_bank_accounts:
+                permissions_list.append('Bank Accounts')
+            
+            team_members.append({
+                'name': member.name,
+                'email': member.email,
+                'role': member.get_role_display(),
+                'permissions': permissions_list
+            })
+        
+        # Get sectors and geographies
+        sectors = [s.name for s in profile.sectors.all()]
+        geographies = [g.name for g in profile.geographies.all()]
+        
+        # Build comprehensive review summary
+        review_summary = {
+            'lead_information': {
+                'home_jurisdiction': profile.country_of_residence or 'Not specified',
+                'accredited_status': 'I am an accredited investor' if profile.is_accredited else 'Not accredited',
+                'existing_lp_network': 'Yes' if profile.existing_lp_count else 'No',
+                'compliance_disclaimer': 'Acknowledged' if profile.understands_regulatory_requirements else 'Not acknowledged'
+            },
+            'team_and_roles': {
+                'count': len(team_members),
+                'members': team_members
+            },
+            'investment_strategy': {
+                'sector_focus': sectors if sectors else ['Not specified'],
+                'geography_focus': geographies if geographies else ['Not specified'],
+                'average_check_size': profile.typical_check_size or 'Not specified',
+                'lp_base_size': profile.lp_base_size or 'Not specified',
+                'platform_lp_access': 'Enabled LPs' if profile.enable_platform_lp_access else 'Disabled'
+            },
+            'compliance_and_attestation': {
+                'risk_regulatory_attestation': 'Completed' if profile.risk_regulatory_attestation else 'Pending',
+                'jurisdictional_compliance': 'Acknowledged' if profile.jurisdictional_compliance_acknowledged else 'Pending',
+                'additional_policies': profile.additional_compliance_policies.name.split('/')[-1] if profile.additional_compliance_policies else None
+            },
+            'entity_kyb': {
+                'entity_legal_name': profile.entity_legal_name or 'Not specified',
+                'entity_type': profile.get_entity_type_display() if profile.entity_type else 'Not specified',
+                'registration_number': profile.registration_number or 'Not specified',
+                'kyb_verification_status': 'Verified' if profile.kyb_verification_completed else 'Pending'
+            },
+            'beneficial_owners': {
+                'count': profile.beneficial_owners.filter(is_active=True).count(),
+                'all_kyc_approved': all(
+                    owner.kyc_status == 'approved' 
+                    for owner in profile.beneficial_owners.filter(is_active=True)
+                ) if profile.beneficial_owners.filter(is_active=True).exists() else False
+            }
+        }
+        
+        # Check if ready to submit
+        can_submit = (
+            profile.step1_completed and 
+            profile.step2_completed and 
+            profile.step3_completed and
+            not profile.application_submitted
+        )
+        
         return Response({
             'success': True,
             'step_data': step4_serializer.data,
+            'review_summary': review_summary,
             'profile': profile_serializer.data,
-            'step_completed': profile.step4_completed,
+            'can_submit': can_submit,
+            'steps_completed': {
+                'step1': profile.step1_completed,
+                'step2': profile.step2_completed,
+                'step3': profile.step3_completed,
+                'step4': profile.step4_completed
+            },
             'application_status': profile.application_status,
             'submitted_at': profile.submitted_at
         }, status=status.HTTP_200_OK)
