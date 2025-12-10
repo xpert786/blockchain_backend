@@ -367,12 +367,31 @@ class SyndicateProfileSerializer(serializers.ModelSerializer):
 
 
 class SyndicateStep1Serializer(serializers.ModelSerializer):
-    """Serializer for Step 1: Lead Info (Personal & Accreditation)"""
+    """Serializer for Step 1: Lead Info (Personal, Accreditation & Investment Focus)"""
     # full_name is writable for input and computed for output
     full_name = serializers.CharField(required=False, allow_blank=True)
     short_bio = serializers.CharField(required=False, allow_blank=True)
     # Email from the related user object (read-only)
     email = serializers.EmailField(source='user.email', read_only=True)
+    
+    # Investment Focus fields - sectors and geographies
+    sector_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Sector.objects.all(),
+        source='sectors',
+        many=True,
+        write_only=True,
+        required=False
+    )
+    sectors = SectorSerializer(many=True, read_only=True)
+    
+    geography_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Geography.objects.all(),
+        source='geographies',
+        many=True,
+        write_only=True,
+        required=False
+    )
+    geographies = GeographySerializer(many=True, read_only=True)
     
     class Meta:
         model = SyndicateProfile
@@ -389,12 +408,23 @@ class SyndicateStep1Serializer(serializers.ModelSerializer):
             'understands_regulatory_requirements',
             'first_name',
             'last_name',
-            'bio'
+            'bio',
+            # Investment Focus fields
+            'sectors',
+            'sector_ids',
+            'geographies',
+            'geography_ids',
+            'existing_lp_count',
+            'lp_base_size',
+            'enable_platform_lp_access'
         ]
         extra_kwargs = {
             'first_name': {'required': False},
             'last_name': {'required': False},
-            'bio': {'required': False}
+            'bio': {'required': False},
+            'existing_lp_count': {'required': False},
+            'lp_base_size': {'required': False},
+            'enable_platform_lp_access': {'required': False}
         }
     
     def to_representation(self, instance):
@@ -419,6 +449,10 @@ class SyndicateStep1Serializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        # Handle sectors and geographies (M2M fields)
+        sectors = validated_data.pop('sectors', None)
+        geographies = validated_data.pop('geographies', None)
+        
         # Handle full_name -> first_name/last_name during creation
         full_name = validated_data.pop('full_name', None)
         if full_name:
@@ -434,9 +468,20 @@ class SyndicateStep1Serializer(serializers.ModelSerializer):
             validated_data['bio'] = short_bio
 
         instance = super().create(validated_data)
+        
+        # Set M2M relationships after instance creation
+        if sectors is not None:
+            instance.sectors.set(sectors)
+        if geographies is not None:
+            instance.geographies.set(geographies)
+        
         return instance
 
     def update(self, instance, validated_data):
+        # Handle sectors and geographies (M2M fields)
+        sectors = validated_data.pop('sectors', None)
+        geographies = validated_data.pop('geographies', None)
+        
         # Handle full_name -> first_name/last_name during update
         full_name = validated_data.pop('full_name', None)
         if full_name:
@@ -456,6 +501,13 @@ class SyndicateStep1Serializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
 
         instance.save()
+        
+        # Set M2M relationships
+        if sectors is not None:
+            instance.sectors.set(sectors)
+        if geographies is not None:
+            instance.geographies.set(geographies)
+
         return instance
 
 
