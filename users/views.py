@@ -715,7 +715,8 @@ class GoogleLoginWithRoleView(SocialLoginView):
                 'message': 'Login successful',
                 'tokens': {
                     'access': str(refresh.access_token),
-                    'refresh': str(refresh)
+                    'refresh': str(refresh),
+                    'role': user.role
                 }
             }, status=status.HTTP_200_OK)
 
