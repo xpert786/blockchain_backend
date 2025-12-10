@@ -649,6 +649,10 @@ class GoogleLoginWithRoleView(SocialLoginView):
     callback_url = settings.CALLBACK_URL  
 
     def post(self, request, *args, **kwargs):
+        # Check if role and token are present in the request
+        if 'role' not in request.data and 'access_token' not in request.data and 'code' not in request.data:
+            return Response({'error': 'Please sign in first.'}, status=status.HTTP_400_BAD_REQUEST)
+
         response = super().post(request, *args, **kwargs)
         
         if response.status_code != 200:
