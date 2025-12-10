@@ -680,11 +680,11 @@ class TeamMember(models.Model):
     """Model for syndicate team members"""
     
     ROLE_CHOICES = [
-        ('manager', 'Manager'),
-        ('analyst', 'Analyst'),
-        ('associate', 'Associate'),
-        ('partner', 'Partner'),
-        ('admin', 'Admin'),
+        ('lead_partner', 'Lead Partner'),
+        ('co_lead', 'Co-Lead / Deal Partner'),
+        ('operations_manager', 'Operations Manager'),
+        ('compliance_officer', 'Compliance Officer'),
+        ('analyst_deal_scout', 'Analyst / Deal Scout'),
         ('viewer', 'Viewer'),
     ]
     
@@ -709,7 +709,35 @@ class TeamMember(models.Model):
     # Role and permissions
     role = models.CharField(max_length=50, choices=ROLE_CHOICES, default='viewer')
     
-    # Individual permissions (can override role-based permissions)
+    # Deal Permissions
+    can_create_spvs = models.BooleanField(default=False, help_text="Create SPVs")
+    can_publish_spvs = models.BooleanField(default=False, help_text="Publish SPVs")
+    can_upload_deal_materials = models.BooleanField(default=False, help_text="Upload deal materials")
+    can_edit_deal_terms = models.BooleanField(default=False, help_text="Edit deal terms")
+    
+    # Investor Permissions
+    can_invite_lps = models.BooleanField(default=False, help_text="Invite LPs")
+    can_view_lp_list = models.BooleanField(default=False, help_text="View LP list")
+    can_view_lp_commitments = models.BooleanField(default=False, help_text="View LP commitments")
+    can_communicate_with_lps = models.BooleanField(default=False, help_text="Communicate with LPs")
+    
+    # Operations & Finance Permissions
+    can_manage_capital_calls = models.BooleanField(default=False, help_text="Manage capital calls")
+    can_update_payment_statuses = models.BooleanField(default=False, help_text="Update payment statuses")
+    can_manage_bank_accounts = models.BooleanField(default=False, help_text="Manage bank accounts")
+    can_send_tax_documents = models.BooleanField(default=False, help_text="Send tax documents")
+    
+    # Compliance Permissions
+    can_review_kyc_kyb = models.BooleanField(default=False, help_text="Review KYC/KYB")
+    can_approve_reject_investors = models.BooleanField(default=False, help_text="Approve/reject investors")
+    can_view_jurisdiction_flags = models.BooleanField(default=False, help_text="View jurisdiction/eligibility flags")
+    can_access_audit_logs = models.BooleanField(default=False, help_text="Access audit logs")
+    
+    # Team Management Permissions
+    can_add_remove_team_members = models.BooleanField(default=False, help_text="Add/remove team members")
+    can_edit_roles_permissions = models.BooleanField(default=False, help_text="Edit roles & permissions")
+    
+    # Legacy permissions (kept for backwards compatibility)
     can_access_dashboard = models.BooleanField(default=True)
     can_manage_spvs = models.BooleanField(default=False)
     can_manage_documents = models.BooleanField(default=False)
@@ -752,78 +780,84 @@ class TeamMember(models.Model):
     def get_permissions(self):
         """Get all permissions as dictionary"""
         return {
+            # Deal Permissions
+            'can_create_spvs': self.can_create_spvs,
+            'can_publish_spvs': self.can_publish_spvs,
+            'can_upload_deal_materials': self.can_upload_deal_materials,
+            'can_edit_deal_terms': self.can_edit_deal_terms,
+            # Investor Permissions
+            'can_invite_lps': self.can_invite_lps,
+            'can_view_lp_list': self.can_view_lp_list,
+            'can_view_lp_commitments': self.can_view_lp_commitments,
+            'can_communicate_with_lps': self.can_communicate_with_lps,
+            # Operations & Finance
+            'can_manage_capital_calls': self.can_manage_capital_calls,
+            'can_update_payment_statuses': self.can_update_payment_statuses,
+            'can_manage_bank_accounts': self.can_manage_bank_accounts,
+            'can_send_tax_documents': self.can_send_tax_documents,
+            # Compliance
+            'can_review_kyc_kyb': self.can_review_kyc_kyb,
+            'can_approve_reject_investors': self.can_approve_reject_investors,
+            'can_view_jurisdiction_flags': self.can_view_jurisdiction_flags,
+            'can_access_audit_logs': self.can_access_audit_logs,
+            # Team Management
+            'can_add_remove_team_members': self.can_add_remove_team_members,
+            'can_edit_roles_permissions': self.can_edit_roles_permissions,
+            # Legacy
             'can_access_dashboard': self.can_access_dashboard,
-            'can_manage_spvs': self.can_manage_spvs,
-            'can_manage_documents': self.can_manage_documents,
-            'can_manage_investors': self.can_manage_investors,
             'can_view_reports': self.can_view_reports,
-            'can_manage_transfers': self.can_manage_transfers,
-            'can_manage_team': self.can_manage_team,
-            'can_manage_settings': self.can_manage_settings,
         }
     
     def apply_role_permissions(self):
         """Apply default permissions based on role"""
         role_permissions = {
-            'manager': {
-                'can_access_dashboard': True,
-                'can_manage_spvs': True,
-                'can_manage_documents': True,
-                'can_manage_investors': True,
-                'can_view_reports': True,
-                'can_manage_transfers': True,
-                'can_manage_team': True,
-                'can_manage_settings': True,
+            'lead_partner': {
+                'can_create_spvs': True, 'can_publish_spvs': True, 'can_upload_deal_materials': True, 'can_edit_deal_terms': True,
+                'can_invite_lps': True, 'can_view_lp_list': True, 'can_view_lp_commitments': True, 'can_communicate_with_lps': True,
+                'can_manage_capital_calls': True, 'can_update_payment_statuses': True, 'can_manage_bank_accounts': True, 'can_send_tax_documents': True,
+                'can_review_kyc_kyb': True, 'can_approve_reject_investors': True, 'can_view_jurisdiction_flags': True, 'can_access_audit_logs': True,
+                'can_add_remove_team_members': True, 'can_edit_roles_permissions': True,
+                'can_access_dashboard': True, 'can_view_reports': True,
             },
-            'partner': {
-                'can_access_dashboard': True,
-                'can_manage_spvs': True,
-                'can_manage_documents': True,
-                'can_manage_investors': True,
-                'can_view_reports': True,
-                'can_manage_transfers': True,
-                'can_manage_team': False,
-                'can_manage_settings': False,
+            'co_lead': {
+                'can_create_spvs': True, 'can_publish_spvs': True, 'can_upload_deal_materials': True, 'can_edit_deal_terms': True,
+                'can_invite_lps': True, 'can_view_lp_list': True, 'can_view_lp_commitments': True, 'can_communicate_with_lps': True,
+                'can_manage_capital_calls': True, 'can_update_payment_statuses': True, 'can_manage_bank_accounts': False, 'can_send_tax_documents': True,
+                'can_review_kyc_kyb': False, 'can_approve_reject_investors': False, 'can_view_jurisdiction_flags': True, 'can_access_audit_logs': False,
+                'can_add_remove_team_members': False, 'can_edit_roles_permissions': False,
+                'can_access_dashboard': True, 'can_view_reports': True,
             },
-            'analyst': {
-                'can_access_dashboard': True,
-                'can_manage_spvs': False,
-                'can_manage_documents': True,
-                'can_manage_investors': False,
-                'can_view_reports': True,
-                'can_manage_transfers': False,
-                'can_manage_team': False,
-                'can_manage_settings': False,
+            'operations_manager': {
+                'can_create_spvs': False, 'can_publish_spvs': False, 'can_upload_deal_materials': True, 'can_edit_deal_terms': False,
+                'can_invite_lps': False, 'can_view_lp_list': True, 'can_view_lp_commitments': True, 'can_communicate_with_lps': True,
+                'can_manage_capital_calls': True, 'can_update_payment_statuses': True, 'can_manage_bank_accounts': True, 'can_send_tax_documents': True,
+                'can_review_kyc_kyb': False, 'can_approve_reject_investors': False, 'can_view_jurisdiction_flags': False, 'can_access_audit_logs': True,
+                'can_add_remove_team_members': False, 'can_edit_roles_permissions': False,
+                'can_access_dashboard': True, 'can_view_reports': True,
             },
-            'associate': {
-                'can_access_dashboard': True,
-                'can_manage_spvs': False,
-                'can_manage_documents': True,
-                'can_manage_investors': True,
-                'can_view_reports': True,
-                'can_manage_transfers': False,
-                'can_manage_team': False,
-                'can_manage_settings': False,
+            'compliance_officer': {
+                'can_create_spvs': False, 'can_publish_spvs': False, 'can_upload_deal_materials': False, 'can_edit_deal_terms': False,
+                'can_invite_lps': False, 'can_view_lp_list': True, 'can_view_lp_commitments': False, 'can_communicate_with_lps': False,
+                'can_manage_capital_calls': False, 'can_update_payment_statuses': False, 'can_manage_bank_accounts': False, 'can_send_tax_documents': False,
+                'can_review_kyc_kyb': True, 'can_approve_reject_investors': True, 'can_view_jurisdiction_flags': True, 'can_access_audit_logs': True,
+                'can_add_remove_team_members': False, 'can_edit_roles_permissions': False,
+                'can_access_dashboard': True, 'can_view_reports': True,
             },
-            'admin': {
-                'can_access_dashboard': True,
-                'can_manage_spvs': True,
-                'can_manage_documents': True,
-                'can_manage_investors': True,
-                'can_view_reports': True,
-                'can_manage_transfers': True,
-                'can_manage_team': True,
-                'can_manage_settings': True,
+            'analyst_deal_scout': {
+                'can_create_spvs': False, 'can_publish_spvs': False, 'can_upload_deal_materials': True, 'can_edit_deal_terms': False,
+                'can_invite_lps': False, 'can_view_lp_list': False, 'can_view_lp_commitments': False, 'can_communicate_with_lps': False,
+                'can_manage_capital_calls': False, 'can_update_payment_statuses': False, 'can_manage_bank_accounts': False, 'can_send_tax_documents': False,
+                'can_review_kyc_kyb': False, 'can_approve_reject_investors': False, 'can_view_jurisdiction_flags': False, 'can_access_audit_logs': False,
+                'can_add_remove_team_members': False, 'can_edit_roles_permissions': False,
+                'can_access_dashboard': True, 'can_view_reports': True,
             },
             'viewer': {
-                'can_access_dashboard': True,
-                'can_manage_spvs': False,
-                'can_manage_documents': False,
-                'can_manage_investors': False,
-                'can_view_reports': True,
-                'can_manage_transfers': False,
-                'can_manage_team': False,
-                'can_manage_settings': False,
+                'can_create_spvs': False, 'can_publish_spvs': False, 'can_upload_deal_materials': False, 'can_edit_deal_terms': False,
+                'can_invite_lps': False, 'can_view_lp_list': False, 'can_view_lp_commitments': False, 'can_communicate_with_lps': False,
+                'can_manage_capital_calls': False, 'can_update_payment_statuses': False, 'can_manage_bank_accounts': False, 'can_send_tax_documents': False,
+                'can_review_kyc_kyb': False, 'can_approve_reject_investors': False, 'can_view_jurisdiction_flags': False, 'can_access_audit_logs': False,
+                'can_add_remove_team_members': False, 'can_edit_roles_permissions': False,
+                'can_access_dashboard': True, 'can_view_reports': True,
             }
         }
         

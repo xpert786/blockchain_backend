@@ -1161,9 +1161,19 @@ class TeamMemberSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'syndicate', 'user', 'user_detail', 'name', 'email',
             'role', 'permissions',
-            'can_access_dashboard', 'can_manage_spvs', 'can_manage_documents',
-            'can_manage_investors', 'can_view_reports', 'can_manage_transfers',
-            'can_manage_team', 'can_manage_settings',
+            # Deal Permissions
+            'can_create_spvs', 'can_publish_spvs', 'can_upload_deal_materials', 'can_edit_deal_terms',
+            # Investor Permissions
+            'can_invite_lps', 'can_view_lp_list', 'can_view_lp_commitments', 'can_communicate_with_lps',
+            # Operations & Finance
+            'can_manage_capital_calls', 'can_update_payment_statuses', 'can_manage_bank_accounts', 'can_send_tax_documents',
+            # Compliance
+            'can_review_kyc_kyb', 'can_approve_reject_investors', 'can_view_jurisdiction_flags', 'can_access_audit_logs',
+            # Team Management
+            'can_add_remove_team_members', 'can_edit_roles_permissions',
+            # Legacy/General
+            'can_access_dashboard', 'can_view_reports',
+            # Status
             'invitation_sent', 'invitation_accepted', 'is_active', 'is_registered',
             'added_by', 'added_by_detail', 'added_at', 'updated_at'
         ]
@@ -1209,9 +1219,18 @@ class TeamMemberCreateSerializer(serializers.ModelSerializer):
         model = TeamMember
         fields = [
             'name', 'email', 'role',
-            'can_access_dashboard', 'can_manage_spvs', 'can_manage_documents',
-            'can_manage_investors', 'can_view_reports', 'can_manage_transfers',
-            'can_manage_team', 'can_manage_settings'
+            # Deal Permissions
+            'can_create_spvs', 'can_publish_spvs', 'can_upload_deal_materials', 'can_edit_deal_terms',
+            # Investor Permissions
+            'can_invite_lps', 'can_view_lp_list', 'can_view_lp_commitments', 'can_communicate_with_lps',
+            # Operations & Finance
+            'can_manage_capital_calls', 'can_update_payment_statuses', 'can_manage_bank_accounts', 'can_send_tax_documents',
+            # Compliance
+            'can_review_kyc_kyb', 'can_approve_reject_investors', 'can_view_jurisdiction_flags', 'can_access_audit_logs',
+            # Team Management
+            'can_add_remove_team_members', 'can_edit_roles_permissions',
+            # Legacy/General
+            'can_access_dashboard', 'can_view_reports'
         ]
     
     def validate_email(self, value):
@@ -1247,9 +1266,18 @@ class TeamMemberUpdateSerializer(serializers.ModelSerializer):
         model = TeamMember
         fields = [
             'role',
-            'can_access_dashboard', 'can_manage_spvs', 'can_manage_documents',
-            'can_manage_investors', 'can_view_reports', 'can_manage_transfers',
-            'can_manage_team', 'can_manage_settings',
+            # Deal Permissions
+            'can_create_spvs', 'can_publish_spvs', 'can_upload_deal_materials', 'can_edit_deal_terms',
+            # Investor Permissions
+            'can_invite_lps', 'can_view_lp_list', 'can_view_lp_commitments', 'can_communicate_with_lps',
+            # Operations & Finance
+            'can_manage_capital_calls', 'can_update_payment_statuses', 'can_manage_bank_accounts', 'can_send_tax_documents',
+            # Compliance
+            'can_review_kyc_kyb', 'can_approve_reject_investors', 'can_view_jurisdiction_flags', 'can_access_audit_logs',
+            # Team Management
+            'can_add_remove_team_members', 'can_edit_roles_permissions',
+            # Legacy/General
+            'can_access_dashboard', 'can_view_reports',
             'is_active'
         ]
     

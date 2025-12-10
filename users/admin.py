@@ -149,55 +149,6 @@ class SyndicateProfileAdmin(admin.ModelAdmin):
     current_step.short_description = 'Current Step'
 
 
-@admin.register(TeamMember)
-class TeamMemberAdmin(admin.ModelAdmin):
-    """Admin interface for TeamMember"""
-    list_display = (
-        'id', 'name', 'email', 'syndicate_name', 'role',
-        'is_registered', 'is_active', 'added_at'
-    )
-    list_filter = ('role', 'is_active', 'invitation_sent', 'invitation_accepted', 'added_at')
-    search_fields = ('name', 'email', 'syndicate__firm_name', 'user__username', 'user__email')
-    readonly_fields = ('added_at', 'updated_at', 'is_registered')
-    ordering = ('-added_at',)
-    
-    fieldsets = (
-        ('Basic Information', {
-            'fields': ('syndicate', 'user', 'name', 'email')
-        }),
-        ('Role & Permissions', {
-            'fields': (
-                'role',
-                'can_access_dashboard', 'can_manage_spvs', 'can_manage_documents',
-                'can_manage_investors', 'can_view_reports', 'can_manage_transfers',
-                'can_manage_team', 'can_manage_settings'
-            )
-        }),
-        ('Status', {
-            'fields': ('is_active', 'invitation_sent', 'invitation_accepted', 'is_registered')
-        }),
-        ('Metadata', {
-            'fields': ('added_by', 'added_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
-    )
-    
-    def syndicate_name(self, obj):
-        """Display syndicate firm name"""
-        return obj.syndicate.firm_name or f"Syndicate {obj.syndicate.id}"
-    syndicate_name.short_description = 'Syndicate'
-    
-    def is_registered(self, obj):
-        """Display registration status with colored indicator"""
-        if obj.is_registered:
-            return format_html(
-                '<span style="color: green; font-weight: bold;">✓ Registered</span>'
-            )
-        return format_html(
-            '<span style="color: orange;">○ Invited</span>'
-        )
-    is_registered.short_description = 'Status'
-
 
 @admin.register(ComplianceDocument)
 class ComplianceDocumentAdmin(admin.ModelAdmin):
@@ -412,3 +363,91 @@ class BankAccountAdmin(admin.ModelAdmin):
         """Display syndicate firm name"""
         return obj.syndicate.firm_name or f"Syndicate {obj.syndicate.id}"
     syndicate_name.short_description = 'Syndicate'
+
+
+@admin.register(TeamMember)
+class TeamMemberAdmin(admin.ModelAdmin):
+    """Admin interface for Team Members"""
+    list_display = (
+        'id', 'name', 'email', 'role', 'syndicate_name', 
+        'is_active', 'is_registered', 'invitation_accepted', 'added_at'
+    )
+    list_filter = (
+        'role', 'is_active', 'invitation_sent', 'invitation_accepted',
+        'can_create_spvs', 'can_add_remove_team_members'
+    )
+    search_fields = ('name', 'email', 'syndicate__firm_name', 'user__username', 'user__email')
+    ordering = ('-added_at',)
+    autocomplete_fields = ['syndicate', 'user', 'added_by']
+    readonly_fields = ('added_at', 'updated_at', 'is_registered')
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('syndicate', 'user', 'name', 'email', 'role')
+        }),
+        ('Deal Permissions', {
+            'fields': (
+                'can_create_spvs', 'can_publish_spvs', 
+                'can_upload_deal_materials', 'can_edit_deal_terms'
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Investor Permissions', {
+            'fields': (
+                'can_invite_lps', 'can_view_lp_list', 
+                'can_view_lp_commitments', 'can_communicate_with_lps'
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Operations & Finance Permissions', {
+            'fields': (
+                'can_manage_capital_calls', 'can_update_payment_statuses',
+                'can_manage_bank_accounts', 'can_send_tax_documents'
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Compliance Permissions', {
+            'fields': (
+                'can_review_kyc_kyb', 'can_approve_reject_investors',
+                'can_view_jurisdiction_flags', 'can_access_audit_logs'
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Team Management Permissions', {
+            'fields': (
+                'can_add_remove_team_members', 'can_edit_roles_permissions'
+            ),
+            'classes': ('collapse',)
+        }),
+        ('General Permissions', {
+            'fields': (
+                'can_access_dashboard', 'can_view_reports',
+                'can_manage_spvs', 'can_manage_documents',
+                'can_manage_investors', 'can_manage_transfers',
+                'can_manage_team', 'can_manage_settings'
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Invitation & Status', {
+            'fields': (
+                'invitation_sent', 'invitation_token', 
+                'invitation_accepted', 'is_active'
+            )
+        }),
+        ('Metadata', {
+            'fields': ('added_by', 'added_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def syndicate_name(self, obj):
+        """Display syndicate firm name"""
+        return obj.syndicate.firm_name or f"Syndicate {obj.syndicate.id}"
+    syndicate_name.short_description = 'Syndicate'
+    
+    def is_registered(self, obj):
+        """Check if team member has registered user account"""
+        if obj.user:
+            return format_html('<span style="color: green;">✓ Yes</span>')
+        return format_html('<span style="color: orange;">✗ No</span>')
+    is_registered.short_description = 'Registered'

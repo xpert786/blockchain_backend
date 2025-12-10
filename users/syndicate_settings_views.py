@@ -99,15 +99,14 @@ def syndicate_settings_general_info(request):
     }, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['GET', 'PATCH'])
+@api_view(['GET', 'POST', 'PATCH'])
 @permission_classes([permissions.IsAuthenticated])
 def syndicate_settings_team_management(request):
     """
     Settings: Team Management
     GET /api/syndicate/settings/team-management/ - Get team members
+    POST /api/syndicate/settings/team-management/ - Add new team member
     PATCH /api/syndicate/settings/team-management/ - Update RBAC settings
-    
-    Note: Team member CRUD operations are handled by /api/team-members/ endpoints
     """
     user = request.user
     
@@ -143,23 +142,78 @@ def syndicate_settings_team_management(request):
             }
         })
     
-    # Handle PATCH request for RBAC settings
-    enable_rbac = request.data.get('enable_role_based_access_controls')
-    if enable_rbac is not None:
-        profile.enable_role_based_access_controls = enable_rbac
-        profile.save()
+    elif request.method == 'POST':
+        # Add new team member
+        from .models import TeamMember
+        from .serializers import TeamMemberCreateSerializer, TeamMemberSerializer
+        
+        serializer = TeamMemberCreateSerializer(
+            data=request.data,
+            context={'syndicate': profile, 'added_by': user}
+        )
+        
+        if serializer.is_valid():
+            team_member = serializer.save()
+            response_serializer = TeamMemberSerializer(team_member)
+            return Response({
+                'success': True,
+                'message': 'Team member added successfully',
+                'data': response_serializer.data
+            }, status=status.HTTP_201_CREATED)
         
         return Response({
-            'success': True,
-            'message': 'Role-based access controls updated successfully',
-            'data': {
-                'enable_role_based_access_controls': profile.enable_role_based_access_controls
-            }
-        })
+            'success': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
     
-    return Response({
-        'error': 'No valid data provided'
-    }, status=status.HTTP_400_BAD_REQUEST)
+    elif request.method == 'PATCH':
+        from .models import TeamMember
+        from .serializers import TeamMemberUpdateSerializer, TeamMemberSerializer
+        
+        # Check if updating a specific team member
+        team_member_id = request.data.get('team_member_id') or request.data.get('id')
+        if team_member_id:
+            try:
+                team_member = TeamMember.objects.get(id=team_member_id, syndicate=profile)
+            except TeamMember.DoesNotExist:
+                return Response({
+                    'success': False,
+                    'error': 'Team member not found'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            serializer = TeamMemberUpdateSerializer(team_member, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                response_serializer = TeamMemberSerializer(team_member)
+                return Response({
+                    'success': True,
+                    'message': 'Team member updated successfully',
+                    'data': response_serializer.data
+                })
+            
+            return Response({
+                'success': False,
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Handle RBAC settings update
+        enable_rbac = request.data.get('enable_role_based_access_controls')
+        if enable_rbac is not None:
+            profile.enable_role_based_access_controls = enable_rbac
+            profile.save()
+            
+            return Response({
+                'success': True,
+                'message': 'Role-based access controls updated successfully',
+                'data': {
+                    'enable_role_based_access_controls': profile.enable_role_based_access_controls
+                }
+            })
+        
+        return Response({
+            'success': False,
+            'error': 'No valid data provided. Include team_member_id for team member updates or enable_role_based_access_controls for RBAC settings.'
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET', 'PATCH'])
