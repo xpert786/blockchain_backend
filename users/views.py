@@ -689,52 +689,87 @@ class GoogleLoginWithRoleView(SocialLoginView):
     callback_url = settings.CALLBACK_URL  
 
     def post(self, request, *args, **kwargs):
-        # Role is required for signup
-        if not request.data.get('role'):
+        # 1. Let the parent class handle the Google Authentication first
+        try:
+            response = super().post(request, *args, **kwargs)
+        except Exception as e:
             return Response({
-                'success': False,
-                'detail': 'Role is required for signup. Provide "investor" or "syndicate".'
+                'success': False, 
+                'detail': 'Google authentication failed.'
             }, status=status.HTTP_400_BAD_REQUEST)
-        
-        response = super().post(request, *args, **kwargs)
 
         if response.status_code != 200:
             return response
 
+        # 2. Get the user object (retrieved or created by SocialLoginView)
         user = self.user 
+        
+        # --- SCENARIO A: LOGIN (User already has a role) ---
+        if user.role:
+            # Generate fresh tokens
+            refresh = RefreshToken.for_user(user)
+            
+            # Return ONLY tokens as requested for existing users
+            return Response({
+                'success': True,
+                'message': 'Login successful',
+                'tokens': {
+                    'access': str(refresh.access_token),
+                    'refresh': str(refresh)
+                }
+            }, status=status.HTTP_200_OK)
 
+        # --- SCENARIO B: SIGNUP (User is new/has no role) ---
+        
+        # Check if role is provided in the request
         requested_role = request.data.get('role')
 
-        # Set role if user doesn't have one yet (new signup)
-        if not user.role and requested_role:
-            allowed_roles = ['investor', 'syndicate']
-            if requested_role in allowed_roles:
-                user.role = requested_role
-                user.save()
+        if not requested_role:
+            # CRITICAL: We created a user via Google, but they didn't provide a role.
+            # We must delete this incomplete user so they can try again properly.
+            user.delete()
+            return Response({
+                'success': False,
+                'detail': 'Role is required for new signup. Provide "investor" or "syndicate".'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Generate JWT tokens for frontend login
+        # Validate Role
+        allowed_roles = ['investor', 'syndicate']
+        if requested_role not in allowed_roles:
+            user.delete() # Cleanup
+            return Response({
+                'success': False, 
+                'detail': 'Invalid role selected.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Save the role
+        user.role = requested_role
+        user.save()
+
+        # Generate tokens for the new user
         refresh = RefreshToken.for_user(user)
         
-        # Modify response to include tokens
-        response_data = response.data.copy() if isinstance(response.data, dict) else {}
-        response_data['success'] = True
-        response_data['tokens'] = {
-            'access': str(refresh.access_token),
-            'refresh': str(refresh)
-        }
-        response_data['user'] = {
-            'id': user.id,
-            'username': user.username,
-            'email': user.email,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-            'role': user.role,
-            'phone_number': user.phone_number,
-            'email_verified': user.email_verified,
-            'phone_verified': user.phone_verified
+        # Return full details for Signup
+        response_data = {
+            'success': True,
+            'message': 'Signup successful',
+            'tokens': {
+                'access': str(refresh.access_token),
+                'refresh': str(refresh)
+            },
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'role': user.role,
+                'phone_number': getattr(user, 'phone_number', None),
+                'email_verified': getattr(user, 'email_verified', False), # Safe access using getattr
+            }
         }
         
-        return Response(response_data, status=status.HTTP_200_OK)
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
 
 @api_view(['POST'])
