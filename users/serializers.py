@@ -554,20 +554,85 @@ class SyndicateStep1InvestmentFocusSerializer(serializers.ModelSerializer):
 
 
 class SyndicateStep2Serializer(serializers.ModelSerializer):
-    """Serializer for Step 2: Entity Profile"""
+    """Serializer for Step 2: Entity Profile (Syndicate Profile)"""
+    
+    # Investment Focus fields - sectors and geographies
+    sector_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Sector.objects.all(),
+        source='sectors',
+        many=True,
+        write_only=True,
+        required=False
+    )
+    sectors = SectorSerializer(many=True, read_only=True)
+    
+    geography_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Geography.objects.all(),
+        source='geographies',
+        many=True,
+        write_only=True,
+        required=False
+    )
+    geographies = GeographySerializer(many=True, read_only=True)
+    
+    # Team members count (read-only)
+    team_members_count = serializers.SerializerMethodField()
     
     class Meta:
         model = SyndicateProfile
-        fields = ['firm_name', 'description', 'logo']
+        fields = [
+            'firm_name',
+            'description', 
+            'logo',
+            # Investment focus fields
+            'sectors',
+            'sector_ids',
+            'geographies',
+            'geography_ids',
+            'existing_lp_count',
+            'enable_platform_lp_access',
+            # Team members
+            'team_members_count'
+        ]
+        extra_kwargs = {
+            'logo': {'required': False},
+            'existing_lp_count': {'required': False},
+            'enable_platform_lp_access': {'required': False}
+        }
+    
+    def get_team_members_count(self, obj):
+        """Return count of team members"""
+        return obj.team_members.count() if hasattr(obj, 'team_members') else 0
     
     def validate(self, attrs):
-        if not attrs.get('firm_name'):
-            raise serializers.ValidationError("Firm name is required.")
-        
-        if not attrs.get('description'):
-            raise serializers.ValidationError("Description is required.")
+        # Only enforce required fields when not doing a partial update
+        if not self.partial:
+            if not attrs.get('firm_name'):
+                raise serializers.ValidationError({"firm_name": "Firm name is required."})
+            
+            if not attrs.get('description'):
+                raise serializers.ValidationError({"description": "Description is required."})
         
         return attrs
+    
+    def update(self, instance, validated_data):
+        # Handle sectors and geographies (M2M fields)
+        sectors = validated_data.pop('sectors', None)
+        geographies = validated_data.pop('geographies', None)
+        
+        # Update remaining fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        instance.save()
+        
+        # Set M2M relationships
+        if sectors is not None:
+            instance.sectors.set(sectors)
+        if geographies is not None:
+            instance.geographies.set(geographies)
+        
+        return instance
 
 
 class SyndicateStep3Serializer(serializers.ModelSerializer):

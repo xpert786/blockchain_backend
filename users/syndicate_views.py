@@ -179,6 +179,15 @@ def syndicate_step2(request):
     GET /api/syndicate/step2/ - Get step 2 data
     POST /api/syndicate/step2/ - Create or update step 2
     PATCH /api/syndicate/step2/ - Update step 2 (for editing when going back)
+    
+    Fields supported:
+    - firm_name: string (required)
+    - description: text (required)
+    - logo: file upload
+    - sector_ids: array of sector IDs
+    - geography_ids: array of geography IDs
+    - existing_lp_count: string ("0", "1-10", etc.)
+    - enable_platform_lp_access: boolean
     """
     user = request.user
     
@@ -188,18 +197,8 @@ def syndicate_step2(request):
             'error': 'Only users with syndicate role can access this endpoint'
         }, status=status.HTTP_403_FORBIDDEN)
     
-    try:
-        profile = SyndicateProfile.objects.get(user=user)
-    except SyndicateProfile.DoesNotExist:
-        return Response({
-            'error': 'Syndicate profile not found. Please complete Step 1 first.'
-        }, status=status.HTTP_404_NOT_FOUND)
-    
-    # Check if Step 1 is completed (only for POST/PATCH, allow GET even if step1 not completed)
-    if request.method != 'GET' and not profile.step1_completed:
-        return Response({
-            'error': 'Step 1 must be completed before proceeding to Step 2'
-        }, status=status.HTTP_400_BAD_REQUEST)
+    # Get or create syndicate profile
+    profile, created = SyndicateProfile.objects.get_or_create(user=user)
     
     # Handle GET request
     if request.method == 'GET':
@@ -207,7 +206,8 @@ def syndicate_step2(request):
         profile_serializer = SyndicateProfileSerializer(profile)
         return Response({
             'success': True,
-            'step_data': step2_serializer.data,
+            'message': 'Entity profile data retrieved successfully',
+            'data': step2_serializer.data,
             'profile': profile_serializer.data,
             'step_completed': profile.step2_completed,
             'next_step': 'step3' if profile.step2_completed else 'step2'
@@ -218,16 +218,24 @@ def syndicate_step2(request):
     if serializer.is_valid():
         serializer.save()
         
+        # Refresh profile to get updated data
+        profile.refresh_from_db()
+        
         # Return updated profile with step completion status
         profile_serializer = SyndicateProfileSerializer(profile)
         return Response({
             'success': True,
-            'message': 'Step 2 completed successfully',
+            'message': 'Entity profile updated successfully',
+            'data': serializer.data,
             'profile': profile_serializer.data,
+            'step_completed': profile.step2_completed,
             'next_step': 'step3' if profile.step2_completed else 'step2'
         }, status=status.HTTP_200_OK)
     
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response({
+        'success': False,
+        'errors': serializer.errors
+    }, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET', 'POST', 'PATCH'])
