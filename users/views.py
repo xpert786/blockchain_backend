@@ -689,11 +689,13 @@ class GoogleLoginWithRoleView(SocialLoginView):
     callback_url = settings.CALLBACK_URL  
 
     def post(self, request, *args, **kwargs):
+        # Role is required for signup
         if not request.data.get('role'):
             return Response({
                 'success': False,
                 'detail': 'Role is required for signup. Provide "investor" or "syndicate".'
             }, status=status.HTTP_400_BAD_REQUEST)
+        
         response = super().post(request, *args, **kwargs)
 
         if response.status_code != 200:
@@ -703,22 +705,19 @@ class GoogleLoginWithRoleView(SocialLoginView):
 
         requested_role = request.data.get('role')
 
+        # Set role if user doesn't have one yet (new signup)
         if not user.role and requested_role:
-
             allowed_roles = ['investor', 'syndicate']
-
             if requested_role in allowed_roles:
                 user.role = requested_role
                 user.save()
-            else:
-                pass 
 
-        return response
         # Generate JWT tokens for frontend login
         refresh = RefreshToken.for_user(user)
         
         # Modify response to include tokens
         response_data = response.data.copy() if isinstance(response.data, dict) else {}
+        response_data['success'] = True
         response_data['tokens'] = {
             'access': str(refresh.access_token),
             'refresh': str(refresh)

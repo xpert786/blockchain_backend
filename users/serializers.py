@@ -368,13 +368,16 @@ class SyndicateProfileSerializer(serializers.ModelSerializer):
 
 class SyndicateStep1Serializer(serializers.ModelSerializer):
     """Serializer for Step 1: Lead Info (Personal & Accreditation)"""
-    # full_name is computed from first_name/last_name; short_bio is direct
-    full_name = serializers.SerializerMethodField(required=False)
+    # full_name is writable for input and computed for output
+    full_name = serializers.CharField(required=False, allow_blank=True)
     short_bio = serializers.CharField(required=False, allow_blank=True)
+    # Email from the related user object (read-only)
+    email = serializers.EmailField(source='user.email', read_only=True)
     
     class Meta:
         model = SyndicateProfile
         fields = [
+            'email',
             'country_of_residence',
             'current_role_title',
             'years_of_experience',
@@ -394,11 +397,16 @@ class SyndicateStep1Serializer(serializers.ModelSerializer):
             'bio': {'required': False}
         }
     
-    def get_full_name(self, obj):
-        """Dynamically generate full_name from first_name and last_name"""
-        first = obj.first_name or ''
-        last = obj.last_name or ''
-        return f"{first} {last}".strip() or None
+    def to_representation(self, instance):
+        """Override to compute full_name from first_name and last_name for output"""
+        data = super().to_representation(instance)
+        # Compute full_name from first_name/last_name for output
+        first = instance.first_name or ''
+        last = instance.last_name or ''
+        computed_full_name = f"{first} {last}".strip()
+        # Use the stored full_name if it exists, otherwise use computed
+        data['full_name'] = instance.full_name or computed_full_name or None
+        return data
     
     def validate(self, attrs):
         # Only enforce required fields when not doing a partial update
@@ -417,6 +425,7 @@ class SyndicateStep1Serializer(serializers.ModelSerializer):
             name_parts = full_name.strip().split(' ', 1)
             validated_data['first_name'] = name_parts[0] if name_parts else ''
             validated_data['last_name'] = name_parts[1] if len(name_parts) > 1 else ''
+            validated_data['full_name'] = full_name  # Also store the full_name directly
 
         # Map short_bio to both short_bio and bio fields
         short_bio = validated_data.pop('short_bio', None)
@@ -434,6 +443,7 @@ class SyndicateStep1Serializer(serializers.ModelSerializer):
             name_parts = full_name.strip().split(' ', 1)
             instance.first_name = name_parts[0] if name_parts else ''
             instance.last_name = name_parts[1] if len(name_parts) > 1 else ''
+            instance.full_name = full_name  # Also store the full_name directly
 
         # Map short_bio to both short_bio and bio fields
         short_bio = validated_data.pop('short_bio', None)
