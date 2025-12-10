@@ -94,15 +94,18 @@ except Exception:
 
 @admin.register(SyndicateProfile)
 class SyndicateProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'firm_name', 'is_accredited', 'application_status', 'current_step', 'created_at')
+    list_display = ('user', 'firm_name', 'full_name', 'is_accredited', 'application_status', 'current_step', 'created_at')
     list_filter = ('is_accredited', 'application_status', 'enable_platform_lp_access', 'created_at')
-    search_fields = ('user__username', 'user__email', 'firm_name')
+    search_fields = ('user__username', 'user__email', 'firm_name', 'first_name', 'last_name', 'full_name')
     readonly_fields = ('created_at', 'updated_at', 'submitted_at', 'current_step')
     filter_horizontal = ('sectors', 'geographies')
     
     fieldsets = (
         ('User Information', {
             'fields': ('user', 'created_at', 'updated_at')
+        }),
+        ('Personal Information', {
+            'fields': ('first_name', 'last_name', 'full_name', 'bio', 'short_bio', 'link')
         }),
         ('Step 1: Lead Info - Personal & Accreditation', {
             'fields': (

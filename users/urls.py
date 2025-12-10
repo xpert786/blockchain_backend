@@ -10,7 +10,7 @@ from . import syndicate_views
 from . import syndicate_settings_views
 from . import team_management_views
 from . import compliance_views
-from .views import GoogleLoginWithRoleView, QuickProfileView, GoogleSignupWithRoleView, GoogleSigninView
+from .views import GoogleLoginWithRoleView, QuickProfileView
 
 # Create router for ViewSets
 router = DefaultRouter()
@@ -112,13 +112,8 @@ urlpatterns = [
     
     # CORS preflight handler
     path('cors-preflight/', cors_views.cors_preflight, name='cors-preflight'),
-    # Google social endpoints:
-    # - Signup: accepts `role` and creates the user if not existing
-    path('auth/google/signup/', GoogleSignupWithRoleView.as_view(), name='google_signup'),
-    # - Signin: only allows login if a Google SocialAccount already exists
-    path('auth/google/signin/', GoogleSigninView.as_view(), name='google_signin'),
     # Backwards-compatible alias: original endpoint maps to signin
-    path('auth/google/', GoogleSigninView.as_view(), name='google_login'),
+    path('auth/google/', GoogleLoginWithRoleView.as_view(), name='google_login'),
     path('profile/quick-setup/', QuickProfileView.as_view(), name='quick-profile-setup'),
     
     # Include router URLs for ViewSets

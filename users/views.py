@@ -674,30 +674,50 @@ def _extract_and_verify_id_token(id_token_string):
         raise ValueError(f"Invalid id_token: {str(e)}")
 
 
+##############=====================Google Login With Role=====================
+from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from allauth.socialaccount.providers.oauth2.client import OAuth2Client
+from dj_rest_auth.registration.views import SocialLoginView
+from rest_framework.permissions import AllowAny
+
+
 class GoogleLoginWithRoleView(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
     client_class = OAuth2Client
     permission_classes = (AllowAny,)
-
     authentication_classes = []
     callback_url = settings.CALLBACK_URL  
 
     def post(self, request, *args, **kwargs):
-        # Check if role and token are present in the request
-        if 'role' not in request.data and 'access_token' not in request.data and 'code' not in request.data:
-            return Response({'error': 'Please sign in first.'}, status=status.HTTP_400_BAD_REQUEST)
-
+        if not request.data.get('role'):
+            return Response({
+                'success': False,
+                'detail': 'Role is required for signup. Provide "investor" or "syndicate".'
+            }, status=status.HTTP_400_BAD_REQUEST)
         response = super().post(request, *args, **kwargs)
 
         if response.status_code != 200:
             return response
 
-        user = self.user
+        user = self.user 
 
+        requested_role = request.data.get('role')
+
+        if not user.role and requested_role:
+
+            allowed_roles = ['investor', 'syndicate']
+
+            if requested_role in allowed_roles:
+                user.role = requested_role
+                user.save()
+            else:
+                pass 
+
+        return response
         # Generate JWT tokens for frontend login
         refresh = RefreshToken.for_user(user)
-
-        # Modify response to include tokens, but do not expose the user's role on login
+        
+        # Modify response to include tokens
         response_data = response.data.copy() if isinstance(response.data, dict) else {}
         response_data['tokens'] = {
             'access': str(refresh.access_token),
@@ -709,188 +729,13 @@ class GoogleLoginWithRoleView(SocialLoginView):
             'email': user.email,
             'first_name': user.first_name,
             'last_name': user.last_name,
+            'role': user.role,
             'phone_number': user.phone_number,
             'email_verified': user.email_verified,
             'phone_verified': user.phone_verified
         }
-
+        
         return Response(response_data, status=status.HTTP_200_OK)
-
-
-class GoogleSignupWithRoleView(SocialLoginView):
-    adapter_class = GoogleOAuth2Adapter
-    client_class = OAuth2Client
-    serializer_class = GoogleSignupSerializer
-    permission_classes = (AllowAny,)
-    authentication_classes = []
-    callback_url = settings.CALLBACK_URL
-
-    def post(self, request, *args, **kwargs):
-        # Validate incoming data
-        serializer = self.serializer_class(data=request.data)
-        if not serializer.is_valid():
-            return Response({
-                'success': False,
-                'detail': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Extract and validate id_token
-        id_token_string = request.data.get('id_token')
-        if not id_token_string:
-            return Response({
-                'success': False,
-                'detail': 'id_token is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            token_data = _extract_and_verify_id_token(id_token_string)
-        except ValueError as e:
-            return Response({
-                'success': False,
-                'detail': str(e)
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Get or create user
-        email = token_data.get('email')
-        first_name = token_data.get('given_name', '')
-        last_name = token_data.get('family_name', '')
-        
-        user, created = CustomUser.objects.get_or_create(
-            email=email,
-            defaults={
-                'username': email,
-                'first_name': first_name,
-                'last_name': last_name,
-                'email_verified': token_data.get('email_verified', False)
-            }
-        )
-        
-        # Create or update SocialAccount for Google
-        social_account, _ = SocialAccount.objects.get_or_create(
-            user=user,
-            provider='google',
-            defaults={'uid': token_data.get('sub', email)}
-        )
-        
-        # Handle role assignment
-        requested_role = request.data.get('role')
-        if not requested_role:
-            return Response({
-                'success': False,
-                'detail': 'Role is required for signup. Provide "investor" or "syndicate".'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        allowed_roles = ['investor', 'syndicate']
-        if requested_role not in allowed_roles:
-            return Response({
-                'success': False,
-                'detail': f'Invalid role. Allowed roles are: {", ".join(allowed_roles)}'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        user.role = requested_role
-        user.save()
-        
-        # Generate JWT tokens
-        refresh = RefreshToken.for_user(user)
-        
-        return Response({
-            'success': True,
-            'tokens': {
-                'access': str(refresh.access_token),
-                'refresh': str(refresh)
-            },
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-                'first_name': user.first_name,
-                'last_name': user.last_name,
-                'role': user.role,
-                'phone_number': user.phone_number,
-                'email_verified': user.email_verified,
-                'phone_verified': user.phone_verified
-            }
-        }, status=status.HTTP_201_CREATED)
-
-
-class GoogleSigninView(SocialLoginView):
-    adapter_class = GoogleOAuth2Adapter
-    client_class = OAuth2Client
-    serializer_class = GoogleAuthSerializer
-    permission_classes = (AllowAny,)
-    authentication_classes = []
-    callback_url = settings.CALLBACK_URL
-
-    def post(self, request, *args, **kwargs):
-        # Validate incoming data
-        serializer = self.serializer_class(data=request.data)
-        if not serializer.is_valid():
-            return Response({
-                'success': False,
-                'detail': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Extract and validate id_token
-        id_token_string = request.data.get('id_token')
-        if not id_token_string:
-            return Response({
-                'success': False,
-                'detail': 'id_token is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            token_data = _extract_and_verify_id_token(id_token_string)
-        except ValueError as e:
-            return Response({
-                'success': False,
-                'detail': str(e)
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Get email from token
-        email = token_data.get('email')
-        
-        # Check if email exists in the system (via Google SocialAccount)
-        user = CustomUser.objects.filter(email__iexact=email).first()
-        if not user:
-            # Email does not exist - ask user to signup first
-            return Response({
-                'success': False,
-                'detail': 'No Google signup found for this account. Please sign up with Google first.',
-                'email': email,
-                'code': 'NO_GOOGLE_SIGNUP'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Check if user has Google social account
-        social_account = SocialAccount.objects.filter(user=user, provider='google').first()
-        if not social_account:
-            return Response({
-                'success': False,
-                'detail': 'User exists but no Google account linked. Please sign up with Google first.',
-                'email': email,
-                'code': 'NO_GOOGLE_SIGNUP'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Generate JWT tokens
-        refresh = RefreshToken.for_user(user)
-        
-        return Response({
-            'success': True,
-            'tokens': {
-                'access': str(refresh.access_token),
-                'refresh': str(refresh)
-            },
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-                'first_name': user.first_name,
-                'last_name': user.last_name,
-                'role': user.role,
-                'phone_number': user.phone_number,
-                'email_verified': user.email_verified,
-                'phone_verified': user.phone_verified
-            }
-        }, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
