@@ -62,5 +62,5 @@ urlpatterns = [
     
     # Router patterns (mounted under 'investors/' so frontend can call
     # /blockchain-backend/api/investors/...)
-    path('investors/', include(router.urls)),
+    path('', include(router.urls)),
 ]
