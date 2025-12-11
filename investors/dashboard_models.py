@@ -1,6 +1,7 @@
 from django.db import models
 from users.models import CustomUser
 from spv.models import SPV
+from decimal import Decimal
 
 
 # Create your models here.
@@ -283,3 +284,125 @@ class Wishlist(models.Model):
     
     def __str__(self):
         return f"{self.investor.username} - {self.spv.display_name}"
+
+
+def tax_document_upload_path(instance, filename):
+    """Generate upload path for tax documents"""
+    return f'tax_documents/{instance.investor.id}/{instance.tax_year}/{filename}'
+
+
+class TaxDocument(models.Model):
+    """Model for investor tax documents (K-1, 1099-DIV, etc.)"""
+    
+    DOCUMENT_TYPE_CHOICES = [
+        ('k1', 'K-1'),
+        ('1099_div', '1099-DIV'),
+        ('1099_int', '1099-INT'),
+        ('1099_b', '1099-B'),
+        ('1099_misc', '1099-MISC'),
+        ('w9', 'W-9'),
+        ('other', 'Other'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('available', 'Available'),
+        ('downloaded', 'Downloaded'),
+    ]
+    
+    investor = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='tax_documents')
+    investment = models.ForeignKey(Investment, on_delete=models.CASCADE, related_name='tax_documents', null=True, blank=True)
+    
+    # Document Details
+    document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPE_CHOICES, help_text="Type of tax document")
+    document_name = models.CharField(max_length=255, help_text="Document name/title")
+    tax_year = models.IntegerField(help_text="Tax year (e.g., 2023)")
+    
+    # Status
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # File
+    file = models.FileField(upload_to=tax_document_upload_path, null=True, blank=True, help_text="Tax document file")
+    file_size = models.BigIntegerField(null=True, blank=True, help_text="File size in bytes")
+    
+    # Dates
+    issue_date = models.DateField(null=True, blank=True, help_text="Date when document was issued")
+    expected_date = models.DateField(null=True, blank=True, help_text="Expected availability date if pending")
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    downloaded_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        verbose_name = 'tax document'
+        verbose_name_plural = 'tax documents'
+        ordering = ['-tax_year', '-issue_date']
+        indexes = [
+            models.Index(fields=['investor', 'tax_year']),
+            models.Index(fields=['status']),
+        ]
+    
+    def __str__(self):
+        return f"{self.investor.username} - {self.get_document_type_display()} ({self.tax_year})"
+    
+    @property
+    def file_size_display(self):
+        """Get file size in human readable format"""
+        if not self.file_size:
+            return "N/A"
+        if self.file_size < 1024:
+            return f"{self.file_size} B"
+        elif self.file_size < 1024 * 1024:
+            return f"{self.file_size / 1024:.1f} KB"
+        else:
+            return f"{self.file_size / (1024 * 1024):.1f} MB"
+
+
+class TaxSummary(models.Model):
+    """Model for yearly tax summary for investors"""
+    
+    investor = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='tax_summaries')
+    tax_year = models.IntegerField(help_text="Tax year (e.g., 2023)")
+    
+    # Income Breakdown
+    dividend_income = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, help_text="Dividend income")
+    capital_gains = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, help_text="Capital gains")
+    interest_income = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, help_text="Interest income")
+    total_income = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, help_text="Total income from investments")
+    
+    # Deductions Breakdown
+    management_fees = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, help_text="Management fees")
+    professional_services = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, help_text="Professional services (legal, accounting)")
+    other_expenses = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, help_text="Other investment expenses")
+    total_deductions = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, help_text="Total deductions (investment expenses)")
+    
+    # Calculated fields
+    net_taxable_income = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, help_text="Net taxable income after deductions")
+    estimated_tax = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, help_text="Estimated tax liability")
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'tax summary'
+        verbose_name_plural = 'tax summaries'
+        ordering = ['-tax_year']
+        unique_together = ['investor', 'tax_year']
+    
+    def __str__(self):
+        return f"{self.investor.username} - Tax Summary {self.tax_year}"
+    
+    def calculate_totals(self):
+        """Calculate total income and deductions from breakdown"""
+        self.total_income = self.dividend_income + self.capital_gains + self.interest_income
+        self.total_deductions = self.management_fees + self.professional_services + self.other_expenses
+        self.calculate()
+    
+    def calculate(self):
+        """Calculate net taxable income and estimated tax"""
+        self.net_taxable_income = self.total_income - self.total_deductions
+        # Approximate 30% tax rate (this can be customized)
+        self.estimated_tax = self.net_taxable_income * Decimal('0.30') if self.net_taxable_income > 0 else Decimal('0.00')
+        self.save()

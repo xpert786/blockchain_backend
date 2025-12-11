@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import InvestorProfile
-from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, Wishlist, PortfolioPerformance
+from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, Wishlist, PortfolioPerformance, TaxDocument, TaxSummary
 
 # Register your models here.
 
@@ -606,3 +606,122 @@ class PortfolioPerformanceAdmin(admin.ModelAdmin):
         return obj.portfolio.user.username if obj.portfolio else '-'
     get_user.short_description = 'User'
     get_user.admin_order_field = 'portfolio__user__username'
+
+
+@admin.register(TaxDocument)
+class TaxDocumentAdmin(admin.ModelAdmin):
+    """Admin interface for Tax Documents"""
+    
+    list_display = [
+        'id',
+        'investor',
+        'document_type',
+        'document_name',
+        'tax_year',
+        'status',
+        'issue_date',
+        'file_size_display',
+        'created_at'
+    ]
+    
+    list_filter = [
+        'document_type',
+        'status',
+        'tax_year',
+        'created_at'
+    ]
+    
+    search_fields = [
+        'investor__username',
+        'investor__email',
+        'document_name'
+    ]
+    
+    readonly_fields = ['created_at', 'updated_at', 'downloaded_at', 'file_size_display']
+    
+    ordering = ['-tax_year', '-issue_date']
+    
+    fieldsets = (
+        ('Investor Information', {
+            'fields': ('investor', 'investment')
+        }),
+        ('Document Details', {
+            'fields': (
+                'document_type',
+                'document_name',
+                'tax_year',
+                'status',
+            )
+        }),
+        ('File', {
+            'fields': ('file', 'file_size', 'file_size_display')
+        }),
+        ('Dates', {
+            'fields': ('issue_date', 'expected_date')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at', 'downloaded_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(TaxSummary)
+class TaxSummaryAdmin(admin.ModelAdmin):
+    """Admin interface for Tax Summary"""
+    
+    list_display = [
+        'id',
+        'investor',
+        'tax_year',
+        'total_income',
+        'total_deductions',
+        'net_taxable_income',
+        'estimated_tax',
+        'updated_at'
+    ]
+    
+    list_filter = ['tax_year', 'created_at']
+    
+    search_fields = [
+        'investor__username',
+        'investor__email'
+    ]
+    
+    readonly_fields = ['created_at', 'updated_at']
+    
+    ordering = ['-tax_year']
+    
+    fieldsets = (
+        ('Investor Information', {
+            'fields': ('investor', 'tax_year')
+        }),
+        ('Income Breakdown', {
+            'fields': (
+                'dividend_income',
+                'capital_gains',
+                'interest_income',
+                'total_income',
+            )
+        }),
+        ('Deductions Breakdown', {
+            'fields': (
+                'management_fees',
+                'professional_services',
+                'other_expenses',
+                'total_deductions',
+            )
+        }),
+        ('Calculated', {
+            'fields': (
+                'net_taxable_income',
+                'estimated_tax',
+            )
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+

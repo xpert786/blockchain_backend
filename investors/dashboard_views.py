@@ -8,7 +8,7 @@ from rest_framework.pagination import PageNumberPagination
 from decimal import Decimal
 from datetime import datetime, timedelta
 
-from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, Wishlist, PortfolioPerformance
+from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, Wishlist, PortfolioPerformance, TaxDocument, TaxSummary
 from .models import InvestorProfile
 from .dashboard_serializers import (
     PortfolioSerializer,
@@ -25,6 +25,9 @@ from .dashboard_serializers import (
     InvestmentByRoundSerializer,
     InvestmentBySectorSerializer,
     InvestorInvestmentDetailSerializer,
+    TaxDocumentSerializer,
+    TaxSummarySerializer,
+    TaxOverviewSerializer,
 )
 from .models import InvestorProfile
 from spv.models import SPV
@@ -1378,4 +1381,344 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response({
             'message': f'{count} notification(s) archived',
             'count': count
+        })
+
+
+class TaxCenterViewSet(viewsets.ViewSet):
+    """
+    ViewSet for Tax Center - Tax Documents and Tax Summary
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    @action(detail=False, methods=['get'])
+    def overview(self, request):
+        """Get Tax Center overview cards data"""
+        user = request.user
+        
+        # Get tax year from query params (default current year)
+        current_year = timezone.now().year
+        tax_year = int(request.query_params.get('year', current_year - 1))  # Default to last year
+        
+        # Get or create tax summary for the year
+        tax_summary, created = TaxSummary.objects.get_or_create(
+            investor=user,
+            tax_year=tax_year,
+            defaults={
+                'total_income': Decimal('0.00'),
+                'total_deductions': Decimal('0.00'),
+                'net_taxable_income': Decimal('0.00'),
+                'estimated_tax': Decimal('0.00'),
+            }
+        )
+        
+        # If no data, calculate from investments
+        if created or tax_summary.total_income == 0:
+            # Calculate from investments for the tax year
+            year_investments = Investment.objects.filter(
+                investor=user,
+                status='active',
+                invested_at__year=tax_year
+            )
+            
+            # Sum up gains as income
+            total_gains = sum(
+                inv.gain_loss for inv in year_investments if inv.gain_loss > 0
+            )
+            
+            # Estimate deductions (e.g., 18% of gains for expenses)
+            estimated_deductions = float(total_gains) * 0.18
+            
+            tax_summary.total_income = Decimal(str(total_gains))
+            tax_summary.total_deductions = Decimal(str(estimated_deductions))
+            tax_summary.calculate()
+        
+        data = {
+            'success': True,
+            'tax_year': tax_year,
+            'total_income': float(tax_summary.total_income),
+            'total_income_formatted': f"${tax_summary.total_income:,.0f}",
+            'total_income_label': 'From Investments',
+            'total_deductions': float(tax_summary.total_deductions),
+            'total_deductions_formatted': f"${tax_summary.total_deductions:,.0f}",
+            'total_deductions_label': 'Investment Expenses',
+            'net_taxable_income': float(tax_summary.net_taxable_income),
+            'net_taxable_income_formatted': f"${tax_summary.net_taxable_income:,.0f}",
+            'net_taxable_income_label': 'After Deductions',
+            'estimated_tax': float(tax_summary.estimated_tax),
+            'estimated_tax_formatted': f"${tax_summary.estimated_tax:,.0f}",
+            'estimated_tax_label': 'Approximate Liability',
+        }
+        
+        return Response(data)
+    
+    @action(detail=False, methods=['get'])
+    def documents(self, request):
+        """Get tax documents list"""
+        user = request.user
+        
+        # Get filters from query params
+        tax_year = request.query_params.get('year', None)
+        doc_type = request.query_params.get('type', None)
+        doc_status = request.query_params.get('status', None)
+        
+        documents = TaxDocument.objects.filter(investor=user)
+        
+        # Apply filters
+        if tax_year:
+            documents = documents.filter(tax_year=int(tax_year))
+        if doc_type:
+            documents = documents.filter(document_type=doc_type)
+        if doc_status:
+            documents = documents.filter(status=doc_status)
+        
+        # Order by tax year and issue date
+        documents = documents.order_by('-tax_year', '-issue_date')
+        
+        # Paginate
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(documents, request)
+        
+        serializer = TaxDocumentSerializer(page, many=True, context={'request': request})
+        return paginator.get_paginated_response(serializer.data)
+    
+    @action(detail=True, methods=['get'])
+    def download(self, request, pk=None):
+        """Download a specific tax document"""
+        user = request.user
+        
+        try:
+            document = TaxDocument.objects.get(id=pk, investor=user)
+        except TaxDocument.DoesNotExist:
+            return Response(
+                {'error': 'Tax document not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        if not document.file:
+            return Response(
+                {'error': 'No file attached to this document'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Mark as downloaded
+        document.status = 'downloaded'
+        document.downloaded_at = timezone.now()
+        document.save()
+        
+        from django.http import FileResponse
+        response = FileResponse(document.file.open(), as_attachment=True)
+        response['Content-Disposition'] = f'attachment; filename="{document.document_name}.pdf"'
+        return response
+    
+    @action(detail=False, methods=['get'], url_path='download-all')
+    def download_all(self, request):
+        """Download all tax documents as ZIP"""
+        user = request.user
+        tax_year = request.query_params.get('year', None)
+        
+        documents = TaxDocument.objects.filter(investor=user, status='available')
+        if tax_year:
+            documents = documents.filter(tax_year=int(tax_year))
+        
+        if not documents.exists():
+            return Response(
+                {'error': 'No documents available for download'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Create ZIP file in memory
+        import zipfile
+        from io import BytesIO
+        from django.http import HttpResponse
+        
+        buffer = BytesIO()
+        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for doc in documents:
+                if doc.file:
+                    filename = f"{doc.get_document_type_display()}_{doc.document_name}_{doc.tax_year}.pdf"
+                    zip_file.writestr(filename, doc.file.read())
+                    
+                    # Mark as downloaded
+                    doc.status = 'downloaded'
+                    doc.downloaded_at = timezone.now()
+                    doc.save()
+        
+        buffer.seek(0)
+        
+        response = HttpResponse(buffer.getvalue(), content_type='application/zip')
+        year_str = f"_{tax_year}" if tax_year else ""
+        response['Content-Disposition'] = f'attachment; filename="tax_documents{year_str}.zip"'
+        return response
+    
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        """Get tax summary for a specific year"""
+        user = request.user
+        tax_year = int(request.query_params.get('year', timezone.now().year - 1))
+        
+        try:
+            tax_summary = TaxSummary.objects.get(investor=user, tax_year=tax_year)
+        except TaxSummary.DoesNotExist:
+            return Response(
+                {'error': f'No tax summary found for year {tax_year}'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        serializer = TaxSummarySerializer(tax_summary)
+        return Response({
+            'success': True,
+            'data': serializer.data,
+        })
+    
+    @action(detail=False, methods=['get'], url_path='summary-breakdown')
+    def summary_breakdown(self, request):
+        """Get detailed tax summary breakdown for Tax Summary tab"""
+        user = request.user
+        tax_year = int(request.query_params.get('year', timezone.now().year - 1))
+        
+        # Get or create tax summary
+        tax_summary, created = TaxSummary.objects.get_or_create(
+            investor=user,
+            tax_year=tax_year,
+            defaults={
+                'dividend_income': Decimal('0.00'),
+                'capital_gains': Decimal('0.00'),
+                'interest_income': Decimal('0.00'),
+                'management_fees': Decimal('0.00'),
+                'professional_services': Decimal('0.00'),
+                'other_expenses': Decimal('0.00'),
+            }
+        )
+        
+        data = {
+            'success': True,
+            'tax_year': tax_year,
+            'income_breakdown': {
+                'dividend_income': float(tax_summary.dividend_income),
+                'dividend_income_formatted': f"${tax_summary.dividend_income:,.0f}",
+                'capital_gains': float(tax_summary.capital_gains),
+                'capital_gains_formatted': f"${tax_summary.capital_gains:,.0f}",
+                'interest_income': float(tax_summary.interest_income),
+                'interest_income_formatted': f"${tax_summary.interest_income:,.0f}",
+                'total_income': float(tax_summary.total_income),
+                'total_income_formatted': f"${tax_summary.total_income:,.0f}",
+            },
+            'deductions_breakdown': {
+                'management_fees': float(tax_summary.management_fees),
+                'management_fees_formatted': f"${tax_summary.management_fees:,.0f}",
+                'professional_services': float(tax_summary.professional_services),
+                'professional_services_formatted': f"${tax_summary.professional_services:,.0f}",
+                'other_expenses': float(tax_summary.other_expenses),
+                'other_expenses_formatted': f"${tax_summary.other_expenses:,.0f}",
+                'total_deductions': float(tax_summary.total_deductions),
+                'total_deductions_formatted': f"${tax_summary.total_deductions:,.0f}",
+            },
+        }
+        
+        return Response(data)
+    
+    @action(detail=False, methods=['get'])
+    def years(self, request):
+        """Get available tax years for the investor"""
+        user = request.user
+        
+        # Get unique years from tax documents
+        doc_years = TaxDocument.objects.filter(investor=user).values_list('tax_year', flat=True).distinct()
+        summary_years = TaxSummary.objects.filter(investor=user).values_list('tax_year', flat=True).distinct()
+        
+        all_years = sorted(set(list(doc_years) + list(summary_years)), reverse=True)
+        
+        # If no years, return current and last year
+        if not all_years:
+            current_year = timezone.now().year
+            all_years = [current_year - 1, current_year - 2]
+        
+        return Response({
+            'success': True,
+            'years': all_years,
+        })
+    
+    @action(detail=False, methods=['get'], url_path='planning')
+    def tax_planning(self, request):
+        """Get tax planning tips and important dates for Tax Planning tab"""
+        user = request.user
+        current_year = timezone.now().year
+        tax_year = int(request.query_params.get('year', current_year))
+        
+        # Tax Planning Tips (can be customized per user in future)
+        tips = [
+            {
+                'id': 1,
+                'title': 'Harvest Tax Losses',
+                'description': 'Consider selling underperforming investments to offset gains.',
+                'color': '#FFF3CD',  # Yellow
+                'icon': 'harvest',
+            },
+            {
+                'id': 2,
+                'title': 'Maximize Deductions',
+                'description': 'Track all investment-related expenses for deductions.',
+                'color': '#D4EDDA',  # Green
+                'icon': 'deductions',
+            },
+            {
+                'id': 3,
+                'title': 'Retirement Accounts',
+                'description': 'Consider tax-advantaged retirement account investments.',
+                'color': '#FFE4CC',  # Orange
+                'icon': 'retirement',
+            },
+        ]
+        
+        # Important Tax Dates
+        important_dates = [
+            {
+                'id': 1,
+                'title': 'Q1 Estimated Tax Due',
+                'date': f'April 15, {tax_year}',
+                'date_iso': f'{tax_year}-04-15',
+                'icon': 'calendar',
+            },
+            {
+                'id': 2,
+                'title': 'K-1 Deadline',
+                'date': f'March 15, {tax_year}',
+                'date_iso': f'{tax_year}-03-15',
+                'icon': 'calendar',
+            },
+            {
+                'id': 3,
+                'title': 'Tax Filing Deadline',
+                'date': f'April 15, {tax_year}',
+                'date_iso': f'{tax_year}-04-15',
+                'icon': 'calendar',
+            },
+            {
+                'id': 4,
+                'title': 'Q2 Estimated Tax Due',
+                'date': f'June 15, {tax_year}',
+                'date_iso': f'{tax_year}-06-15',
+                'icon': 'calendar',
+            },
+            {
+                'id': 5,
+                'title': 'Q3 Estimated Tax Due',
+                'date': f'September 15, {tax_year}',
+                'date_iso': f'{tax_year}-09-15',
+                'icon': 'calendar',
+            },
+            {
+                'id': 6,
+                'title': 'Q4 Estimated Tax Due',
+                'date': f'January 15, {tax_year + 1}',
+                'date_iso': f'{tax_year + 1}-01-15',
+                'icon': 'calendar',
+            },
+        ]
+        
+        return Response({
+            'success': True,
+            'tax_year': tax_year,
+            'tips': tips,
+            'important_dates': important_dates,
         })

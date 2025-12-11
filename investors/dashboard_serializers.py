@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, PortfolioPerformance
+from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, PortfolioPerformance, TaxDocument, TaxSummary
 from users.models import CustomUser
 
 
@@ -389,4 +389,120 @@ class InvestorInvestmentDetailSerializer(serializers.ModelSerializer):
             return f"{diff.seconds // 60} minute(s) ago"
         else:
             return "Just now"
+
+
+class TaxDocumentSerializer(serializers.ModelSerializer):
+    """Serializer for Tax Documents"""
+    
+    document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    file_size_display = serializers.ReadOnlyField()
+    investment_name = serializers.CharField(source='investment.syndicate_name', read_only=True, allow_null=True)
+    download_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TaxDocument
+        fields = [
+            'id',
+            'document_type',
+            'document_type_display',
+            'document_name',
+            'tax_year',
+            'status',
+            'status_display',
+            'file',
+            'file_size',
+            'file_size_display',
+            'issue_date',
+            'expected_date',
+            'investment_name',
+            'download_url',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_download_url(self, obj):
+        if obj.file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.file.url)
+            return obj.file.url
+        return None
+
+
+class TaxSummarySerializer(serializers.ModelSerializer):
+    """Serializer for Tax Summary"""
+    
+    total_income_formatted = serializers.SerializerMethodField()
+    total_deductions_formatted = serializers.SerializerMethodField()
+    net_taxable_income_formatted = serializers.SerializerMethodField()
+    estimated_tax_formatted = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TaxSummary
+        fields = [
+            'id',
+            'tax_year',
+            # Income breakdown
+            'dividend_income',
+            'capital_gains',
+            'interest_income',
+            'total_income',
+            'total_income_formatted',
+            # Deductions breakdown
+            'management_fees',
+            'professional_services',
+            'other_expenses',
+            'total_deductions',
+            'total_deductions_formatted',
+            # Calculated
+            'net_taxable_income',
+            'net_taxable_income_formatted',
+            'estimated_tax',
+            'estimated_tax_formatted',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_total_income_formatted(self, obj):
+        return f"${obj.total_income:,.0f}" if obj.total_income else "$0"
+    
+    def get_total_deductions_formatted(self, obj):
+        return f"${obj.total_deductions:,.0f}" if obj.total_deductions else "$0"
+    
+    def get_net_taxable_income_formatted(self, obj):
+        return f"${obj.net_taxable_income:,.0f}" if obj.net_taxable_income else "$0"
+    
+    def get_estimated_tax_formatted(self, obj):
+        return f"${obj.estimated_tax:,.0f}" if obj.estimated_tax else "$0"
+
+
+class TaxOverviewSerializer(serializers.Serializer):
+    """Serializer for Tax Center overview cards"""
+    
+    success = serializers.BooleanField(default=True)
+    tax_year = serializers.IntegerField()
+    
+    # Total Income Card
+    total_income = serializers.DecimalField(max_digits=15, decimal_places=2)
+    total_income_formatted = serializers.CharField()
+    total_income_label = serializers.CharField()
+    
+    # Total Deductions Card
+    total_deductions = serializers.DecimalField(max_digits=15, decimal_places=2)
+    total_deductions_formatted = serializers.CharField()
+    total_deductions_label = serializers.CharField()
+    
+    # Net Taxable Income Card
+    net_taxable_income = serializers.DecimalField(max_digits=15, decimal_places=2)
+    net_taxable_income_formatted = serializers.CharField()
+    net_taxable_income_label = serializers.CharField()
+    
+    # Estimated Tax Card
+    estimated_tax = serializers.DecimalField(max_digits=15, decimal_places=2)
+    estimated_tax_formatted = serializers.CharField()
+    estimated_tax_label = serializers.CharField()
+
 

@@ -5,7 +5,8 @@ from .dashboard_views import (
     DashboardViewSet,
     PortfolioViewSet,
     InvestmentViewSet,
-    NotificationViewSet
+    NotificationViewSet,
+    TaxCenterViewSet,
 )
 from .investor_detail_views import (
     investor_detail,
@@ -34,6 +35,7 @@ router.register(r'dashboard', DashboardViewSet, basename='dashboard')
 router.register(r'portfolio', PortfolioViewSet, basename='portfolio')
 router.register(r'investments', InvestmentViewSet, basename='investment')
 router.register(r'notifications', NotificationViewSet, basename='notification')
+router.register(r'tax', TaxCenterViewSet, basename='tax')
 
 urlpatterns = [
     # Investor Settings - Must come first to avoid router conflicts
