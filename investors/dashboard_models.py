@@ -56,6 +56,27 @@ class Portfolio(models.Model):
         self.save()
 
 
+class PortfolioPerformance(models.Model):
+    """Model for tracking portfolio value over time for charts"""
+    
+    portfolio = models.ForeignKey(Portfolio, on_delete=models.CASCADE, related_name='performance_history')
+    date = models.DateField(help_text="Date for this performance record")
+    total_invested = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, help_text="Total invested as of this date")
+    current_value = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, help_text="Portfolio value as of this date")
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        verbose_name = 'portfolio performance'
+        verbose_name_plural = 'portfolio performances'
+        unique_together = ['portfolio', 'date']
+        ordering = ['date']
+    
+    def __str__(self):
+        return f"{self.portfolio.user.username} - {self.date}"
+
+
 class Investment(models.Model):
     """Model for individual investments"""
     

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import InvestorProfile
-from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, Wishlist
+from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, Wishlist, PortfolioPerformance
 
 # Register your models here.
 
@@ -553,3 +553,56 @@ class WishlistAdmin(admin.ModelAdmin):
         """Display SPV status"""
         return obj.spv.get_status_display() if obj.spv else '-'
     spv_status.short_description = 'SPV Status'
+
+
+@admin.register(PortfolioPerformance)
+class PortfolioPerformanceAdmin(admin.ModelAdmin):
+    """Admin interface for Portfolio Performance time-series data"""
+    
+    list_display = [
+        'id',
+        'portfolio',
+        'get_user',
+        'date',
+        'total_invested',
+        'current_value',
+        'created_at'
+    ]
+    
+    list_filter = [
+        'date',
+        'created_at',
+        'portfolio__user'
+    ]
+    
+    search_fields = [
+        'portfolio__user__username',
+        'portfolio__user__email'
+    ]
+    
+    readonly_fields = ['created_at']
+    
+    ordering = ['-date']
+    
+    fieldsets = (
+        ('Portfolio Information', {
+            'fields': ('portfolio',)
+        }),
+        ('Performance Data', {
+            'fields': (
+                'date',
+                'total_invested',
+                'current_value',
+            )
+        }),
+        ('Timestamps', {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_user(self, obj):
+        """Display username for the portfolio"""
+        return obj.portfolio.user.username if obj.portfolio else '-'
+    get_user.short_description = 'User'
+    get_user.admin_order_field = 'portfolio__user__username'

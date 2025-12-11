@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .dashboard_models import Portfolio, Investment, Notification, KYCStatus
+from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, PortfolioPerformance
 from users.models import CustomUser
 
 
@@ -249,3 +249,144 @@ class KYCStatusSerializer(serializers.ModelSerializer):
             'verified_at',
         ]
         read_only_fields = ['id', 'user', 'created_at', 'updated_at']
+
+
+class PortfolioPerformanceSerializer(serializers.ModelSerializer):
+    """Serializer for Portfolio Performance time-series data"""
+    
+    class Meta:
+        model = PortfolioPerformance
+        fields = [
+            'id',
+            'date',
+            'total_invested',
+            'current_value',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'created_at']
+
+
+class PortfolioOverviewSerializer(serializers.Serializer):
+    """Serializer for portfolio overview cards data"""
+    
+    success = serializers.BooleanField(default=True)
+    
+    # Total Portfolio Value Card
+    total_portfolio_value = serializers.DecimalField(max_digits=15, decimal_places=2)
+    total_portfolio_value_formatted = serializers.CharField()
+    growth_percentage = serializers.DecimalField(max_digits=5, decimal_places=2)
+    
+    # Total Invested Card
+    total_invested = serializers.DecimalField(max_digits=15, decimal_places=2)
+    total_invested_formatted = serializers.CharField()
+    investments_count = serializers.IntegerField()
+    
+    # Total Gains Card
+    total_gains = serializers.DecimalField(max_digits=15, decimal_places=2)
+    total_gains_formatted = serializers.CharField()
+    unrealized_gains = serializers.DecimalField(max_digits=15, decimal_places=2)
+    
+    # Active Investments Card
+    active_investments = serializers.IntegerField()
+    pending_investments = serializers.IntegerField()
+
+
+class InvestmentByRoundSerializer(serializers.Serializer):
+    """Serializer for investments aggregated by round/stage"""
+    
+    round = serializers.CharField()
+    stage = serializers.CharField()
+    amount = serializers.DecimalField(max_digits=15, decimal_places=2)
+    count = serializers.IntegerField()
+    color = serializers.CharField()
+
+
+class InvestmentBySectorSerializer(serializers.Serializer):
+    """Serializer for investments aggregated by sector"""
+    
+    sector = serializers.CharField()
+    amount = serializers.DecimalField(max_digits=15, decimal_places=2)
+    count = serializers.IntegerField()
+    percentage = serializers.DecimalField(max_digits=5, decimal_places=2)
+    color = serializers.CharField()
+
+
+class InvestorInvestmentDetailSerializer(serializers.ModelSerializer):
+    """Serializer for investor's investment with SPV details"""
+    
+    gain_loss = serializers.ReadOnlyField()
+    gain_loss_percentage = serializers.ReadOnlyField()
+    is_active = serializers.ReadOnlyField()
+    
+    # SPV Details
+    spv_id = serializers.IntegerField(source='spv.id', read_only=True, allow_null=True)
+    spv_display_name = serializers.CharField(source='spv.display_name', read_only=True, allow_null=True)
+    spv_company_name = serializers.CharField(source='spv.portfolio_company_name', read_only=True, allow_null=True)
+    spv_status = serializers.CharField(source='spv.status', read_only=True, allow_null=True)
+    
+    # Formatted values
+    invested_amount_formatted = serializers.SerializerMethodField()
+    current_value_formatted = serializers.SerializerMethodField()
+    gain_loss_formatted = serializers.SerializerMethodField()
+    updated_ago = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Investment
+        fields = [
+            'id',
+            'syndicate_name',
+            'sector',
+            'stage',
+            'investment_type',
+            'invested_amount',
+            'invested_amount_formatted',
+            'current_value',
+            'current_value_formatted',
+            'gain_loss',
+            'gain_loss_formatted',
+            'gain_loss_percentage',
+            'status',
+            'is_active',
+            'spv_id',
+            'spv_display_name',
+            'spv_company_name',
+            'spv_status',
+            'updated_ago',
+            'created_at',
+            'updated_at',
+            'invested_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_invested_amount_formatted(self, obj):
+        return f"${obj.invested_amount:,.0f}" if obj.invested_amount else "$0"
+    
+    def get_current_value_formatted(self, obj):
+        return f"${obj.current_value:,.0f}" if obj.current_value else "$0"
+    
+    def get_gain_loss_formatted(self, obj):
+        gain = obj.gain_loss
+        if gain >= 0:
+            return f"${gain:,.0f} (+{obj.gain_loss_percentage}%)"
+        return f"-${abs(gain):,.0f} ({obj.gain_loss_percentage}%)"
+    
+    def get_updated_ago(self, obj):
+        """Get human-readable time since last update"""
+        from django.utils import timezone
+        
+        now = timezone.now()
+        diff = now - obj.updated_at
+        
+        if diff.days > 365:
+            return f"{diff.days // 365} year(s) ago"
+        elif diff.days > 30:
+            return f"{diff.days // 30} month(s) ago"
+        elif diff.days > 0:
+            return f"{diff.days} day(s) ago"
+        elif diff.seconds > 3600:
+            return f"{diff.seconds // 3600} hour(s) ago"
+        elif diff.seconds > 60:
+            return f"{diff.seconds // 60} minute(s) ago"
+        else:
+            return "Just now"
+

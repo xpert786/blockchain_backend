@@ -8,7 +8,7 @@ from rest_framework.pagination import PageNumberPagination
 from decimal import Decimal
 from datetime import datetime, timedelta
 
-from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, Wishlist
+from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, Wishlist, PortfolioPerformance
 from .models import InvestorProfile
 from .dashboard_serializers import (
     PortfolioSerializer,
@@ -19,7 +19,12 @@ from .dashboard_serializers import (
     NotificationMarkReadSerializer,
     NotificationStatsSerializer,
     DashboardOverviewSerializer,
-    KYCStatusSerializer
+    KYCStatusSerializer,
+    PortfolioPerformanceSerializer,
+    PortfolioOverviewSerializer,
+    InvestmentByRoundSerializer,
+    InvestmentBySectorSerializer,
+    InvestorInvestmentDetailSerializer,
 )
 from .models import InvestorProfile
 from spv.models import SPV
@@ -928,6 +933,230 @@ class PortfolioViewSet(viewsets.ModelViewSet):
         }
         
         return Response(snapshot_data)
+    
+    @action(detail=False, methods=['get'])
+    def overview(self, request):
+        """Get portfolio overview for dashboard cards"""
+        user = request.user
+        portfolio, created = Portfolio.objects.get_or_create(user=user)
+        portfolio.recalculate()
+        
+        # Calculate totals
+        investments = Investment.objects.filter(investor=user)
+        active_count = investments.filter(status='active').count()
+        pending_count = investments.filter(status='pending').count()
+        total_count = investments.count()
+        
+        # Calculate gains
+        total_gains = portfolio.current_value - portfolio.total_invested
+        
+        data = {
+            'success': True,
+            'total_portfolio_value': float(portfolio.current_value),
+            'total_portfolio_value_formatted': f"${portfolio.current_value:,.0f}",
+            'growth_percentage': portfolio.portfolio_growth_percentage,
+            'total_invested': float(portfolio.total_invested),
+            'total_invested_formatted': f"${portfolio.total_invested:,.0f}",
+            'investments_count': total_count,
+            'total_gains': float(total_gains),
+            'total_gains_formatted': f"${total_gains:,.0f}",
+            'unrealized_gains': float(portfolio.unrealized_gain),
+            'active_investments': active_count,
+            'pending_investments': pending_count,
+        }
+        
+        return Response(data)
+    
+    @action(detail=False, methods=['get'])
+    def performance(self, request):
+        """Get portfolio performance time-series data for chart (last 90 days)"""
+        user = request.user
+        portfolio, created = Portfolio.objects.get_or_create(user=user)
+        
+        # Get days parameter (default 90)
+        days = int(request.query_params.get('days', 90))
+        
+        # Get performance history
+        end_date = timezone.now().date()
+        start_date = end_date - timedelta(days=days)
+        
+        performance_data = PortfolioPerformance.objects.filter(
+            portfolio=portfolio,
+            date__gte=start_date,
+            date__lte=end_date
+        ).order_by('date')
+        
+        # If no historical data, generate mock data based on current values
+        if not performance_data.exists():
+            performance_list = []
+            # Generate data points
+            for i in range(0, days, 7):  # Weekly data points
+                date = start_date + timedelta(days=i)
+                progress = (i + 1) / days
+                invested = float(portfolio.total_invested) * progress
+                value = invested * (1 + (portfolio.portfolio_growth_percentage / 100) * progress)
+                performance_list.append({
+                    'date': date.strftime('%Y-%m-%d'),
+                    'total_invested': round(invested, 2),
+                    'current_value': round(value, 2),
+                })
+            # Add current point
+            performance_list.append({
+                'date': end_date.strftime('%Y-%m-%d'),
+                'total_invested': float(portfolio.total_invested),
+                'current_value': float(portfolio.current_value),
+            })
+        else:
+            performance_list = PortfolioPerformanceSerializer(performance_data, many=True).data
+        
+        return Response({
+            'success': True,
+            'period_days': days,
+            'start_date': start_date.strftime('%Y-%m-%d'),
+            'end_date': end_date.strftime('%Y-%m-%d'),
+            'data': performance_list,
+        })
+    
+    @action(detail=False, methods=['get'], url_path='by-round')
+    def by_round(self, request):
+        """Get investments aggregated by round/stage for pie chart"""
+        user = request.user
+        
+        # Color mapping for stages
+        stage_colors = {
+            'Seed': '#4ECDC4',
+            'Pre-Seed': '#45B7AA',
+            'Series A': '#FFD93D',
+            'Series B': '#9B59B6',
+            'Series C': '#3498DB',
+            'Series D': '#E74C3C',
+            'Series E': '#2ECC71',
+            'Growth': '#F39C12',
+            'Late Stage': '#1ABC9C',
+        }
+        default_color = '#95A5A6'
+        
+        # Aggregate by stage
+        investments = Investment.objects.filter(investor=user, status__in=['active', 'pending'])
+        stage_data = investments.values('stage').annotate(
+            amount=Sum('invested_amount'),
+            count=Count('id')
+        ).order_by('-amount')
+        
+        result = []
+        total = Decimal('0.00')
+        for item in stage_data:
+            stage = item['stage'] or 'Unknown'
+            amount = item['amount'] or Decimal('0.00')
+            total += amount
+            result.append({
+                'round': stage,
+                'stage': stage,
+                'amount': float(amount),
+                'count': item['count'],
+                'color': stage_colors.get(stage, default_color),
+            })
+        
+        return Response({
+            'success': True,
+            'data': result,
+            'total': float(total),
+        })
+    
+    @action(detail=False, methods=['get'], url_path='by-sector')
+    def by_sector(self, request):
+        """Get investments aggregated by sector for pie chart"""
+        user = request.user
+        
+        # Color mapping for sectors
+        sector_colors = {
+            'Technology': '#3498DB',
+            'Healthcare': '#E74C3C',
+            'Finance': '#2ECC71',
+            'Energy': '#F39C12',
+            'Consumer': '#9B59B6',
+            'Real Estate': '#1ABC9C',
+            'Education': '#FF6B6B',
+            'Fintech': '#4ECDC4',
+            'AI/ML': '#45B7AA',
+            'SaaS': '#FFD93D',
+        }
+        default_color = '#95A5A6'
+        
+        # Aggregate by sector
+        investments = Investment.objects.filter(investor=user, status__in=['active', 'pending'])
+        sector_data = investments.values('sector').annotate(
+            amount=Sum('invested_amount'),
+            count=Count('id')
+        ).order_by('-amount')
+        
+        # Calculate total for percentage
+        total = investments.aggregate(total=Sum('invested_amount'))['total'] or Decimal('0.00')
+        
+        result = []
+        for item in sector_data:
+            sector = item['sector'] or 'Other'
+            amount = item['amount'] or Decimal('0.00')
+            percentage = (amount / total * 100) if total > 0 else Decimal('0.00')
+            result.append({
+                'sector': sector,
+                'amount': float(amount),
+                'count': item['count'],
+                'percentage': round(float(percentage), 2),
+                'color': sector_colors.get(sector, default_color),
+            })
+        
+        return Response({
+            'success': True,
+            'data': result,
+            'total': float(total),
+        })
+    
+    @action(detail=False, methods=['get'])
+    def investments(self, request):
+        """Get investor's investments list with SPV details"""
+        user = request.user
+        
+        # Get query params for filtering
+        status_filter = request.query_params.get('status', None)
+        sector = request.query_params.get('sector', None)
+        stage = request.query_params.get('stage', None)
+        
+        investments = Investment.objects.filter(investor=user).select_related('spv').order_by('-updated_at')
+        
+        # Apply filters
+        if status_filter:
+            investments = investments.filter(status=status_filter)
+        if sector:
+            investments = investments.filter(sector__icontains=sector)
+        if stage:
+            investments = investments.filter(stage__icontains=stage)
+        
+        # Paginate
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(investments, request)
+        
+        serializer = InvestorInvestmentDetailSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+    
+    @action(detail=True, methods=['get'], url_path='investment-detail')
+    def investment_detail(self, request, pk=None):
+        """Get single investment detail with SPV info"""
+        user = request.user
+        
+        try:
+            investment = Investment.objects.select_related('spv').get(id=pk, investor=user)
+        except Investment.DoesNotExist:
+            return Response(
+                {'error': 'Investment not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        serializer = InvestorInvestmentDetailSerializer(investment)
+        return Response({
+            'success': True,
+            'data': serializer.data,
+        })
 
 
 class InvestmentViewSet(viewsets.ModelViewSet):
