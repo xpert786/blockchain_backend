@@ -994,7 +994,7 @@ class PortfolioViewSet(viewsets.ModelViewSet):
                 date = start_date + timedelta(days=i)
                 progress = (i + 1) / days
                 invested = float(portfolio.total_invested) * progress
-                value = invested * (1 + (portfolio.portfolio_growth_percentage / 100) * progress)
+                value = invested * (1 + (float(portfolio.portfolio_growth_percentage) / 100) * progress)
                 performance_list.append({
                     'date': date.strftime('%Y-%m-%d'),
                     'total_invested': round(invested, 2),
