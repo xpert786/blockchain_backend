@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import InvestorProfile
-from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, Wishlist, PortfolioPerformance, TaxDocument, TaxSummary
+from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, Wishlist, PortfolioPerformance, TaxDocument, TaxSummary, InvestorDocument
 
 # Register your models here.
 
@@ -725,3 +725,58 @@ class TaxSummaryAdmin(admin.ModelAdmin):
     )
 
 
+@admin.register(InvestorDocument)
+class InvestorDocumentAdmin(admin.ModelAdmin):
+    """Admin interface for Investor Documents"""
+    
+    list_display = [
+        'id',
+        'investor',
+        'title',
+        'category',
+        'file_type',
+        'file_size_display',
+        'status',
+        'fund_name',
+        'uploaded_at'
+    ]
+    
+    list_filter = [
+        'category',
+        'status',
+        'file_type',
+        'uploaded_at'
+    ]
+    
+    search_fields = [
+        'investor__username',
+        'investor__email',
+        'title',
+        'fund_name'
+    ]
+    
+    readonly_fields = ['file_type', 'file_size', 'file_size_display', 'uploaded_at', 'updated_at']
+    
+    ordering = ['-uploaded_at']
+    
+    fieldsets = (
+        ('Investor Information', {
+            'fields': ('investor', 'investment', 'spv')
+        }),
+        ('Document Details', {
+            'fields': (
+                'title',
+                'description',
+                'category',
+                'status',
+                'fund_name',
+            )
+        }),
+        ('File', {
+            'fields': ('file', 'file_type', 'file_size', 'file_size_display')
+        }),
+        ('Timestamps', {
+            'fields': ('uploaded_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )

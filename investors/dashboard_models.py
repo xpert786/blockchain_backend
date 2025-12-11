@@ -406,3 +406,84 @@ class TaxSummary(models.Model):
         # Approximate 30% tax rate (this can be customized)
         self.estimated_tax = self.net_taxable_income * Decimal('0.30') if self.net_taxable_income > 0 else Decimal('0.00')
         self.save()
+
+
+def investor_document_upload_path(instance, filename):
+    """Generate upload path for investor documents"""
+    return f'investor_documents/{instance.investor.id}/{instance.category}/{filename}'
+
+
+class InvestorDocument(models.Model):
+    """Model for investor documents in Document Center"""
+    
+    CATEGORY_CHOICES = [
+        ('investment', 'Investment'),
+        ('reports', 'Reports'),
+        ('kyc', 'KYC'),
+        ('other', 'Other'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    
+    investor = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='investor_documents')
+    investment = models.ForeignKey(Investment, on_delete=models.CASCADE, related_name='investor_documents', null=True, blank=True)
+    
+    # Document Details
+    title = models.CharField(max_length=255, help_text="Document title/name")
+    description = models.TextField(blank=True, null=True, help_text="Document description")
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='other', help_text="Document category")
+    
+    # File
+    file = models.FileField(upload_to=investor_document_upload_path, help_text="Document file")
+    file_type = models.CharField(max_length=20, blank=True, null=True, help_text="File type (PDF, DOC, etc.)")
+    file_size = models.BigIntegerField(null=True, blank=True, help_text="File size in bytes")
+    
+    # Status
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Related SPV/Fund
+    spv = models.ForeignKey(SPV, on_delete=models.SET_NULL, null=True, blank=True, related_name='investor_documents', help_text="Related SPV/Fund")
+    fund_name = models.CharField(max_length=255, blank=True, null=True, help_text="Related fund name")
+    
+    # Timestamps
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'investor document'
+        verbose_name_plural = 'investor documents'
+        ordering = ['-uploaded_at']
+        indexes = [
+            models.Index(fields=['investor', 'category']),
+            models.Index(fields=['status']),
+        ]
+    
+    def __str__(self):
+        return f"{self.investor.username} - {self.title}"
+    
+    @property
+    def file_size_display(self):
+        """Get file size in human readable format"""
+        if not self.file_size:
+            return "N/A"
+        if self.file_size < 1024:
+            return f"{self.file_size} B"
+        elif self.file_size < 1024 * 1024:
+            return f"{self.file_size / 1024:.1f} KB"
+        else:
+            return f"{self.file_size / (1024 * 1024):.1f} MB"
+    
+    def save(self, *args, **kwargs):
+        if self.file:
+            # Extract file type from filename
+            import os
+            filename = os.path.basename(self.file.name)
+            self.file_type = filename.split('.')[-1].upper() if '.' in filename else 'Unknown'
+            # Get file size
+            if hasattr(self.file, 'size'):
+                self.file_size = self.file.size
+        super().save(*args, **kwargs)

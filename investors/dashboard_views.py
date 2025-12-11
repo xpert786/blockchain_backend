@@ -8,7 +8,7 @@ from rest_framework.pagination import PageNumberPagination
 from decimal import Decimal
 from datetime import datetime, timedelta
 
-from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, Wishlist, PortfolioPerformance, TaxDocument, TaxSummary
+from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, Wishlist, PortfolioPerformance, TaxDocument, TaxSummary, InvestorDocument
 from .models import InvestorProfile
 from .dashboard_serializers import (
     PortfolioSerializer,
@@ -28,6 +28,8 @@ from .dashboard_serializers import (
     TaxDocumentSerializer,
     TaxSummarySerializer,
     TaxOverviewSerializer,
+    InvestorDocumentSerializer,
+    InvestorDocumentUploadSerializer,
 )
 from .models import InvestorProfile
 from spv.models import SPV
@@ -1722,3 +1724,149 @@ class TaxCenterViewSet(viewsets.ViewSet):
             'tips': tips,
             'important_dates': important_dates,
         })
+
+
+class DocumentCenterViewSet(viewsets.ViewSet):
+    """
+    ViewSet for Document Center - Investor Documents Management
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def list(self, request):
+        """Get all documents with optional filters"""
+        user = request.user
+        
+        # Get filters
+        category = request.query_params.get('category', None)
+        search = request.query_params.get('search', None)
+        status_filter = request.query_params.get('status', None)
+        
+        documents = InvestorDocument.objects.filter(investor=user)
+        
+        # Apply filters
+        if category and category != 'all':
+            documents = documents.filter(category=category)
+        if status_filter:
+            documents = documents.filter(status=status_filter)
+        if search:
+            documents = documents.filter(
+                Q(title__icontains=search) | 
+                Q(description__icontains=search) |
+                Q(fund_name__icontains=search)
+            )
+        
+        # Order by upload date (newest first)
+        documents = documents.order_by('-uploaded_at')
+        
+        # Paginate
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(documents, request)
+        
+        serializer = InvestorDocumentSerializer(page, many=True, context={'request': request})
+        return paginator.get_paginated_response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def categories(self, request):
+        """Get category counts for tabs"""
+        user = request.user
+        
+        documents = InvestorDocument.objects.filter(investor=user)
+        
+        # Count by category
+        all_count = documents.count()
+        investment_count = documents.filter(category='investment').count()
+        reports_count = documents.filter(category='reports').count()
+        kyc_count = documents.filter(category='kyc').count()
+        other_count = documents.filter(category='other').count()
+        
+        return Response({
+            'success': True,
+            'categories': [
+                {'key': 'all', 'label': 'All Documents', 'count': all_count},
+                {'key': 'investment', 'label': 'Investment', 'count': investment_count},
+                {'key': 'reports', 'label': 'Reports', 'count': reports_count},
+                {'key': 'kyc', 'label': 'KYC', 'count': kyc_count},
+                {'key': 'other', 'label': 'Other', 'count': other_count},
+            ],
+        })
+    
+    @action(detail=False, methods=['post'])
+    def upload(self, request):
+        """Upload a new document"""
+        serializer = InvestorDocumentUploadSerializer(data=request.data, context={'request': request})
+        
+        if serializer.is_valid():
+            document = serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Document uploaded successfully',
+                'data': InvestorDocumentSerializer(document, context={'request': request}).data,
+            }, status=status.HTTP_201_CREATED)
+        
+        return Response({
+            'error': 'Invalid data',
+            'details': serializer.errors,
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['get'])
+    def download(self, request, pk=None):
+        """Download a specific document"""
+        user = request.user
+        
+        try:
+            document = InvestorDocument.objects.get(id=pk, investor=user)
+        except InvestorDocument.DoesNotExist:
+            return Response(
+                {'error': 'Document not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        if not document.file:
+            return Response(
+                {'error': 'No file attached to this document'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        from django.http import FileResponse
+        response = FileResponse(document.file.open(), as_attachment=True)
+        response['Content-Disposition'] = f'attachment; filename="{document.title}.{document.file_type.lower()}"'
+        return response
+    
+    @action(detail=True, methods=['delete'])
+    def remove(self, request, pk=None):
+        """Delete a document"""
+        user = request.user
+        
+        try:
+            document = InvestorDocument.objects.get(id=pk, investor=user)
+        except InvestorDocument.DoesNotExist:
+            return Response(
+                {'error': 'Document not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        document.delete()
+        
+        return Response({
+            'success': True,
+            'message': 'Document deleted successfully',
+        })
+    
+    def retrieve(self, request, pk=None):
+        """Get single document detail"""
+        user = request.user
+        
+        try:
+            document = InvestorDocument.objects.get(id=pk, investor=user)
+        except InvestorDocument.DoesNotExist:
+            return Response(
+                {'error': 'Document not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        serializer = InvestorDocumentSerializer(document, context={'request': request})
+        return Response({
+            'success': True,
+            'data': serializer.data,
+        })
+

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, PortfolioPerformance, TaxDocument, TaxSummary
+from .dashboard_models import Portfolio, Investment, Notification, KYCStatus, PortfolioPerformance, TaxDocument, TaxSummary, InvestorDocument
 from users.models import CustomUser
 
 
@@ -506,3 +506,71 @@ class TaxOverviewSerializer(serializers.Serializer):
     estimated_tax_label = serializers.CharField()
 
 
+class InvestorDocumentSerializer(serializers.ModelSerializer):
+    """Serializer for Investor Documents in Document Center"""
+    
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    file_size_display = serializers.ReadOnlyField()
+    fund_name_display = serializers.SerializerMethodField()
+    download_url = serializers.SerializerMethodField()
+    uploaded_at_formatted = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = InvestorDocument
+        fields = [
+            'id',
+            'title',
+            'description',
+            'category',
+            'category_display',
+            'file',
+            'file_type',
+            'file_size',
+            'file_size_display',
+            'status',
+            'status_display',
+            'fund_name',
+            'fund_name_display',
+            'download_url',
+            'uploaded_at',
+            'uploaded_at_formatted',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'file_type', 'file_size', 'uploaded_at', 'updated_at']
+    
+    def get_fund_name_display(self, obj):
+        if obj.spv:
+            return obj.spv.display_name
+        return obj.fund_name or ''
+    
+    def get_download_url(self, obj):
+        if obj.file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.file.url)
+            return obj.file.url
+        return None
+    
+    def get_uploaded_at_formatted(self, obj):
+        if obj.uploaded_at:
+            return obj.uploaded_at.strftime('%m/%d/%Y')
+        return ''
+
+
+class InvestorDocumentUploadSerializer(serializers.ModelSerializer):
+    """Serializer for uploading investor documents"""
+    
+    class Meta:
+        model = InvestorDocument
+        fields = [
+            'title',
+            'description',
+            'category',
+            'file',
+            'fund_name',
+        ]
+    
+    def create(self, validated_data):
+        validated_data['investor'] = self.context['request'].user
+        return super().create(validated_data)
