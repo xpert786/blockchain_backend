@@ -221,9 +221,17 @@ class DocumentTemplate(models.Model):
     )
     
     # Required fields schema (JSON field to store required field definitions)
+    # NOTE: required_fields are used for document GENERATION (investor-specific PDFs)
     required_fields = models.JSONField(
         default=list,
         help_text="List of required fields with their types and validation rules. Format: [{'name': 'investor_name', 'label': 'Investor Name', 'type': 'text', 'required': True}, ...]"
+    )
+    
+    # Configurable fields for syndicate-level defaults (NOT for document generation)
+    # NOTE: configurable_fields are used for saving syndicate-level TEMPLATE DEFAULTS
+    configurable_fields = models.JSONField(
+        default=list,
+        help_text="List of configurable fields for syndicate-level defaults. Format: [{'name': 'field_name', 'label': 'Field Label', 'type': 'text', 'default_value': ''}, ...]"
     )
     
     # Template configuration
@@ -299,6 +307,60 @@ class DocumentGeneration(models.Model):
     
     def __str__(self):
         return f"{self.template.name} -> {self.generated_document.document_id}"
+
+
+class SyndicateDocumentDefaults(models.Model):
+    """
+    Store syndicate-level default values for document templates.
+    
+    This model is used for "Syndicate Document Defaults" - saving template-driven
+    defaults from configurable_fields[], NOT for generating specific PDFs.
+    
+    Documents generated here are SPV-level templates or reference documents.
+    Investor-specific documents are generated automatically during allocations,
+    capital calls, or transfers.
+    """
+    
+    syndicate = models.ForeignKey(
+        'users.SyndicateProfile',
+        on_delete=models.CASCADE,
+        related_name='document_defaults',
+        help_text="Syndicate that owns these defaults"
+    )
+    template = models.ForeignKey(
+        DocumentTemplate,
+        on_delete=models.CASCADE,
+        related_name='syndicate_defaults',
+        help_text="Template for which defaults are saved"
+    )
+    
+    # Default values for configurable fields
+    default_values = models.JSONField(
+        default=dict,
+        help_text="Default values for template's configurable fields. Format: {'field_name': 'default_value', ...}"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_document_defaults',
+        help_text="User who created these defaults"
+    )
+    
+    class Meta:
+        ordering = ['-updated_at']
+        verbose_name = 'syndicate document defaults'
+        verbose_name_plural = 'syndicate document defaults'
+        unique_together = ['syndicate', 'template']  # One default per syndicate per template
+    
+    def __str__(self):
+        return f"{self.syndicate} - {self.template.name} defaults"
+
 
 
 

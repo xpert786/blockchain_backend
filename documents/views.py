@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.db.models import Q, Count, Case, When, IntegerField
 from django.http import FileResponse
 from users.models import CustomUser
-from .models import Document, DocumentSignatory, DocumentTemplate, DocumentGeneration
+from .models import Document, DocumentSignatory, DocumentTemplate, DocumentGeneration, SyndicateDocumentDefaults
 from .serializers import (
     DocumentSerializer,
     DocumentListSerializer,
@@ -15,6 +15,8 @@ from .serializers import (
     DocumentTemplateListSerializer,
     DocumentGenerationSerializer,
     DocumentGenerationRequestSerializer,
+    SyndicateDocumentDefaultsSerializer,
+    SyndicateDocumentDefaultsCreateSerializer,
 )
 
 
@@ -343,6 +345,35 @@ class DocumentTemplateViewSet(viewsets.ModelViewSet):
             'enable_digital_signature': template.enable_digital_signature,
         }, status=status.HTTP_200_OK)
     
+    @action(detail=True, methods=['get'])
+    def configurable_fields(self, request, pk=None):
+        """
+        Get configurable fields for a template (for Syndicate Document Defaults).
+        
+        Returns fields from template.configurable_fields[] (NOT required_fields[]).
+        These are used for saving syndicate-level defaults, not for document generation.
+        
+        GET /api/document-templates/{id}/configurable_fields/
+        """
+        template = self.get_object()
+        
+        # Ensure configurable_fields is a list
+        configurable_fields = template.configurable_fields or []
+        if isinstance(configurable_fields, str):
+            import json
+            try:
+                configurable_fields = json.loads(configurable_fields)
+            except json.JSONDecodeError:
+                configurable_fields = []
+        
+        return Response({
+            'template_id': template.id,
+            'template_name': template.name,
+            'description': template.description,
+            'configurable_fields': configurable_fields,
+            'message': 'Documents generated here are SPV-level templates or reference documents. Investor-specific documents are generated automatically during allocations, capital calls, or transfers.',
+        }, status=status.HTTP_200_OK)
+    
     @action(detail=True, methods=['post'])
     def duplicate(self, request, pk=None):
         """
@@ -359,6 +390,7 @@ class DocumentTemplateViewSet(viewsets.ModelViewSet):
             category=template.category,
             template_file=template.template_file,
             required_fields=template.required_fields,
+            configurable_fields=template.configurable_fields,  # Include configurable_fields
             enable_digital_signature=template.enable_digital_signature,
             is_active=True,
             created_by=request.user,
@@ -371,6 +403,133 @@ class DocumentTemplateViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_201_CREATED)
 
 
+class SyndicateDocumentDefaultsViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing Syndicate Document Defaults.
+    
+    "Syndicate Document Defaults" section in the UI.
+    Template-driven defaults only: Render fields from template.configurable_fields[]
+    (NOT from required_fields[] used for document generation).
+    The goal is to save syndicate-level defaults, not generate a specific PDF.
+    
+    Documents generated here are SPV-level templates or reference documents.
+    Investor-specific documents are generated automatically during allocations,
+    capital calls, or transfers.
+    """
+    queryset = SyndicateDocumentDefaults.objects.all()
+    serializer_class = SyndicateDocumentDefaultsSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_serializer_class(self):
+        """Use different serializers for different actions"""
+        if self.action in ['create', 'update', 'partial_update']:
+            return SyndicateDocumentDefaultsCreateSerializer
+        return SyndicateDocumentDefaultsSerializer
+    
+    def get_queryset(self):
+        """Filter defaults based on user role and query parameters"""
+        user = self.request.user
+        queryset = SyndicateDocumentDefaults.objects.all()
+        
+        # Filter by user's syndicate if not admin
+        if not (user.is_staff or user.role == 'admin'):
+            # Get user's syndicate profile
+            if hasattr(user, 'syndicateprofile'):
+                queryset = queryset.filter(syndicate=user.syndicateprofile)
+            else:
+                queryset = queryset.filter(created_by=user)
+        
+        # Filter by syndicate
+        syndicate_id = self.request.query_params.get('syndicate', None)
+        if syndicate_id:
+            queryset = queryset.filter(syndicate_id=syndicate_id)
+        
+        # Filter by template
+        template_id = self.request.query_params.get('template', None)
+        if template_id:
+            queryset = queryset.filter(template_id=template_id)
+        
+        return queryset.select_related('syndicate', 'template', 'created_by')
+    
+    def perform_create(self, serializer):
+        """Set the creator when creating defaults"""
+        serializer.save(created_by=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def my_defaults(self, request):
+        """
+        Get current user's syndicate document defaults.
+        GET /api/syndicate-document-defaults/my_defaults/
+        """
+        user = request.user
+        
+        if hasattr(user, 'syndicateprofile'):
+            defaults = SyndicateDocumentDefaults.objects.filter(
+                syndicate=user.syndicateprofile
+            ).select_related('template')
+            
+            serializer = SyndicateDocumentDefaultsSerializer(defaults, many=True)
+            return Response({
+                'message': 'Syndicate document defaults retrieved successfully',
+                'data': serializer.data
+            })
+        
+        return Response({
+            'message': 'No syndicate profile found for user',
+            'data': []
+        }, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['post'])
+    def save_defaults(self, request):
+        """
+        Create or update syndicate document defaults for a template.
+        POST /api/syndicate-document-defaults/save_defaults/
+        
+        Body: {
+            "template_id": 1,
+            "default_values": {"field_name": "value", ...}
+        }
+        """
+        user = request.user
+        template_id = request.data.get('template_id')
+        default_values = request.data.get('default_values', {})
+        
+        if not template_id:
+            return Response({
+                'error': 'template_id is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate template exists
+        try:
+            template = DocumentTemplate.objects.get(id=template_id, is_active=True)
+        except DocumentTemplate.DoesNotExist:
+            return Response({
+                'error': 'Template not found or is not active'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get user's syndicate
+        if not hasattr(user, 'syndicateprofile'):
+            return Response({
+                'error': 'No syndicate profile found for user'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        syndicate = user.syndicateprofile
+        
+        # Create or update defaults
+        defaults, created = SyndicateDocumentDefaults.objects.update_or_create(
+            syndicate=syndicate,
+            template=template,
+            defaults={
+                'default_values': default_values,
+                'created_by': user,
+            }
+        )
+        
+        serializer = SyndicateDocumentDefaultsSerializer(defaults)
+        return Response({
+            'message': f'Syndicate document defaults {"created" if created else "updated"} successfully',
+            'data': serializer.data
+        }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 # takes a document template/Creates a new Document record
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])

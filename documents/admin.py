@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
-from .models import Document, DocumentSignatory, DocumentTemplate, DocumentGeneration
+from .models import Document, DocumentSignatory, DocumentTemplate, DocumentGeneration, SyndicateDocumentDefaults
 
 
 @admin.register(Document)
@@ -250,6 +250,7 @@ class DocumentTemplateAdmin(admin.ModelAdmin):
             'fields': (
                 'template_file',
                 'required_fields',
+                'configurable_fields',
                 'enable_digital_signature',
                 'is_active',
             )
@@ -317,3 +318,54 @@ class DocumentGenerationAdmin(admin.ModelAdmin):
         }),
     )
 
+
+@admin.register(SyndicateDocumentDefaults)
+class SyndicateDocumentDefaultsAdmin(admin.ModelAdmin):
+    """
+    Admin for Syndicate Document Defaults.
+    
+    Used for "Syndicate Document Defaults" - saving template-driven defaults
+    from configurable_fields[], NOT for generating specific PDFs.
+    """
+    list_display = (
+        'syndicate',
+        'template',
+        'created_by',
+        'created_at',
+        'updated_at',
+    )
+    list_filter = (
+        'template',
+        'created_at',
+        'updated_at',
+    )
+    search_fields = (
+        'syndicate__firm_name',
+        'template__name',
+        'created_by__username',
+    )
+    readonly_fields = ('created_at', 'updated_at')
+    autocomplete_fields = ['syndicate', 'template', 'created_by']
+    
+    fieldsets = (
+        ('Syndicate and Template', {
+            'fields': (
+                'syndicate',
+                'template',
+            )
+        }),
+        ('Default Values', {
+            'fields': (
+                'default_values',
+            ),
+            'description': 'Default values for template configurable_fields[]. Format: {"field_name": "value", ...}'
+        }),
+        ('Metadata', {
+            'fields': (
+                'created_by',
+                'created_at',
+                'updated_at',
+            ),
+            'classes': ('collapse',)
+        }),
+    )

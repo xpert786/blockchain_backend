@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Document, DocumentSignatory, DocumentTemplate, DocumentGeneration
+from .models import Document, DocumentSignatory, DocumentTemplate, DocumentGeneration, SyndicateDocumentDefaults
 from users.models import CustomUser
 
 
@@ -212,6 +212,7 @@ class DocumentTemplateSerializer(serializers.ModelSerializer):
             'category',
             'template_file',
             'required_fields',
+            'configurable_fields',
             'enable_digital_signature',
             'is_active',
             'created_by',
@@ -243,6 +244,7 @@ class DocumentTemplateListSerializer(serializers.ModelSerializer):
             'description',
             'version',
             'category',
+            'configurable_fields',
             'enable_digital_signature',
             'is_active',
             'created_at',
@@ -332,3 +334,76 @@ class DocumentGenerationRequestSerializer(serializers.Serializer):
             raise serializers.ValidationError("field_data must be a dictionary.")
         return value
 
+
+class SyndicateDocumentDefaultsSerializer(serializers.ModelSerializer):
+    """
+    Serializer for SyndicateDocumentDefaults model.
+    
+    Used for "Syndicate Document Defaults" section in the UI.
+    Renders fields from template.configurable_fields[] (NOT required_fields[]).
+    The goal is to save syndicate-level defaults, not generate a specific PDF.
+    """
+    
+    template_detail = DocumentTemplateListSerializer(source='template', read_only=True)
+    syndicate_detail = serializers.SerializerMethodField()
+    created_by_detail = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = SyndicateDocumentDefaults
+        fields = [
+            'id',
+            'syndicate',
+            'syndicate_detail',
+            'template',
+            'template_detail',
+            'default_values',
+            'created_by',
+            'created_by_detail',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_syndicate_detail(self, obj):
+        """Get syndicate details"""
+        if obj.syndicate:
+            return {
+                'id': obj.syndicate.id,
+                'firm_name': obj.syndicate.firm_name if hasattr(obj.syndicate, 'firm_name') else str(obj.syndicate),
+                'user': obj.syndicate.user.username if obj.syndicate.user else None,
+            }
+        return None
+    
+    def get_created_by_detail(self, obj):
+        """Get creator user details"""
+        if obj.created_by:
+            return {
+                'id': obj.created_by.id,
+                'username': obj.created_by.username,
+                'email': obj.created_by.email,
+            }
+        return None
+    
+    def validate_default_values(self, value):
+        """Validate default_values is a dictionary"""
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("default_values must be a dictionary.")
+        return value
+
+
+class SyndicateDocumentDefaultsCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating/updating syndicate document defaults"""
+    
+    class Meta:
+        model = SyndicateDocumentDefaults
+        fields = [
+            'syndicate',
+            'template',
+            'default_values',
+        ]
+    
+    def validate_default_values(self, value):
+        """Validate default_values is a dictionary"""
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("default_values must be a dictionary.")
+        return value
