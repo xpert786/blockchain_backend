@@ -50,6 +50,7 @@ urlpatterns = [
     path('blockchain-backend/api/', include('reporting.urls')),
     path('blockchain-backend/api/', include('investors.urls')),
     path('blockchain-backend/api/', include('messaging.urls')),
+    path('blockchain-backend/api/payments/', include('payments.urls')),
     
     # Investor Settings - Direct path with investors prefix
     path('blockchain-backend/api/investors/settings/identity/', 

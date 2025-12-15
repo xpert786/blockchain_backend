@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     'documents',
     'investors',
     'messaging',
+    'payments',
 
 ]
 
@@ -313,3 +314,9 @@ CALLBACK_URL = config('CALLBACK_URL')
 TWILIO_ACCOUNT_SID = config('TWILIO_ACCOUNT_SID')
 TWILIO_AUTH_TOKEN = config('TWILIO_AUTH_TOKEN')
 TWILIO_PHONE_NUMBER = config('TWILIO_PHONE_NUMBER')
+
+# Stripe Configuration
+STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='sk_test_your_test_key')
+STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='pk_test_your_test_key')
+STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='whsec_your_webhook_secret')
+PLATFORM_FEE_PERCENTAGE = float(config('PLATFORM_FEE_PERCENTAGE', default='2.0'))
