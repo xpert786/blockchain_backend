@@ -218,6 +218,9 @@ class DocumentTemplateAdmin(admin.ModelAdmin):
         'name',
         'version',
         'category',
+        'scope',
+        'jurisdiction_scope',
+        'content_type',
         'is_active',
         'enable_digital_signature',
         'created_by',
@@ -225,6 +228,9 @@ class DocumentTemplateAdmin(admin.ModelAdmin):
     )
     list_filter = (
         'category',
+        'scope',
+        'jurisdiction_scope',
+        'content_type',
         'is_active',
         'enable_digital_signature',
         'created_at',
@@ -246,11 +252,30 @@ class DocumentTemplateAdmin(admin.ModelAdmin):
                 'category',
             )
         }),
-        ('Template Configuration', {
+        ('Scope & Jurisdiction', {
             'fields': (
+                'scope',
+                'jurisdiction_scope',
+            ),
+            'description': "scope='spv' for SPV reference docs, 'investor' for investor-bound PDFs"
+        }),
+        ('Template Content', {
+            'fields': (
+                'template_content',
+                'content_type',
                 'template_file',
+            ),
+            'description': 'Store template as HTML/Markdown with {{placeholders}}. PDFs generated at runtime.'
+        }),
+        ('Fields Configuration', {
+            'fields': (
                 'required_fields',
                 'configurable_fields',
+            ),
+            'description': 'required_fields for doc generation, configurable_fields for syndicate defaults'
+        }),
+        ('Settings', {
+            'fields': (
                 'enable_digital_signature',
                 'is_active',
             )
@@ -260,7 +285,8 @@ class DocumentTemplateAdmin(admin.ModelAdmin):
                 'created_by',
                 'created_at',
                 'updated_at',
-            )
+            ),
+            'classes': ('collapse',)
         }),
     )
     

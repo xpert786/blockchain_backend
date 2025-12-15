@@ -299,8 +299,31 @@ class DocumentTemplateViewSet(viewsets.ModelViewSet):
         return DocumentTemplateSerializer
     
     def get_queryset(self):
-        """Filter templates"""
+        """
+        Filter templates based on query parameters.
+        
+        Query Parameters:
+        - scope: Filter by scope (spv, investor) - use ?scope=spv for Generate Documents screen
+        - jurisdiction: Filter by jurisdiction_scope
+        - category: Filter by category
+        - search: Search in name and description
+        """
         queryset = DocumentTemplate.objects.filter(is_active=True)
+        
+        # Filter by scope (NEW - for SPV-only screen, use ?scope=spv)
+        scope = self.request.query_params.get('scope', None)
+        if scope:
+            queryset = queryset.filter(scope=scope)
+        
+        # Filter by jurisdiction
+        jurisdiction = self.request.query_params.get('jurisdiction', None)
+        if jurisdiction:
+            queryset = queryset.filter(jurisdiction_scope=jurisdiction)
+        
+        # Filter by content type
+        content_type = self.request.query_params.get('content_type', None)
+        if content_type:
+            queryset = queryset.filter(content_type=content_type)
         
         # Filter by category
         category = self.request.query_params.get('category', None)
