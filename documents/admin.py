@@ -308,6 +308,8 @@ class DocumentGenerationAdmin(admin.ModelAdmin):
     list_display = (
         'template',
         'generated_document',
+        'has_pdf',
+        'pdf_size_display',
         'generated_by',
         'generated_at',
         'enable_digital_signature',
@@ -324,7 +326,7 @@ class DocumentGenerationAdmin(admin.ModelAdmin):
         'generated_by__username',
         'generated_by__email',
     )
-    readonly_fields = ('generated_at',)
+    readonly_fields = ('generated_at', 'pdf_file_size')
     autocomplete_fields = ['template', 'generated_document', 'generated_by']
     
     fieldsets = (
@@ -336,6 +338,13 @@ class DocumentGenerationAdmin(admin.ModelAdmin):
                 'generated_at',
             )
         }),
+        ('Generated PDF', {
+            'fields': (
+                'generated_pdf',
+                'pdf_filename',
+                'pdf_file_size',
+            )
+        }),
         ('Generation Data', {
             'fields': (
                 'generation_data',
@@ -343,6 +352,21 @@ class DocumentGenerationAdmin(admin.ModelAdmin):
             )
         }),
     )
+    
+    def has_pdf(self, obj):
+        """Check if PDF was generated"""
+        if obj.generated_pdf:
+            return format_html('<span style="color: green;">✓ Yes</span>')
+        return format_html('<span style="color: red;">✗ No</span>')
+    has_pdf.short_description = 'PDF Generated'
+    
+    def pdf_size_display(self, obj):
+        """Display PDF file size"""
+        if obj.pdf_file_size:
+            size_mb = obj.pdf_file_size / (1024 * 1024)
+            return f"{size_mb:.2f} MB"
+        return "-"
+    pdf_size_display.short_description = 'PDF Size'
 
 
 @admin.register(SyndicateDocumentDefaults)

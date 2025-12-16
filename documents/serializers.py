@@ -90,6 +90,8 @@ class DocumentSerializer(serializers.ModelSerializer):
     signed_count = serializers.IntegerField(read_only=True)
     pending_signatures_count = serializers.IntegerField(read_only=True)
     file_size_mb = serializers.FloatField(read_only=True)
+    file_url = serializers.SerializerMethodField()
+    download_url = serializers.SerializerMethodField()
     spv_detail = serializers.SerializerMethodField()
     syndicate_detail = serializers.SerializerMethodField()
     
@@ -102,6 +104,8 @@ class DocumentSerializer(serializers.ModelSerializer):
             'description',
             'document_type',
             'file',
+            'file_url',
+            'download_url',
             'original_filename',
             'file_size',
             'file_size_mb',
@@ -127,7 +131,7 @@ class DocumentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'document_id', 'file_size', 'mime_type',
-            'created_at', 'updated_at', 'finalized_at'
+            'created_at', 'updated_at', 'finalized_at', 'file_url', 'download_url'
         ]
     
     def get_created_by_detail(self, obj):
@@ -138,6 +142,25 @@ class DocumentSerializer(serializers.ModelSerializer):
             'email': obj.created_by.email,
             'full_name': obj.created_by.get_full_name() or obj.created_by.username,
         }
+    
+    def get_file_url(self, obj):
+        """Get absolute URL for document file"""
+        if obj.file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.file.url)
+            return obj.file.url
+        return None
+    
+    def get_download_url(self, obj):
+        """Get download URL for document file"""
+        if obj.file:
+            request = self.context.get('request')
+            if request:
+                # Return the download endpoint URL
+                return request.build_absolute_uri(f'/api/documents/{obj.id}/download/')
+            return f'/api/documents/{obj.id}/download/'
+        return None
     
     def get_spv_detail(self, obj):
         """Get SPV details"""
@@ -265,6 +288,9 @@ class DocumentGenerationSerializer(serializers.ModelSerializer):
     template_detail = DocumentTemplateListSerializer(source='template', read_only=True)
     generated_document_detail = DocumentListSerializer(source='generated_document', read_only=True)
     generated_by_detail = serializers.SerializerMethodField()
+    pdf_url = serializers.SerializerMethodField()
+    pdf_download_url = serializers.SerializerMethodField()
+    pdf_file_size_mb = serializers.FloatField(read_only=True)
     
     class Meta:
         model = DocumentGeneration
@@ -274,6 +300,12 @@ class DocumentGenerationSerializer(serializers.ModelSerializer):
             'template_detail',
             'generated_document',
             'generated_document_detail',
+            'generated_pdf',
+            'pdf_url',
+            'pdf_download_url',
+            'pdf_filename',
+            'pdf_file_size',
+            'pdf_file_size_mb',
             'generation_data',
             'generated_by',
             'generated_by_detail',
@@ -290,6 +322,24 @@ class DocumentGenerationSerializer(serializers.ModelSerializer):
             'email': obj.generated_by.email,
             'full_name': obj.generated_by.get_full_name() or obj.generated_by.username,
         }
+    
+    def get_pdf_url(self, obj):
+        """Get absolute URL for generated PDF file"""
+        if obj.generated_pdf:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.generated_pdf.url)
+            return obj.generated_pdf.url
+        return None
+    
+    def get_pdf_download_url(self, obj):
+        """Get download URL for generated PDF file"""
+        if obj.generated_pdf:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(f'/api/document-generations/{obj.id}/download/')
+            return f'/api/document-generations/{obj.id}/download/'
+        return None
 
 
 class DocumentGenerationRequestSerializer(serializers.Serializer):

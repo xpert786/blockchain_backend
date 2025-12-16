@@ -320,6 +320,11 @@ class DocumentTemplate(models.Model):
         return f"{self.name} v{self.version}"
 
 
+def generation_pdf_upload_path(instance, filename):
+    """Generate upload path for generated PDFs"""
+    return f'generated_documents/{instance.template.id}/{filename}'
+
+
 class DocumentGeneration(models.Model):
     """Model for tracking document generation from templates"""
     
@@ -335,6 +340,16 @@ class DocumentGeneration(models.Model):
         related_name='generation_history',
         help_text="Generated document"
     )
+    
+    # Generated PDF file
+    generated_pdf = models.FileField(
+        upload_to=generation_pdf_upload_path,
+        blank=True,
+        null=True,
+        help_text="Generated PDF file"
+    )
+    pdf_filename = models.CharField(max_length=255, blank=True, null=True, help_text="Original PDF filename")
+    pdf_file_size = models.BigIntegerField(null=True, blank=True, help_text="PDF file size in bytes")
     
     # Generation data (the field values used)
     generation_data = models.JSONField(
@@ -364,6 +379,11 @@ class DocumentGeneration(models.Model):
     
     def __str__(self):
         return f"{self.template.name} -> {self.generated_document.document_id}"
+    
+    @property
+    def pdf_file_size_mb(self):
+        """Get PDF file size in MB"""
+        return round(self.pdf_file_size / (1024 * 1024), 2) if self.pdf_file_size else 0
 
 
 class SyndicateDocumentDefaults(models.Model):

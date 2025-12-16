@@ -3,8 +3,45 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django.db.models import Q, Count, Case, When, IntegerField
 from django.http import FileResponse
+from django.conf import settings
+from django.core.files.base import ContentFile
+import os
+import re
+import uuid
+from io import BytesIO
 from users.models import CustomUser
 from .models import Document, DocumentSignatory, DocumentTemplate, DocumentGeneration, SyndicateDocumentDefaults
+
+# PDF generation - try multiple libraries for cross-platform support
+# Priority: xhtml2pdf (best for Windows), WeasyPrint (Linux/Mac), ReportLab (fallback)
+WEASYPRINT_AVAILABLE = False
+XHTML2PDF_AVAILABLE = False
+REPORTLAB_AVAILABLE = False
+
+# Try xhtml2pdf first (best for Windows, no external dependencies)
+try:
+    from xhtml2pdf import pisa
+    XHTML2PDF_AVAILABLE = True
+except ImportError:
+    XHTML2PDF_AVAILABLE = False
+
+# Try WeasyPrint (good for Linux/Mac, requires GTK on Windows)
+try:
+    from weasyprint import HTML
+    WEASYPRINT_AVAILABLE = True
+except (ImportError, OSError):
+    WEASYPRINT_AVAILABLE = False
+
+# Fallback to ReportLab (basic text rendering)
+if not XHTML2PDF_AVAILABLE and not WEASYPRINT_AVAILABLE:
+    try:
+        from reportlab.lib.pagesizes import letter, A4
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.units import inch
+        REPORTLAB_AVAILABLE = True
+    except ImportError:
+        REPORTLAB_AVAILABLE = False
 from .serializers import (
     DocumentSerializer,
     DocumentListSerializer,
@@ -131,6 +168,32 @@ class DocumentViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({
                 'error': f'Error downloading file: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['get'])
+    def view(self, request, pk=None):
+        """
+        View document file in browser (for PDFs)
+        GET /api/documents/{id}/view/
+        """
+        document = self.get_object()
+        
+        if not document.file:
+            return Response({
+                'error': 'Document file not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            response = FileResponse(
+                document.file.open('rb'),
+                content_type=document.mime_type or 'application/octet-stream'
+            )
+            # Use 'inline' instead of 'attachment' to view in browser
+            response['Content-Disposition'] = f'inline; filename="{document.original_filename}"'
+            return response
+        except Exception as e:
+            return Response({
+                'error': f'Error viewing file: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['patch'])
@@ -682,7 +745,7 @@ class SyndicateDocumentDefaultsViewSet(viewsets.ModelViewSet):
         if not title:
             title = f"{template.name} - {merged_field_data.get('investor_name', merged_field_data.get('spv_name', 'Document'))}"
         
-        # Create the document
+        # Create the document first (needed for document_id generation)
         document = Document.objects.create(
             title=title,
             description=description or template.description,
@@ -694,6 +757,29 @@ class SyndicateDocumentDefaultsViewSet(viewsets.ModelViewSet):
             syndicate_id=defaults_obj.syndicate.id if defaults_obj.syndicate else None,
         )
         
+        # Generate PDF from template content (or create default template if empty)
+        pdf_file = None
+        pdf_generated = False
+        original_filename = f"{title.replace(' ', '_').replace('/', '_')}.pdf"
+        try:
+            pdf_file = generate_pdf_from_template(template, merged_field_data, title)
+            if pdf_file:
+                # Generate filename with document_id
+                filename = f"{document.document_id}_{uuid.uuid4().hex[:8]}.pdf"
+                # Save PDF file to document
+                document.file.save(filename, pdf_file, save=False)
+                document.original_filename = original_filename
+                document.mime_type = 'application/pdf'
+                pdf_generated = True
+        except Exception as e:
+            # Log error but don't fail the request - document will be created without PDF
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error generating PDF for document {document.document_id}: {str(e)}", exc_info=True)
+        
+        # Save document with PDF file if generated
+        document.save()
+        
         # Create generation record
         generation = DocumentGeneration.objects.create(
             template=template,
@@ -703,6 +789,21 @@ class SyndicateDocumentDefaultsViewSet(viewsets.ModelViewSet):
             enable_digital_signature=enable_digital_signature,
         )
         
+        # Also save PDF to generation record
+        if pdf_generated:
+            try:
+                pdf_file_for_generation = generate_pdf_from_template(template, merged_field_data, title)
+                if pdf_file_for_generation:
+                    gen_filename = f"gen_{document.document_id}_{uuid.uuid4().hex[:8]}.pdf"
+                    generation.generated_pdf.save(gen_filename, pdf_file_for_generation, save=False)
+                    generation.pdf_filename = original_filename
+                    generation.pdf_file_size = pdf_file_for_generation.size if hasattr(pdf_file_for_generation, 'size') else len(pdf_file_for_generation.read())
+                    generation.save()
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Could not save PDF to generation record: {str(e)}")
+        
         # If digital signature is enabled, set status to pending_signatures
         if enable_digital_signature:
             document.status = 'pending_signatures'
@@ -711,13 +812,20 @@ class SyndicateDocumentDefaultsViewSet(viewsets.ModelViewSet):
         # Refresh document
         document.refresh_from_db()
         
-        return Response({
+        # Prepare response with PDF generation status
+        response_data = {
             'message': 'Document generated successfully from template defaults',
+            'pdf_generated': pdf_generated,
             'data': {
-                'document': DocumentSerializer(document).data,
-                'generation': DocumentGenerationSerializer(generation).data,
+                'document': DocumentSerializer(document, context={'request': request}).data,
+                'generation': DocumentGenerationSerializer(generation, context={'request': request}).data,
             }
-        }, status=status.HTTP_201_CREATED)
+        }
+        
+        if not pdf_generated and template.template_content:
+            response_data['warning'] = 'PDF could not be generated. Please check template content and ensure WeasyPrint is installed.'
+        
+        return Response(response_data, status=status.HTTP_201_CREATED)
 # takes a document template/Creates a new Document record
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
@@ -894,7 +1002,7 @@ def generate_document_from_template(request):
     if not title:
         title = f"{template.name} - {merged_field_data.get('investor_name', merged_field_data.get('spv_name', 'Document'))}"
     
-    # Create the document
+    # Create the document first (needed for document_id generation)
     document = Document.objects.create(
         title=title,
         description=description or template.description,
@@ -906,6 +1014,30 @@ def generate_document_from_template(request):
         syndicate_id=syndicate_id if syndicate_id else None,
     )
     
+    # Generate PDF from template content (or create default template if empty)
+    pdf_file = None
+    pdf_generated = False
+    try:
+        pdf_file = generate_pdf_from_template(template, merged_field_data, title)
+        if pdf_file:
+            # Generate filename with document_id
+            filename = f"{document.document_id}_{uuid.uuid4().hex[:8]}.pdf"
+            original_filename = f"{title.replace(' ', '_').replace('/', '_')}.pdf"
+            
+            # Save PDF file to document
+            document.file.save(filename, pdf_file, save=False)
+            document.original_filename = original_filename
+            document.mime_type = 'application/pdf'
+            pdf_generated = True
+    except Exception as e:
+        # Log error but don't fail the request - document will be created without PDF
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error generating PDF for document {document.document_id}: {str(e)}", exc_info=True)
+    
+    # Save document with PDF file if generated
+    document.save()
+    
     # Create generation record with merged field data
     generation = DocumentGeneration.objects.create(
         template=template,
@@ -914,6 +1046,22 @@ def generate_document_from_template(request):
         generated_by=request.user,
         enable_digital_signature=enable_digital_signature,
     )
+    
+    # Also save PDF to generation record
+    if pdf_generated and document.file:
+        try:
+            # Re-generate PDF for generation record (or copy from document)
+            pdf_file_for_generation = generate_pdf_from_template(template, merged_field_data, title)
+            if pdf_file_for_generation:
+                gen_filename = f"gen_{document.document_id}_{uuid.uuid4().hex[:8]}.pdf"
+                generation.generated_pdf.save(gen_filename, pdf_file_for_generation, save=False)
+                generation.pdf_filename = original_filename
+                generation.pdf_file_size = pdf_file_for_generation.size if hasattr(pdf_file_for_generation, 'size') else len(pdf_file_for_generation.read())
+                generation.save()
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Could not save PDF to generation record: {str(e)}")
     
     # Handle signatories if provided
     signatories_data = serializer.validated_data.get('signatories', [])
@@ -943,13 +1091,318 @@ def generate_document_from_template(request):
     # Refresh document to get updated signatories
     document.refresh_from_db()
     
-    return Response({
+    # Prepare response with PDF generation status
+    response_data = {
         'message': 'Document generated successfully',
+        'pdf_generated': pdf_generated,
         'data': {
-            'document': DocumentSerializer(document).data,
+            'document': DocumentSerializer(document, context={'request': request}).data,
             'generation': DocumentGenerationSerializer(generation).data,
         }
-    }, status=status.HTTP_201_CREATED)
+    }
+    
+    if not pdf_generated and template.template_content:
+        response_data['warning'] = 'PDF could not be generated. Please check template content and ensure WeasyPrint is installed.'
+    
+    return Response(response_data, status=status.HTTP_201_CREATED)
+
+
+def generate_pdf_from_template(template, field_data, title=None):
+    """
+    Generate PDF from template content by replacing placeholders with field data.
+    If template_content is empty, creates a default document with field data.
+    
+    Args:
+        template: DocumentTemplate instance
+        field_data: Dictionary of field values to replace in template
+        title: Optional title for the document
+        
+    Returns:
+        ContentFile: PDF file content
+    """
+    # Get template content
+    template_content = template.template_content or ''
+    content_type = template.content_type or 'html'
+    
+    # If template_content is empty, create a default template
+    if not template_content.strip():
+        template_content = create_default_template(template, field_data, title)
+    
+    # Replace placeholders in template content
+    # Support both {{field_name}} and {field_name} formats
+    processed_content = template_content
+    
+    # Replace all placeholders with field values
+    for key, value in field_data.items():
+        if value is None:
+            value = ''
+        else:
+            value = str(value)
+        
+        # Replace {{field_name}} format
+        placeholder_pattern = r'\{\{' + re.escape(key) + r'\}\}'
+        processed_content = re.sub(placeholder_pattern, value, processed_content, flags=re.IGNORECASE)
+        
+        # Replace {field_name} format
+        placeholder_pattern2 = r'\{' + re.escape(key) + r'\}'
+        processed_content = re.sub(placeholder_pattern2, value, processed_content, flags=re.IGNORECASE)
+    
+    # Generate PDF based on content type
+    if content_type == 'html' or content_type == 'jsx':
+        return generate_pdf_from_html(processed_content)
+    elif content_type == 'markdown':
+        # Convert markdown to HTML first
+        try:
+            import markdown
+            processed_content = markdown.markdown(processed_content)
+        except ImportError:
+            # If markdown not available, treat as plain text
+            processed_content = f"<html><body><pre>{processed_content}</pre></body></html>"
+        return generate_pdf_from_html(processed_content)
+    else:
+        # Default to HTML
+        return generate_pdf_from_html(processed_content)
+
+
+def create_default_template(template, field_data, title=None):
+    """
+    Create a default HTML template when template_content is empty.
+    
+    Args:
+        template: DocumentTemplate instance
+        field_data: Dictionary of field values
+        title: Optional title for the document
+        
+    Returns:
+        str: HTML content
+    """
+    from datetime import datetime
+    
+    doc_title = title or template.name
+    
+    # Build fields table HTML
+    fields_html = ""
+    for key, value in field_data.items():
+        # Convert key to readable label
+        label = key.replace('_', ' ').title()
+        fields_html += f"""
+        <tr>
+            <td style="font-weight: bold; padding: 10px; border: 1px solid #ddd; background-color: #f9f9f9;">{label}</td>
+            <td style="padding: 10px; border: 1px solid #ddd;">{value if value else '-'}</td>
+        </tr>
+        """
+    
+    # Create default HTML template
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>{doc_title}</title>
+        <style>
+            @page {{
+                size: A4;
+                margin: 2cm;
+            }}
+            body {{
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                margin: 0;
+                padding: 20px;
+            }}
+            .header {{
+                text-align: center;
+                border-bottom: 2px solid #2c5f2d;
+                padding-bottom: 20px;
+                margin-bottom: 30px;
+            }}
+            .header h1 {{
+                color: #2c5f2d;
+                margin: 0;
+                font-size: 24px;
+            }}
+            .header p {{
+                color: #666;
+                margin: 5px 0 0 0;
+            }}
+            .section {{
+                margin-bottom: 30px;
+            }}
+            .section-title {{
+                color: #2c5f2d;
+                font-size: 18px;
+                border-bottom: 1px solid #ddd;
+                padding-bottom: 10px;
+                margin-bottom: 15px;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 20px;
+            }}
+            .meta-info {{
+                background-color: #f5f5f5;
+                padding: 15px;
+                border-radius: 5px;
+                margin-bottom: 30px;
+            }}
+            .meta-info p {{
+                margin: 5px 0;
+            }}
+            .footer {{
+                margin-top: 50px;
+                padding-top: 20px;
+                border-top: 1px solid #ddd;
+                text-align: center;
+                font-size: 12px;
+                color: #666;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>{doc_title}</h1>
+            <p>{template.description or 'Generated Document'}</p>
+        </div>
+        
+        <div class="meta-info">
+            <p><strong>Template:</strong> {template.name} (v{template.version})</p>
+            <p><strong>Category:</strong> {template.get_category_display() if hasattr(template, 'get_category_display') else template.category}</p>
+            <p><strong>Generated:</strong> {datetime.now().strftime('%B %d, %Y at %I:%M %p')}</p>
+        </div>
+        
+        <div class="section">
+            <h2 class="section-title">Document Details</h2>
+            <table>
+                {fields_html}
+            </table>
+        </div>
+        
+        <div class="footer">
+            <p>This document was automatically generated.</p>
+            <p>Document ID will be assigned upon finalization.</p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return html_content
+
+
+def generate_pdf_from_html(html_content):
+    """
+    Generate PDF from HTML content using xhtml2pdf (Windows-friendly), WeasyPrint, or ReportLab.
+    
+    Args:
+        html_content: HTML content as string
+        
+    Returns:
+        ContentFile: PDF file content
+    """
+    # Create a complete HTML document if not already complete
+    if '<html' not in html_content.lower():
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                @page {{
+                    size: A4;
+                    margin: 2cm;
+                }}
+                body {{
+                    font-family: Arial, sans-serif;
+                    margin: 0;
+                    padding: 0;
+                    line-height: 1.6;
+                }}
+                h1, h2, h3 {{
+                    color: #333;
+                }}
+                table {{
+                    border-collapse: collapse;
+                    width: 100%;
+                    margin: 20px 0;
+                }}
+                th, td {{
+                    border: 1px solid #ddd;
+                    padding: 12px;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #f2f2f2;
+                }}
+            </style>
+        </head>
+        <body>
+            {html_content}
+        </body>
+        </html>
+        """
+    
+    # Try xhtml2pdf first (best for Windows, no external dependencies)
+    if XHTML2PDF_AVAILABLE:
+        try:
+            buffer = BytesIO()
+            result = pisa.CreatePDF(
+                html_content,
+                dest=buffer,
+                encoding='utf-8'
+            )
+            
+            if not result.err:
+                buffer.seek(0)
+                return ContentFile(buffer.read(), name='document.pdf')
+            else:
+                raise Exception(f"xhtml2pdf PDF generation failed: {result.err}")
+        except Exception as e:
+            # If xhtml2pdf fails, try next option
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"xhtml2pdf failed, trying alternative: {str(e)}")
+    
+    # Try WeasyPrint (good for Linux/Mac)
+    if WEASYPRINT_AVAILABLE:
+        try:
+            pdf_bytes = HTML(string=html_content).write_pdf()
+            return ContentFile(pdf_bytes, name='document.pdf')
+        except Exception as e:
+            # If WeasyPrint fails, try next option
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"WeasyPrint failed, trying alternative: {str(e)}")
+    
+    # Fallback to ReportLab (basic text rendering)
+    if REPORTLAB_AVAILABLE:
+        try:
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4)
+            styles = getSampleStyleSheet()
+            story = []
+            
+            # Simple HTML to text conversion for ReportLab
+            # Remove HTML tags and create paragraphs
+            text_content = re.sub(r'<[^>]+>', '', html_content)
+            paragraphs = text_content.split('\n\n')
+            
+            for para in paragraphs:
+                if para.strip():
+                    story.append(Paragraph(para.strip(), styles['Normal']))
+                    story.append(Spacer(1, 0.2*inch))
+            
+            doc.build(story)
+            buffer.seek(0)
+            return ContentFile(buffer.read(), name='document.pdf')
+        except Exception as e:
+            raise Exception(f"ReportLab PDF generation failed: {str(e)}")
+    
+    # No PDF library available - raise error
+    raise ImportError(
+        "No PDF generation library available. Please install xhtml2pdf (recommended for Windows) or WeasyPrint. "
+        "Install with: pip install xhtml2pdf"
+    )
 
 
 # returns a list of all documents that were generated from templates.like an audit log.
@@ -972,6 +1425,106 @@ def get_generated_documents(request):
     if template_id:
         queryset = queryset.filter(template_id=template_id)
     
-    serializer = DocumentGenerationSerializer(queryset, many=True)
+    serializer = DocumentGenerationSerializer(queryset, many=True, context={'request': request})
     return Response(serializer.data)
+
+
+class DocumentGenerationViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for viewing generated documents with PDF files.
+    GET /api/document-generations/ - List all generated documents
+    GET /api/document-generations/{id}/ - Get specific generation details
+    GET /api/document-generations/{id}/download/ - Download generated PDF
+    GET /api/document-generations/{id}/view/ - View PDF in browser
+    """
+    queryset = DocumentGeneration.objects.all()
+    serializer_class = DocumentGenerationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        """Filter generations based on user role and query parameters"""
+        user = self.request.user
+        queryset = DocumentGeneration.objects.all()
+        
+        # Filter by user role
+        if not (user.is_staff or user.role == 'admin'):
+            queryset = queryset.filter(generated_by=user)
+        
+        # Filter by template
+        template_id = self.request.query_params.get('template', None)
+        if template_id:
+            queryset = queryset.filter(template_id=template_id)
+        
+        # Filter by document
+        document_id = self.request.query_params.get('document', None)
+        if document_id:
+            queryset = queryset.filter(generated_document_id=document_id)
+        
+        # Filter by has_pdf
+        has_pdf = self.request.query_params.get('has_pdf', None)
+        if has_pdf is not None:
+            if has_pdf.lower() in ['true', '1', 'yes']:
+                queryset = queryset.exclude(generated_pdf='').exclude(generated_pdf__isnull=True)
+            elif has_pdf.lower() in ['false', '0', 'no']:
+                queryset = queryset.filter(Q(generated_pdf='') | Q(generated_pdf__isnull=True))
+        
+        return queryset.select_related('template', 'generated_document', 'generated_by')
+    
+    def get_serializer_context(self):
+        """Add request to serializer context"""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+    
+    @action(detail=True, methods=['get'])
+    def download(self, request, pk=None):
+        """
+        Download generated PDF file
+        GET /api/document-generations/{id}/download/
+        """
+        generation = self.get_object()
+        
+        if not generation.generated_pdf:
+            return Response({
+                'error': 'Generated PDF file not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            response = FileResponse(
+                generation.generated_pdf.open('rb'),
+                content_type='application/pdf'
+            )
+            filename = generation.pdf_filename or f'{generation.generated_document.document_id}.pdf'
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+        except Exception as e:
+            return Response({
+                'error': f'Error downloading PDF: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['get'])
+    def view(self, request, pk=None):
+        """
+        View generated PDF file in browser
+        GET /api/document-generations/{id}/view/
+        """
+        generation = self.get_object()
+        
+        if not generation.generated_pdf:
+            return Response({
+                'error': 'Generated PDF file not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            response = FileResponse(
+                generation.generated_pdf.open('rb'),
+                content_type='application/pdf'
+            )
+            filename = generation.pdf_filename or f'{generation.generated_document.document_id}.pdf'
+            response['Content-Disposition'] = f'inline; filename="{filename}"'
+            return response
+        except Exception as e:
+            return Response({
+                'error': f'Error viewing PDF: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
