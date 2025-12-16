@@ -101,9 +101,19 @@ class DocumentViewSet(viewsets.ModelViewSet):
         
         # Filter by user role
         if not (user.is_staff or user.role == 'admin'):
-            # Users can only see their own documents or documents they need to sign
+            # Get document IDs where this user is the investor (from generation_data)
+            investor_doc_ids = DocumentGeneration.objects.filter(
+                generation_data__investor_id=user.id
+            ).values_list('generated_document_id', flat=True)
+            
+            # Users can see:
+            # 1. Documents they created
+            # 2. Documents they need to sign (signatories)
+            # 3. Documents generated FOR them (investor_id matches their user id)
             queryset = queryset.filter(
-                Q(created_by=user) | Q(signatories__user=user)
+                Q(created_by=user) | 
+                Q(signatories__user=user) |
+                Q(id__in=investor_doc_ids)
             ).distinct()
         
         # Filter by status
