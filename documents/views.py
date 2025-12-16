@@ -1849,3 +1849,5 @@ class DocumentGenerationViewSet(viewsets.ReadOnlyModelViewSet):
                 'error': f'Error viewing PDF: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+
