@@ -73,6 +73,14 @@ class DocumentViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing documents
     Provides CRUD operations for Document model
+    
+    Query Parameters:
+    - status: Filter by document status (draft, pending_review, etc.)
+    - document_type: Filter by document type
+    - search: Search in title, document_id, description, filename
+    - source: Filter by source ('generated' = only template-generated documents, 'uploaded' = only uploaded)
+    - spv_id: Filter by SPV ID
+    - include_generation: Include generation details in response (true/false)
     """
     queryset = Document.objects.all()
     serializer_class = DocumentSerializer
@@ -108,6 +116,22 @@ class DocumentViewSet(viewsets.ModelViewSet):
         if doc_type:
             queryset = queryset.filter(document_type=doc_type)
         
+        # Filter by source (generated from template or uploaded)
+        source = self.request.query_params.get('source', None)
+        if source == 'generated':
+            # Only show documents that were generated from templates
+            generated_doc_ids = DocumentGeneration.objects.values_list('generated_document_id', flat=True)
+            queryset = queryset.filter(id__in=generated_doc_ids)
+        elif source == 'uploaded':
+            # Only show documents that were NOT generated from templates (uploaded manually)
+            generated_doc_ids = DocumentGeneration.objects.values_list('generated_document_id', flat=True)
+            queryset = queryset.exclude(id__in=generated_doc_ids)
+        
+        # Filter by SPV
+        spv_id = self.request.query_params.get('spv_id', None)
+        if spv_id:
+            queryset = queryset.filter(spv_id=spv_id)
+        
         # Search functionality
         search = self.request.query_params.get('search', None)
         if search:
@@ -118,7 +142,74 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 Q(original_filename__icontains=search)
             )
         
-        return queryset.select_related('created_by', 'spv', 'syndicate').prefetch_related('signatories')
+        return queryset.select_related('created_by', 'spv', 'syndicate').prefetch_related('signatories', 'generation_history')
+    
+    def list(self, request, *args, **kwargs):
+        """
+        List documents with optional generation details.
+        
+        GET /api/documents/
+        GET /api/documents/?source=generated  (only template-generated documents)
+        GET /api/documents/?include_generation=true  (include generation details)
+        """
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # Check if generation details should be included
+        include_generation = request.query_params.get('include_generation', 'false').lower() == 'true'
+        
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            data = serializer.data
+            
+            if include_generation:
+                data = self._add_generation_details(data)
+            
+            return self.get_paginated_response(data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        data = serializer.data
+        
+        if include_generation:
+            data = self._add_generation_details(data)
+        
+        return Response(data)
+    
+    def _add_generation_details(self, documents_data):
+        """Add generation details to document data"""
+        # Get all document IDs
+        doc_ids = [doc['id'] for doc in documents_data]
+        
+        # Fetch all generations for these documents
+        generations = DocumentGeneration.objects.filter(
+            generated_document_id__in=doc_ids
+        ).select_related('template', 'generated_by')
+        
+        # Create a lookup dict
+        gen_lookup = {}
+        for gen in generations:
+            gen_lookup[gen.generated_document_id] = {
+                'generation_id': gen.id,
+                'template_id': gen.template.id,
+                'template_name': gen.template.name,
+                'template_version': gen.template.version,
+                'template_category': gen.template.category,
+                'generation_data': gen.generation_data,
+                'generated_by': {
+                    'id': gen.generated_by.id,
+                    'username': gen.generated_by.username,
+                    'email': gen.generated_by.email,
+                },
+                'generated_at': gen.generated_at.isoformat() if gen.generated_at else None,
+                'has_pdf': bool(gen.generated_pdf),
+            }
+        
+        # Add generation info to each document
+        for doc in documents_data:
+            doc['is_generated'] = doc['id'] in gen_lookup
+            doc['generation_info'] = gen_lookup.get(doc['id'], None)
+        
+        return documents_data
     
     def perform_create(self, serializer):
         """Set the creator to current user when creating document"""
