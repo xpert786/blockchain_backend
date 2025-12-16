@@ -1478,26 +1478,48 @@ def get_investors_list(request):
     
     Query Parameters:
     - search: Search by name, username, or email
+    - spv_id: Filter investors by SPV ID
     - limit: Limit the number of results (default: 100)
     
     Response:
-    [
-        {
-            "id": 1,
-            "name": "John Doe",
-            "email": "john@example.com",
-            "username": "johndoe"
-        },
-        ...
-    ]
+    {
+        "count": 10,
+        "results": [
+            {
+                "id": 1,
+                "name": "John Doe",
+                "email": "john@example.com",
+                "username": "johndoe",
+                "first_name": "John",
+                "last_name": "Doe",
+                "spvs": [
+                    {
+                        "id": 3,
+                        "display_name": "Tech Startup Fund I",
+                        "status": "active",
+                        "invested_amount": "100000.00"
+                    }
+                ]
+            },
+            ...
+        ]
+    }
     """
+    from investors.dashboard_models import Investment
+    
     # Get all users with role='investor'
     queryset = CustomUser.objects.filter(role='investor', is_active=True)
+    
+    # Filter by SPV if provided
+    spv_filter_id = request.query_params.get('spv_id', None)
+    if spv_filter_id:
+        # Get investors who have invested in this SPV
+        investor_ids = Investment.objects.filter(spv_id=spv_filter_id).values_list('investor_id', flat=True)
+        queryset = queryset.filter(id__in=investor_ids)
     
     # Search functionality
     search = request.query_params.get('search', None)
     if search:
-        from django.db.models import Q
         queryset = queryset.filter(
             Q(first_name__icontains=search) |
             Q(last_name__icontains=search) |
@@ -1514,12 +1536,24 @@ def get_investors_list(request):
     
     queryset = queryset[:limit]
     
-    # Format response
+    # Format response with SPVs
     investors = []
     for user in queryset:
         full_name = user.get_full_name()
         if not full_name:
             full_name = user.username
+        
+        # Get SPVs this investor has invested in
+        investments = Investment.objects.filter(investor=user).select_related('spv')
+        spvs_list = []
+        for investment in investments:
+            if investment.spv:
+                spvs_list.append({
+                    'id': investment.spv.id,
+                    'display_name': investment.spv.display_name,
+                    'status': investment.spv.status,
+                    'invested_amount': str(investment.invested_amount) if investment.invested_amount else '0',
+                })
         
         investors.append({
             'id': user.id,
@@ -1528,6 +1562,7 @@ def get_investors_list(request):
             'username': user.username,
             'first_name': user.first_name or '',
             'last_name': user.last_name or '',
+            'spvs': spvs_list,
         })
     
     return Response({
