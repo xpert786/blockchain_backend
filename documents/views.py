@@ -553,6 +553,171 @@ class SyndicateDocumentDefaultsViewSet(viewsets.ModelViewSet):
             'message': f'Syndicate document defaults {"created" if created else "updated"} successfully',
             'data': serializer.data
         }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['get'])
+    def template_details(self, request, pk=None):
+        """
+        Screen 3: Get all details for a saved default (template details, required fields, configurable fields, saved defaults)
+        GET /api/syndicate-document-defaults/{id}/template_details/
+        """
+        defaults_obj = self.get_object()
+        template = defaults_obj.template
+        
+        # Get required fields
+        required_fields = template.required_fields or []
+        if isinstance(required_fields, str):
+            import json
+            try:
+                required_fields = json.loads(required_fields)
+            except json.JSONDecodeError:
+                required_fields = []
+        
+        # Get configurable fields
+        configurable_fields = template.configurable_fields or []
+        if isinstance(configurable_fields, str):
+            import json
+            try:
+                configurable_fields = json.loads(configurable_fields)
+            except json.JSONDecodeError:
+                configurable_fields = []
+        
+        # Get saved default values
+        saved_defaults = defaults_obj.default_values or {}
+        
+        return Response({
+            'template_id': template.id,
+            'template_name': template.name,
+            'version': template.version,
+            'category': template.category,
+            'scope': template.scope,
+            'jurisdiction_scope': template.jurisdiction_scope,
+            'description': template.description,
+            'required_fields': required_fields,
+            'configurable_fields': configurable_fields,
+            'saved_default_values': saved_defaults,
+            'enable_digital_signature': template.enable_digital_signature,
+            'defaults_id': defaults_obj.id,
+            'syndicate_id': defaults_obj.syndicate.id if defaults_obj.syndicate else None,
+        }, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['put'])
+    def generate_from_defaults(self, request, pk=None):
+        """
+        Screen 3: Generate document from template using saved defaults
+        PUT /api/syndicate-document-defaults/{id}/generate_from_defaults/
+        
+        Body (optional - to override defaults or add required fields):
+        {
+            "field_data": {"field_name": "value", ...},  // Optional: override defaults or add required fields
+            "enable_digital_signature": false,
+            "title": "Custom Title",  // Optional
+            "description": "Custom Description",  // Optional
+            "spv_id": 1  // Optional
+        }
+        """
+        defaults_obj = self.get_object()
+        template = defaults_obj.template
+        
+        # Get saved defaults
+        saved_defaults = defaults_obj.default_values or {}
+        
+        # Get additional field_data from request (optional - to override or add required fields)
+        additional_field_data = request.data.get('field_data', {})
+        
+        # Merge saved defaults with additional field_data (additional_field_data takes precedence)
+        merged_field_data = {**saved_defaults, **additional_field_data}
+        
+        # Helper function to normalize field names for matching
+        def normalize_field_name(name):
+            """Normalize field name for comparison (lowercase, replace spaces/underscores)"""
+            if not name:
+                return ''
+            return str(name).lower().replace(' ', '_').replace('-', '_')
+        
+        # Validate required fields
+        required_fields = template.required_fields or []
+        if isinstance(required_fields, str):
+            import json
+            try:
+                required_fields = json.loads(required_fields)
+            except json.JSONDecodeError:
+                required_fields = []
+        
+        # Create a normalized map of merged_field_data keys
+        normalized_field_data = {normalize_field_name(k): v for k, v in merged_field_data.items()}
+        
+        missing_fields = []
+        for field_def in required_fields:
+            if not isinstance(field_def, dict):
+                continue
+            field_name = field_def.get('name')
+            field_label = field_def.get('label', field_name)
+            
+            if field_def.get('required', False):
+                # Check both original field_name and normalized version
+                normalized_name = normalize_field_name(field_name)
+                
+                # Check if field exists in merged_field_data (exact match or normalized match)
+                field_found = (
+                    field_name in merged_field_data or
+                    normalized_name in normalized_field_data or
+                    any(normalize_field_name(k) == normalized_name for k in merged_field_data.keys())
+                )
+                
+                if not field_found:
+                    missing_fields.append(field_label)
+        
+        if missing_fields:
+            return Response({
+                'error': f'Missing required fields: {", ".join(missing_fields)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get optional parameters
+        enable_digital_signature = request.data.get('enable_digital_signature', False)
+        title = request.data.get('title')
+        description = request.data.get('description', '')
+        spv_id = request.data.get('spv_id')
+        
+        # Generate document title if not provided
+        if not title:
+            title = f"{template.name} - {merged_field_data.get('investor_name', merged_field_data.get('spv_name', 'Document'))}"
+        
+        # Create the document
+        document = Document.objects.create(
+            title=title,
+            description=description or template.description,
+            document_type='other',
+            version='1.0',
+            status='draft',
+            created_by=request.user,
+            spv_id=spv_id if spv_id else None,
+            syndicate_id=defaults_obj.syndicate.id if defaults_obj.syndicate else None,
+        )
+        
+        # Create generation record
+        generation = DocumentGeneration.objects.create(
+            template=template,
+            generated_document=document,
+            generation_data=merged_field_data,
+            generated_by=request.user,
+            enable_digital_signature=enable_digital_signature,
+        )
+        
+        # If digital signature is enabled, set status to pending_signatures
+        if enable_digital_signature:
+            document.status = 'pending_signatures'
+            document.save()
+        
+        # Refresh document
+        document.refresh_from_db()
+        
+        return Response({
+            'message': 'Document generated successfully from template defaults',
+            'data': {
+                'document': DocumentSerializer(document).data,
+                'generation': DocumentGenerationSerializer(generation).data,
+            }
+        }, status=status.HTTP_201_CREATED)
 # takes a document template/Creates a new Document record
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
@@ -560,6 +725,11 @@ def generate_document_from_template(request):
     """
     Generate a document from a template
     POST /api/documents/generate-from-template/
+    
+    Screen 2: When syndicate fills details and clicks "Generate Document"
+    - Accepts template_id and field_data (required_fields + configurable_fields)
+    - Merges with saved syndicate defaults if available
+    - Generates document
     """
     serializer = DocumentGenerationRequestSerializer(data=request.data)
     
@@ -581,6 +751,40 @@ def generate_document_from_template(request):
             'error': 'Template not found or is not active'
         }, status=status.HTTP_404_NOT_FOUND)
     
+    # Get syndicate defaults if available (for merging with field_data)
+    saved_defaults = {}
+    if hasattr(request.user, 'syndicateprofile'):
+        try:
+            defaults_obj = SyndicateDocumentDefaults.objects.get(
+                syndicate=request.user.syndicateprofile,
+                template=template
+            )
+            saved_defaults = defaults_obj.default_values or {}
+        except SyndicateDocumentDefaults.DoesNotExist:
+            pass
+    
+    # Get configurable fields to check which fields can come from defaults
+    configurable_fields = template.configurable_fields or []
+    if isinstance(configurable_fields, str):
+        import json
+        try:
+            configurable_fields = json.loads(configurable_fields)
+        except json.JSONDecodeError:
+            configurable_fields = []
+    
+    # Create a set of configurable field names (normalized) for quick lookup
+    configurable_field_names = set()
+    for cfg_field in configurable_fields:
+        if isinstance(cfg_field, dict):
+            cfg_name = cfg_field.get('name')
+            if cfg_name:
+                # Normalize the name
+                normalized_cfg = str(cfg_name).lower().replace(' ', '_').replace('-', '_')
+                configurable_field_names.add(normalized_cfg)
+    
+    # Merge saved defaults with provided field_data (field_data takes precedence)
+    merged_field_data = {**saved_defaults, **field_data}
+    
     # Validate required fields
     required_fields = template.required_fields or []
     
@@ -592,6 +796,22 @@ def generate_document_from_template(request):
         except json.JSONDecodeError:
             required_fields = []
     
+    # Helper function to normalize field names for matching
+    def normalize_field_name(name):
+        """Normalize field name for comparison (lowercase, replace spaces/underscores)"""
+        if not name:
+            return ''
+        return str(name).lower().replace(' ', '_').replace('-', '_')
+    
+    # Create a normalized map of merged_field_data keys for easier lookup
+    normalized_field_data = {}
+    for key, value in merged_field_data.items():
+        normalized_key = normalize_field_name(key)
+        normalized_field_data[normalized_key] = value
+        # Also keep original key
+        if key not in merged_field_data:
+            normalized_field_data[key] = value
+    
     missing_fields = []
     for field_def in required_fields:
         # Skip if field_def is not a dict
@@ -599,17 +819,80 @@ def generate_document_from_template(request):
             continue
             
         field_name = field_def.get('name')
-        if field_def.get('required', False) and field_name not in field_data:
-            missing_fields.append(field_def.get('label', field_name))
+        field_label = field_def.get('label', field_name)
+        
+        if field_def.get('required', False):
+            # Normalize the field name for comparison
+            normalized_name = normalize_field_name(field_name)
+            
+            # Check if this field is in configurable_fields
+            is_configurable = normalized_name in configurable_field_names
+            
+            # Check if field exists in merged_field_data (check both original and normalized)
+            field_value = None
+            field_found = False
+            
+            # First try exact match
+            if field_name in merged_field_data:
+                field_value = merged_field_data[field_name]
+                field_found = True
+            # Then try normalized match in original keys
+            else:
+                for key in merged_field_data.keys():
+                    if normalize_field_name(key) == normalized_name:
+                        field_value = merged_field_data[key]
+                        field_found = True
+                        break
+                # Also check normalized_field_data
+                if not field_found and normalized_name in normalized_field_data:
+                    field_value = normalized_field_data[normalized_name]
+                    field_found = True
+            
+            # Check if value is not empty (None, empty string, etc.)
+            if field_found:
+                if field_value is None or (isinstance(field_value, str) and field_value.strip() == ''):
+                    field_found = False
+            
+            # If field is not found
+            if not field_found:
+                # Check if field is in saved_defaults (even if not in merged_field_data due to normalization issues)
+                in_saved_defaults = False
+                if saved_defaults:
+                    for key in saved_defaults.keys():
+                        if normalize_field_name(key) == normalized_name:
+                            saved_value = saved_defaults[key]
+                            if saved_value is not None and (not isinstance(saved_value, str) or saved_value.strip() != ''):
+                                in_saved_defaults = True
+                                break
+                
+                # If field is in configurable_fields and in saved_defaults, it's optional
+                # If field is in configurable_fields but NOT in saved_defaults, it's still required
+                # If field is NOT in configurable_fields, it's required
+                if is_configurable and in_saved_defaults:
+                    # Configurable field with saved default - optional
+                    pass
+                else:
+                    # Required field - must be provided
+                    missing_fields.append(field_label)
     
     if missing_fields:
         return Response({
-            'error': f'Missing required fields: {", ".join(missing_fields)}'
+            'error': f'Missing required fields: {", ".join(missing_fields)}',
+            'details': {
+                'provided_fields': list(field_data.keys()),
+                'saved_defaults': list(saved_defaults.keys()) if saved_defaults else [],
+                'required_fields': [f.get('label', f.get('name')) for f in required_fields if isinstance(f, dict) and f.get('required', False)],
+                'suggestion': 'If these fields are configurable defaults, please save them first using the save_defaults API, or provide them in field_data.'
+            }
         }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Use syndicate_id from user's syndicate profile if not provided
+    if not syndicate_id and hasattr(request.user, 'syndicateprofile'):
+        syndicate_id = request.user.syndicateprofile.id
     
     # Generate document title if not provided
     if not title:
-        title = f"{template.name} - {field_data.get('investor_name', 'Document')}"
+        title = f"{template.name} - {merged_field_data.get('investor_name', merged_field_data.get('spv_name', 'Document'))}"
     
     # Create the document
     document = Document.objects.create(
@@ -623,11 +906,11 @@ def generate_document_from_template(request):
         syndicate_id=syndicate_id if syndicate_id else None,
     )
     
-    # Create generation record
+    # Create generation record with merged field data
     generation = DocumentGeneration.objects.create(
         template=template,
         generated_document=document,
-        generation_data=field_data,
+        generation_data=merged_field_data,
         generated_by=request.user,
         enable_digital_signature=enable_digital_signature,
     )
