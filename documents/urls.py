@@ -8,6 +8,8 @@ from .views import (
     DocumentGenerationViewSet,
     generate_document_from_template,
     get_generated_documents,
+    get_investors_list,
+    get_spvs_list,
 )
 
 router = DefaultRouter()
@@ -20,5 +22,7 @@ router.register(r'document-generations', DocumentGenerationViewSet, basename='do
 urlpatterns = [
     path('documents/generate-from-template/', generate_document_from_template),
     path('documents/generated-documents/', get_generated_documents),
+    path('documents/investors/', get_investors_list),  # GET list of investors for dropdown
+    path('documents/spvs/', get_spvs_list),  # GET list of SPVs for dropdown
     path('', include(router.urls)),
 ]

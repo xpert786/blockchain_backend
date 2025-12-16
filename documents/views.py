@@ -10,6 +10,7 @@ import re
 import uuid
 from io import BytesIO
 from users.models import CustomUser
+from spv.models import SPV
 from .models import Document, DocumentSignatory, DocumentTemplate, DocumentGeneration, SyndicateDocumentDefaults
 
 # PDF generation - try multiple libraries for cross-platform support
@@ -836,8 +837,21 @@ def generate_document_from_template(request):
     
     Screen 2: When syndicate fills details and clicks "Generate Document"
     - Accepts template_id and field_data (required_fields + configurable_fields)
+    - Supports investor_id and spv_id to auto-resolve names
     - Merges with saved syndicate defaults if available
     - Generates document
+    
+    Example payload with IDs:
+    {
+        "template_id": 5,
+        "investor_id": 10,  // Optional - resolves to investor_name
+        "spv_id": 3,        // Optional - resolves to spv_name
+        "field_data": {
+            "investment_amount": 100000,
+            "default_close_period_days": "30",
+            "legal_entity_name": "Entity Name"
+        }
+    }
     """
     serializer = DocumentGenerationRequestSerializer(data=request.data)
     
@@ -845,12 +859,38 @@ def generate_document_from_template(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     template_id = serializer.validated_data['template_id']
-    field_data = serializer.validated_data['field_data']
+    field_data = serializer.validated_data['field_data'].copy()  # Make a copy to modify
     enable_digital_signature = serializer.validated_data.get('enable_digital_signature', False)
     title = serializer.validated_data.get('title')
     description = serializer.validated_data.get('description', '')
     spv_id = serializer.validated_data.get('spv_id')
     syndicate_id = serializer.validated_data.get('syndicate_id')
+    investor_id = serializer.validated_data.get('investor_id')
+    
+    # Resolve investor_name from investor_id if provided
+    if investor_id and 'investor_name' not in field_data:
+        try:
+            investor_user = CustomUser.objects.get(id=investor_id, role='investor')
+            investor_name = investor_user.get_full_name()
+            if not investor_name:
+                investor_name = investor_user.username
+            field_data['investor_name'] = investor_name
+            field_data['investor_id'] = investor_id  # Also store the ID for reference
+        except CustomUser.DoesNotExist:
+            return Response({
+                'error': f'Investor with ID {investor_id} not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Resolve spv_name from spv_id if provided
+    if spv_id and 'spv_name' not in field_data:
+        try:
+            spv = SPV.objects.get(id=spv_id)
+            field_data['spv_name'] = spv.display_name
+            field_data['spv_id'] = spv_id  # Also store the ID for reference
+        except SPV.DoesNotExist:
+            return Response({
+                'error': f'SPV with ID {spv_id} not found'
+            }, status=status.HTTP_404_NOT_FOUND)
     
     try:
         template = DocumentTemplate.objects.get(id=template_id, is_active=True)
@@ -1427,6 +1467,151 @@ def get_generated_documents(request):
     
     serializer = DocumentGenerationSerializer(queryset, many=True, context={'request': request})
     return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_investors_list(request):
+    """
+    Get list of all investors for document generation dropdown.
+    GET /api/documents/investors/
+    
+    Query Parameters:
+    - search: Search by name, username, or email
+    - limit: Limit the number of results (default: 100)
+    
+    Response:
+    [
+        {
+            "id": 1,
+            "name": "John Doe",
+            "email": "john@example.com",
+            "username": "johndoe"
+        },
+        ...
+    ]
+    """
+    # Get all users with role='investor'
+    queryset = CustomUser.objects.filter(role='investor', is_active=True)
+    
+    # Search functionality
+    search = request.query_params.get('search', None)
+    if search:
+        from django.db.models import Q
+        queryset = queryset.filter(
+            Q(first_name__icontains=search) |
+            Q(last_name__icontains=search) |
+            Q(username__icontains=search) |
+            Q(email__icontains=search)
+        )
+    
+    # Limit results
+    limit = request.query_params.get('limit', 100)
+    try:
+        limit = int(limit)
+    except ValueError:
+        limit = 100
+    
+    queryset = queryset[:limit]
+    
+    # Format response
+    investors = []
+    for user in queryset:
+        full_name = user.get_full_name()
+        if not full_name:
+            full_name = user.username
+        
+        investors.append({
+            'id': user.id,
+            'name': full_name,
+            'email': user.email,
+            'username': user.username,
+            'first_name': user.first_name or '',
+            'last_name': user.last_name or '',
+        })
+    
+    return Response({
+        'count': len(investors),
+        'results': investors
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_spvs_list(request):
+    """
+    Get list of all SPVs for document generation dropdown.
+    GET /api/documents/spvs/
+    
+    Query Parameters:
+    - search: Search by display_name or portfolio_company_name
+    - status: Filter by status (active, approved, etc.)
+    - limit: Limit the number of results (default: 100)
+    
+    Response:
+    [
+        {
+            "id": 1,
+            "display_name": "Tech Startup Fund I",
+            "portfolio_company_name": "XYZ Tech",
+            "status": "active"
+        },
+        ...
+    ]
+    """
+    user = request.user
+    queryset = SPV.objects.all()
+    
+    # Filter by user role - non-admin users only see their own SPVs or SPVs they're associated with
+    if not (user.is_staff or user.role == 'admin'):
+        # Get SPVs created by user or associated with user's syndicate
+        from django.db.models import Q
+        filter_q = Q(created_by=user)
+        
+        if hasattr(user, 'syndicateprofile'):
+            # Also include SPVs from deals where user is the syndicate
+            filter_q |= Q(created_by__syndicateprofile=user.syndicateprofile)
+        
+        queryset = queryset.filter(filter_q)
+    
+    # Search functionality
+    search = request.query_params.get('search', None)
+    if search:
+        from django.db.models import Q
+        queryset = queryset.filter(
+            Q(display_name__icontains=search) |
+            Q(portfolio_company_name__icontains=search)
+        )
+    
+    # Filter by status
+    status_filter = request.query_params.get('status', None)
+    if status_filter:
+        queryset = queryset.filter(status=status_filter)
+    
+    # Limit results
+    limit = request.query_params.get('limit', 100)
+    try:
+        limit = int(limit)
+    except ValueError:
+        limit = 100
+    
+    queryset = queryset.order_by('-created_at')[:limit]
+    
+    # Format response
+    spvs = []
+    for spv in queryset:
+        spvs.append({
+            'id': spv.id,
+            'display_name': spv.display_name,
+            'portfolio_company_name': spv.portfolio_company_name or '',
+            'status': spv.status,
+            'created_at': spv.created_at.isoformat() if spv.created_at else None,
+        })
+    
+    return Response({
+        'count': len(spvs),
+        'results': spvs
+    }, status=status.HTTP_200_OK)
 
 
 class DocumentGenerationViewSet(viewsets.ReadOnlyModelViewSet):

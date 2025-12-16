@@ -343,7 +343,25 @@ class DocumentGenerationSerializer(serializers.ModelSerializer):
 
 
 class DocumentGenerationRequestSerializer(serializers.Serializer):
-    """Serializer for document generation request"""
+    """
+    Serializer for document generation request.
+    
+    Supports two ways to provide investor and SPV names:
+    1. Direct: Pass investor_name and spv_name in field_data
+    2. By ID: Pass investor_id and spv_id - names will be resolved automatically
+    
+    Example payload with IDs:
+    {
+        "template_id": 5,
+        "investor_id": 10,  // Optional - resolves to investor_name
+        "spv_id": 3,        // Optional - resolves to spv_name
+        "field_data": {
+            "investment_amount": 100000,
+            "default_close_period_days": "30",
+            "legal_entity_name": "Entity Name"
+        }
+    }
+    """
     
     template_id = serializers.IntegerField(help_text="ID of the template to use")
     field_data = serializers.JSONField(help_text="Field values for template generation")
@@ -360,10 +378,16 @@ class DocumentGenerationRequestSerializer(serializers.Serializer):
         allow_blank=True,
         help_text="Description for generated document (optional)"
     )
+    # ID-based resolution for investor and SPV names
+    investor_id = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text="Investor user ID - will auto-resolve to investor_name in field_data"
+    )
     spv_id = serializers.IntegerField(
         required=False,
         allow_null=True,
-        help_text="Associated SPV ID (optional)"
+        help_text="SPV ID - will auto-resolve to spv_name in field_data. Also used for document association."
     )
     syndicate_id = serializers.IntegerField(
         required=False,
@@ -383,6 +407,26 @@ class DocumentGenerationRequestSerializer(serializers.Serializer):
             template = DocumentTemplate.objects.get(id=value, is_active=True)
         except DocumentTemplate.DoesNotExist:
             raise serializers.ValidationError("Template not found or is not active.")
+        return value
+    
+    def validate_investor_id(self, value):
+        """Validate investor user exists"""
+        if value is not None:
+            from users.models import CustomUser
+            try:
+                user = CustomUser.objects.get(id=value, role='investor')
+            except CustomUser.DoesNotExist:
+                raise serializers.ValidationError("Investor not found with the given ID.")
+        return value
+    
+    def validate_spv_id(self, value):
+        """Validate SPV exists"""
+        if value is not None:
+            from spv.models import SPV
+            try:
+                spv = SPV.objects.get(id=value)
+            except SPV.DoesNotExist:
+                raise serializers.ValidationError("SPV not found with the given ID.")
         return value
     
     def validate_field_data(self, value):
