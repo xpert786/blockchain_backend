@@ -347,14 +347,33 @@ class PaymentViewSet(viewsets.ModelViewSet):
         # Check if payment already exists for this investment
         if investment.payment:
             existing_payment = investment.payment
-            if existing_payment.status == 'pending' and existing_payment.client_secret:
-                return Response({
-                    'success': True,
-                    'message': 'Using existing payment intent',
-                    'client_secret': existing_payment.client_secret,
-                    'payment_id': existing_payment.payment_id,
-                    'amount': float(existing_payment.amount),
-                })
+            if existing_payment.status == 'pending' and existing_payment.stripe_payment_intent_id:
+                try:
+                    # Check PaymentIntent status with Stripe
+                    pi = stripe.PaymentIntent.retrieve(existing_payment.stripe_payment_intent_id)
+                    
+                    # Only reuse if PaymentIntent is still usable
+                    if pi.status in ['requires_payment_method', 'requires_confirmation', 'requires_action']:
+                        return Response({
+                            'success': True,
+                            'message': 'Using existing payment intent',
+                            'client_secret': pi.client_secret,  # Use fresh client_secret from Stripe
+                            'payment_id': existing_payment.payment_id,
+                            'amount': float(existing_payment.amount),
+                        })
+                    else:
+                        # PaymentIntent is in terminal/unusable state - mark old payment as failed
+                        existing_payment.status = 'failed' if pi.status == 'canceled' else pi.status
+                        existing_payment.save(update_fields=['status', 'updated_at'])
+                        investment.payment = None
+                        investment.save(update_fields=['payment', 'updated_at'])
+                        # Will create new payment below
+                except stripe.error.StripeError:
+                    # PaymentIntent not found or error - clear and create new
+                    existing_payment.status = 'failed'
+                    existing_payment.save(update_fields=['status', 'updated_at'])
+                    investment.payment = None
+                    investment.save(update_fields=['payment', 'updated_at'])
         
         # Get SPV's Stripe account (or use platform account if not connected)
         stripe_account_id = None
