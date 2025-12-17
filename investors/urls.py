@@ -34,6 +34,7 @@ from .investment_flow_views import (
     my_investments,
     investment_detail,
     cancel_investment,
+    check_approval_status,
 )
 
 # Create a router and register our viewsets
@@ -53,6 +54,7 @@ urlpatterns = [
     path('invest/my-investments/', my_investments, name='my-investments'),
     path('invest/<int:investment_id>/', investment_detail, name='investment-detail-flow'),
     path('invest/<int:investment_id>/cancel/', cancel_investment, name='cancel-investment'),
+    path('invest/check-status/<int:spv_id>/', check_approval_status, name='check-approval-status'),
     
     # Investor Settings - Must come first to avoid router conflicts
     path('settings/identity/', investor_identity_settings, name='investor-identity-settings'),

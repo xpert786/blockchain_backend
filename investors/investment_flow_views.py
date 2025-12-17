@@ -307,7 +307,7 @@ def initiate_investment(request):
         Notification.objects.create(
             user=user,
             notification_type='investment',
-            title='Investment Request Updated' if not is_new else 'Investment Request Submitted',
+            title='Investment Request already sent' if not is_new else 'Investment Request Submitted',
             message=f'Your investment request of ${amount:,.2f} in {spv.display_name} has been {"updated" if not is_new else "submitted for approval"}.',
             priority='normal',
             action_required=False,
@@ -333,7 +333,7 @@ def initiate_investment(request):
     
     return Response({
         'success': True,
-        'message': 'Investment request already send.' if not is_new else 'Investment request submitted for approval.',
+        'message': 'Investment request updated.' if not is_new else 'Investment request submitted for approval.',
         'is_update': not is_new,
         'investment': {
             'id': investment.id,
@@ -500,3 +500,70 @@ def cancel_investment(request, investment_id):
         'investment_id': investment.id,
         'status': investment.status
     })
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def check_approval_status(request, spv_id):
+    """
+    Check if an investment initiation request has been approved by syndicate.
+    
+    GET /api/investors/invest/check-status/{spv_id}/
+    
+    Returns:
+    - is_approved: True if approved
+    - is_rejected: True if rejected
+    - is_pending: True if still pending approval
+    - investment details if exists
+    """
+    user = request.user
+    
+    # Find investment for this user and SPV
+    investment = Investment.objects.filter(
+        investor=user,
+        spv_id=spv_id
+    ).order_by('-created_at').first()
+    
+    if not investment:
+        return Response({
+            'success': False,
+            'error': 'No investment request found for this SPV',
+            'has_request': False
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Determine approval status
+    is_approved = investment.status == 'approved'
+    is_rejected = investment.status == 'rejected'
+    is_pending = investment.status == 'pending_approval'
+    can_proceed_to_payment = investment.status in ['approved', 'pending_payment']
+    
+    response_data = {
+        'success': True,
+        'has_request': True,
+        'investment_id': investment.id,
+        'spv_id': spv_id,
+        'spv_name': investment.syndicate_name,
+        'amount': float(investment.invested_amount),
+        'status': investment.status,
+        'status_display': investment.get_status_display(),
+        'approval_status': {
+            'is_approved': is_approved,
+            'is_rejected': is_rejected,
+            'is_pending': is_pending,
+            'can_proceed_to_payment': can_proceed_to_payment,
+        },
+        'created_at': investment.created_at.isoformat(),
+        'updated_at': investment.updated_at.isoformat() if hasattr(investment, 'updated_at') and investment.updated_at else None,
+    }
+    
+    # Add approval details if approved
+    if is_approved and hasattr(investment, 'approved_at') and investment.approved_at:
+        response_data['approved_at'] = investment.approved_at.isoformat()
+        if hasattr(investment, 'approved_by') and investment.approved_by:
+            response_data['approved_by'] = investment.approved_by.get_full_name() or investment.approved_by.username
+    
+    # Add rejection reason if rejected
+    if is_rejected and hasattr(investment, 'rejection_reason') and investment.rejection_reason:
+        response_data['rejection_reason'] = investment.rejection_reason
+    
+    return Response(response_data)
