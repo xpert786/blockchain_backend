@@ -56,6 +56,9 @@ class DocumentListSerializer(serializers.ModelSerializer):
     signed_count = serializers.IntegerField(read_only=True)
     pending_signatures_count = serializers.IntegerField(read_only=True)
     file_size_mb = serializers.FloatField(read_only=True)
+    file_url = serializers.SerializerMethodField()
+    download_url = serializers.SerializerMethodField()
+    generation_info = serializers.SerializerMethodField()
     
     class Meta:
         model = Document
@@ -67,6 +70,9 @@ class DocumentListSerializer(serializers.ModelSerializer):
             'status',
             'version',
             'file_size_mb',
+            'file_url',
+            'download_url',
+            'generation_info',
             'signatories_count',
             'signed_count',
             'pending_signatures_count',
@@ -79,6 +85,54 @@ class DocumentListSerializer(serializers.ModelSerializer):
     def get_created_by_name(self, obj):
         """Get creator name"""
         return obj.created_by.get_full_name() or obj.created_by.username
+    
+    def get_file_url(self, obj):
+        """Get absolute URL for document file"""
+        if obj.file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.file.url)
+            return obj.file.url
+        return None
+    
+    def get_download_url(self, obj):
+        """Get download URL for document file"""
+        if obj.file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(f'/blockchain-backend/api/documents/{obj.id}/download/')
+            return f'/blockchain-backend/api/documents/{obj.id}/download/'
+        return None
+    
+    def get_generation_info(self, obj):
+        """Get generation info if document was generated from a template"""
+        # Check if this document has a generation record
+        generation = obj.generation_history.first() if hasattr(obj, 'generation_history') else None
+        if not generation:
+            try:
+                generation = DocumentGeneration.objects.filter(generated_document=obj).first()
+            except:
+                return None
+        
+        if generation:
+            request = self.context.get('request')
+            pdf_url = None
+            if generation.generated_pdf:
+                if request:
+                    pdf_url = request.build_absolute_uri(generation.generated_pdf.url)
+                else:
+                    pdf_url = generation.generated_pdf.url
+            
+            return {
+                'is_generated': True,
+                'template_id': generation.template.id if generation.template else None,
+                'template_name': generation.template.name if generation.template else None,
+                'generated_pdf_url': pdf_url,
+                'investor_id': generation.generation_data.get('investor_id') if generation.generation_data else None,
+                'spv_id': generation.generation_data.get('spv_id') if generation.generation_data else None,
+                'generated_at': generation.generated_at.isoformat() if generation.generated_at else None,
+            }
+        return None
 
 
 class DocumentSerializer(serializers.ModelSerializer):

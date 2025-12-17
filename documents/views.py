@@ -80,7 +80,10 @@ class DocumentViewSet(viewsets.ModelViewSet):
     - search: Search in title, document_id, description, filename
     - source: Filter by source ('generated' = only template-generated documents, 'uploaded' = only uploaded)
     - spv_id: Filter by SPV ID
+    - investor_id: Filter by investor ID (shows documents generated for this investor)
     - include_generation: Include generation details in response (true/false)
+    
+    Note: Investors automatically see documents generated FOR them (where investor_id matches their user id).
     """
     queryset = Document.objects.all()
     serializer_class = DocumentSerializer
@@ -99,12 +102,21 @@ class DocumentViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = Document.objects.all()
         
+        # Helper function to get document IDs for a specific investor (SQLite compatible)
+        def get_investor_document_ids(target_investor_id):
+            """Get document IDs where the investor_id in generation_data matches target_investor_id"""
+            doc_ids = []
+            for gen in DocumentGeneration.objects.all():
+                gen_data = gen.generation_data or {}
+                if gen_data.get('investor_id') == target_investor_id:
+                    doc_ids.append(gen.generated_document_id)
+            return doc_ids
+        
         # Filter by user role
         if not (user.is_staff or user.role == 'admin'):
             # Get document IDs where this user is the investor (from generation_data)
-            investor_doc_ids = DocumentGeneration.objects.filter(
-                generation_data__investor_id=user.id
-            ).values_list('generated_document_id', flat=True)
+            # Using Python filtering for SQLite compatibility
+            investor_doc_ids = get_investor_document_ids(user.id)
             
             # Users can see:
             # 1. Documents they created
@@ -141,6 +153,17 @@ class DocumentViewSet(viewsets.ModelViewSet):
         spv_id = self.request.query_params.get('spv_id', None)
         if spv_id:
             queryset = queryset.filter(spv_id=spv_id)
+        
+        # Filter by investor_id (documents generated for a specific investor)
+        investor_id_param = self.request.query_params.get('investor_id', None)
+        if investor_id_param:
+            try:
+                target_investor_id = int(investor_id_param)
+                # Get document IDs generated for this investor (SQLite compatible)
+                investor_doc_ids = get_investor_document_ids(target_investor_id)
+                queryset = queryset.filter(id__in=investor_doc_ids)
+            except (ValueError, TypeError):
+                pass  # Invalid investor_id, ignore filter
         
         # Search functionality
         search = self.request.query_params.get('search', None)
