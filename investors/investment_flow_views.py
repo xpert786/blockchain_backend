@@ -333,7 +333,7 @@ def initiate_investment(request):
     
     return Response({
         'success': True,
-        'message': 'Investment request updated.' if not is_new else 'Investment request submitted for approval.',
+        'message': 'Investment request already send.' if not is_new else 'Investment request submitted for approval.',
         'is_update': not is_new,
         'investment': {
             'id': investment.id,
