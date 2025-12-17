@@ -249,73 +249,92 @@ def initiate_investment(request):
             'error_code': 'EXCEEDS_ALLOCATION'
         }, status=status.HTTP_400_BAD_REQUEST)
     
-    # Check for existing pending investment
+    # Check for existing investment request - update instead of creating new
     existing_investment = Investment.objects.filter(
         investor=user,
         spv=spv,
-        status__in=['pending_payment', 'payment_processing']
+        status__in=['pending_approval', 'approved', 'rejected', 'pending_payment', 'payment_processing']
     ).first()
     
-    if existing_investment:
-        return Response({
-            'success': False,
-            'error': 'You already have a pending investment for this SPV',
-            'error_code': 'PENDING_EXISTS',
-            'existing_investment_id': existing_investment.id
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Create investment record
     with transaction.atomic():
-        investment = Investment.objects.create(
-            investor=user,
-            spv=spv,
-            syndicate_name=spv.display_name,
-            sector=spv.deal_tags[0] if spv.deal_tags else None,
-            stage=spv.company_stage.name if spv.company_stage else None,
-            investment_type=investment_type,
-            invested_amount=amount,
-            current_value=amount,
-            allocated=spv.allocation or 0,
-            raised=total_invested,
-            target=spv.round_size or 0,
-            min_investment=spv.minimum_lp_investment or 0,
-            status='pending_approval',  # NEW: Wait for syndicate approval first
-            request_message=message,
-            priority=priority if priority in ['low', 'medium', 'high'] else 'medium',
-            deadline=spv.target_closing_date,
-            days_left=(spv.target_closing_date - timezone.now().date()).days if spv.target_closing_date else 0,
-        )
+        if existing_investment:
+            # Update existing investment request
+            existing_investment.invested_amount = amount
+            existing_investment.current_value = amount
+            existing_investment.request_message = message
+            existing_investment.priority = priority if priority in ['low', 'medium', 'high'] else 'medium'
+            existing_investment.allocated = spv.allocation or 0
+            existing_investment.raised = total_invested
+            existing_investment.target = spv.round_size or 0
+            existing_investment.min_investment = spv.minimum_lp_investment or 0
+            existing_investment.deadline = spv.target_closing_date
+            existing_investment.days_left = (spv.target_closing_date - timezone.now().date()).days if spv.target_closing_date else 0
+            
+            # Reset to pending_approval if it was rejected
+            if existing_investment.status == 'rejected':
+                existing_investment.status = 'pending_approval'
+                existing_investment.rejection_reason = None
+                existing_investment.approved_by = None
+                existing_investment.approved_at = None
+            
+            existing_investment.save()
+            investment = existing_investment
+            is_new = False
+        else:
+            # Create new investment record
+            investment = Investment.objects.create(
+                investor=user,
+                spv=spv,
+                syndicate_name=spv.display_name,
+                sector=spv.deal_tags[0] if spv.deal_tags else None,
+                stage=spv.company_stage.name if spv.company_stage else None,
+                investment_type=investment_type,
+                invested_amount=amount,
+                current_value=amount,
+                allocated=spv.allocation or 0,
+                raised=total_invested,
+                target=spv.round_size or 0,
+                min_investment=spv.minimum_lp_investment or 0,
+                status='pending_approval',
+                request_message=message,
+                priority=priority if priority in ['low', 'medium', 'high'] else 'medium',
+                deadline=spv.target_closing_date,
+                days_left=(spv.target_closing_date - timezone.now().date()).days if spv.target_closing_date else 0,
+            )
+            is_new = True
         
         # Create notification for INVESTOR
         Notification.objects.create(
             user=user,
             notification_type='investment',
-            title='Investment Request Submitted',
-            message=f'Your investment request of ${amount:,.2f} in {spv.display_name} has been submitted for approval.',
+            title='Investment Request Updated' if not is_new else 'Investment Request Submitted',
+            message=f'Your investment request of ${amount:,.2f} in {spv.display_name} has been {"updated" if not is_new else "submitted for approval"}.',
             priority='normal',
             action_required=False,
             related_investment=investment,
             related_spv=spv,
         )
         
-        # Create notification for SYNDICATE MANAGER
-        if spv.created_by:
-            Notification.objects.create(
-                user=spv.created_by,
-                notification_type='investment',
-                title='New Investment Request',
-                message=f'{user.get_full_name() or user.username} has requested to invest ${amount:,.2f} in {spv.display_name}. Please review and approve.',
-                priority='high',
-                action_required=True,
-                action_url=f'/requests/{investment.id}/review',
-                action_label='Review Request',
-                related_investment=investment,
-                related_spv=spv,
-            )
+        # Create notification for SYNDICATE MANAGER (only for new or re-submitted)
+        if is_new or existing_investment.status == 'pending_approval':
+            if spv.created_by:
+                Notification.objects.create(
+                    user=spv.created_by,
+                    notification_type='investment',
+                    title='Investment Request Updated' if not is_new else 'New Investment Request',
+                    message=f'{user.get_full_name() or user.username} has {"updated" if not is_new else "requested to invest"} ${amount:,.2f} in {spv.display_name}. Please review.',
+                    priority='high',
+                    action_required=True,
+                    action_url=f'/requests/{investment.id}/review',
+                    action_label='Review Request',
+                    related_investment=investment,
+                    related_spv=spv,
+                )
     
     return Response({
         'success': True,
-        'message': 'Investment request submitted for approval. You will be notified when approved.',
+        'message': 'Investment request updated.' if not is_new else 'Investment request submitted for approval.',
+        'is_update': not is_new,
         'investment': {
             'id': investment.id,
             'spv_id': spv.id,
@@ -325,7 +344,7 @@ def initiate_investment(request):
             'status_display': investment.get_status_display(),
             'created_at': investment.created_at.isoformat(),
         }
-    }, status=status.HTTP_201_CREATED)
+    }, status=status.HTTP_200_OK if not is_new else status.HTTP_201_CREATED)
 
 
 @api_view(['GET'])
