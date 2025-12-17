@@ -28,6 +28,13 @@ from .investor_detail_views import (
     investor_change_password,
     investor_communication_settings,
 )
+from .investment_flow_views import (
+    spv_investment_details,
+    initiate_investment,
+    my_investments,
+    investment_detail,
+    cancel_investment,
+)
 
 # Create a router and register our viewsets
 router = DefaultRouter()
@@ -40,6 +47,13 @@ router.register(r'tax', TaxCenterViewSet, basename='tax')
 router.register(r'investor-documents', DocumentCenterViewSet, basename='investor-documents')
 
 urlpatterns = [
+    # Investment Flow APIs - NEW
+    path('invest/spv/<int:spv_id>/details/', spv_investment_details, name='spv-investment-details'),
+    path('invest/initiate/', initiate_investment, name='initiate-investment'),
+    path('invest/my-investments/', my_investments, name='my-investments'),
+    path('invest/<int:investment_id>/', investment_detail, name='investment-detail-flow'),
+    path('invest/<int:investment_id>/cancel/', cancel_investment, name='cancel-investment'),
+    
     # Investor Settings - Must come first to avoid router conflicts
     path('settings/identity/', investor_identity_settings, name='investor-identity-settings'),
     path('settings/accreditation/', investor_accreditation_settings, name='investor-accreditation-settings'),
@@ -68,3 +82,4 @@ urlpatterns = [
     # /blockchain-backend/api/investors/...)
     path('', include(router.urls)),
 ]
+

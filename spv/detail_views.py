@@ -742,3 +742,99 @@ def spv_bulk_invite_lps(request):
     }
     
     return Response(response_data)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def spv_cap_table(request, spv_id):
+    """
+    Get cap table for an SPV - shows all investor ownership
+    GET /api/spv/{spv_id}/cap-table/
+    
+    Returns:
+    - List of investors with their ownership percentages
+    - Total raised amount
+    - Ownership breakdown
+    
+    Only accessible by SPV owner, syndicate managers, and admins.
+    """
+    from investors.dashboard_models import Investment
+    from django.db.models import Sum
+    
+    spv = get_object_or_404(SPV, id=spv_id)
+    
+    # Check permissions - only SPV owner, syndicate managers, and admins
+    if not (request.user.is_staff or request.user.role == 'admin' or spv.created_by == request.user):
+        return Response({
+            'success': False,
+            'error': 'You do not have permission to view this cap table'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    # Get all committed/active investments for this SPV
+    investments = Investment.objects.filter(
+        spv=spv,
+        status__in=['committed', 'active', 'completed']
+    ).select_related('investor', 'payment').order_by('-commitment_date', '-created_at')
+    
+    # Calculate totals
+    total_raised = investments.aggregate(total=Sum('invested_amount'))['total'] or Decimal('0')
+    target_allocation = _safe_decimal(spv.allocation)
+    
+    # Build investor list
+    investors_list = []
+    for inv in investments:
+        # Calculate ownership percentage
+        ownership_pct = Decimal('0')
+        if target_allocation > 0:
+            ownership_pct = (inv.invested_amount / target_allocation) * Decimal('100')
+        
+        investors_list.append({
+            'investor_id': inv.investor.id,
+            'investor_name': inv.investor.get_full_name() or inv.investor.username,
+            'investor_email': inv.investor.email,
+            'invested_amount': float(inv.invested_amount),
+            'ownership_percentage': float(ownership_pct.quantize(Decimal('0.01'))),
+            'status': inv.status,
+            'status_display': inv.get_status_display(),
+            'payment_id': inv.payment.payment_id if inv.payment else None,
+            'payment_status': inv.payment.status if inv.payment else None,
+            'commitment_date': inv.commitment_date.isoformat() if inv.commitment_date else None,
+            'invested_at': inv.invested_at.isoformat() if inv.invested_at else None,
+        })
+    
+    # Calculate allocation utilization
+    allocation_used_pct = Decimal('0')
+    if target_allocation > 0:
+        allocation_used_pct = (total_raised / target_allocation) * Decimal('100')
+    
+    response_data = {
+        'success': True,
+        'data': {
+            'spv_id': spv.id,
+            'spv_name': spv.display_name,
+            'spv_status': spv.status,
+            
+            # Cap Table Summary
+            'summary': {
+                'total_investors': len(investors_list),
+                'total_raised': float(total_raised),
+                'target_allocation': float(target_allocation),
+                'remaining_allocation': float(target_allocation - total_raised),
+                'allocation_used_percentage': float(allocation_used_pct.quantize(Decimal('0.1'))),
+            },
+            
+            # Investor Details
+            'investors': investors_list,
+            
+            # Pagination
+            'pagination': {
+                'current_page': 1,
+                'total_pages': 1,
+                'page_size': len(investors_list),
+                'total_count': len(investors_list),
+            }
+        }
+    }
+    
+    return Response(response_data)
+

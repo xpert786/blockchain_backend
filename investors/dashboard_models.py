@@ -82,11 +82,16 @@ class Investment(models.Model):
     """Model for individual investments"""
     
     STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('active', 'Active'),
-        ('completed', 'Completed'),
-        ('expired', 'Expired'),
-        ('cancelled', 'Cancelled'),
+        ('pending_payment', 'Pending Payment'),  # Investment initiated, waiting for payment
+        ('payment_processing', 'Payment Processing'),  # Payment submitted, confirming with Stripe
+        ('committed', 'Committed'),  # Payment received, funds secured
+        ('pending', 'Pending'),  # Legacy: pending approval
+        ('active', 'Active'),  # Investment is live
+        ('completed', 'Completed'),  # Investment completed/exited
+        ('expired', 'Expired'),  # Investment deadline passed
+        ('cancelled', 'Cancelled'),  # Investor cancelled
+        ('failed', 'Failed'),  # Payment failed
+        ('refunded', 'Refunded'),  # Payment refunded
     ]
     
     INVESTMENT_TYPE_CHOICES = [
@@ -98,6 +103,16 @@ class Investment(models.Model):
     investor = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='investments')
     spv = models.ForeignKey(SPV, on_delete=models.CASCADE, related_name='investments', null=True, blank=True)
     
+    # Payment Link
+    payment = models.ForeignKey(
+        'payments.Payment',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='investment_records',
+        help_text="Associated payment record"
+    )
+    
     # Investment Details
     syndicate_name = models.CharField(max_length=255, help_text="Name of the syndicate/deal")
     sector = models.CharField(max_length=100, blank=True, null=True, help_text="Sector (e.g., Technology, Energy)")
@@ -105,15 +120,23 @@ class Investment(models.Model):
     investment_type = models.CharField(max_length=20, choices=INVESTMENT_TYPE_CHOICES, default='syndicate_deal')
     
     # Financial Details
-    allocated = models.DecimalField(max_digits=15, decimal_places=2, help_text="Allocated amount")
-    raised = models.DecimalField(max_digits=15, decimal_places=2, help_text="Amount raised")
-    target = models.DecimalField(max_digits=15, decimal_places=2, help_text="Target amount")
+    allocated = models.DecimalField(max_digits=15, decimal_places=2, default=0, help_text="Allocated amount")
+    raised = models.DecimalField(max_digits=15, decimal_places=2, default=0, help_text="Amount raised")
+    target = models.DecimalField(max_digits=15, decimal_places=2, default=0, help_text="Target amount")
     invested_amount = models.DecimalField(max_digits=15, decimal_places=2, help_text="Amount invested by this investor")
-    min_investment = models.DecimalField(max_digits=15, decimal_places=2, help_text="Minimum investment amount")
-    current_value = models.DecimalField(max_digits=15, decimal_places=2, help_text="Current value of investment")
+    min_investment = models.DecimalField(max_digits=15, decimal_places=2, default=0, help_text="Minimum investment amount")
+    current_value = models.DecimalField(max_digits=15, decimal_places=2, default=0, help_text="Current value of investment")
+    
+    # Ownership
+    ownership_percentage = models.DecimalField(
+        max_digits=10, 
+        decimal_places=4, 
+        default=0,
+        help_text="Percentage of SPV owned by this investor"
+    )
     
     # Status and Timeline
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending_payment')
     deadline = models.DateField(blank=True, null=True, help_text="Investment deadline")
     days_left = models.IntegerField(default=0, help_text="Days remaining for investment")
     
@@ -124,6 +147,7 @@ class Investment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     invested_at = models.DateTimeField(blank=True, null=True, help_text="Date when investment was made")
+    commitment_date = models.DateTimeField(blank=True, null=True, help_text="Date when payment was confirmed")
     
     class Meta:
         verbose_name = 'investment'
@@ -139,6 +163,11 @@ class Investment(models.Model):
         return self.status == 'active'
     
     @property
+    def is_payment_pending(self):
+        """Check if awaiting payment"""
+        return self.status == 'pending_payment'
+    
+    @property
     def gain_loss(self):
         """Calculate gain/loss for this investment"""
         if self.current_value is not None and self.invested_amount is not None:
@@ -151,6 +180,13 @@ class Investment(models.Model):
         if self.invested_amount and self.invested_amount > 0 and self.current_value is not None:
             return round(((self.current_value - self.invested_amount) / self.invested_amount) * 100, 2)
         return 0.00
+    
+    def calculate_ownership(self):
+        """Calculate ownership percentage based on SPV allocation"""
+        if self.spv and self.spv.allocation and self.spv.allocation > 0:
+            self.ownership_percentage = (self.invested_amount / self.spv.allocation) * 100
+            self.save(update_fields=['ownership_percentage'])
+
 
 
 class Notification(models.Model):

@@ -287,6 +287,145 @@ class PaymentViewSet(viewsets.ModelViewSet):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['post'])
+    def create_payment_for_investment(self, request):
+        """
+        Create Stripe PaymentIntent for an existing pending investment.
+        
+        This is the preferred flow:
+        1. Frontend calls /api/investors/invest/initiate/ to create Investment
+        2. Frontend calls this endpoint with the investment_id
+        3. Frontend uses client_secret with Stripe.js to complete payment
+        4. Webhook updates Investment status on payment success
+        
+        POST /api/payments/create_payment_for_investment/
+        {
+            "investment_id": 1
+        }
+        
+        Returns:
+        {
+            "success": true,
+            "client_secret": "pi_xxx_secret_xxx",
+            "payment_id": "PAY-XXXXX",
+            "amount": 50000
+        }
+        """
+        investment_id = request.data.get('investment_id')
+        currency = request.data.get('currency', 'usd')
+        
+        if not investment_id:
+            return Response({
+                'success': False,
+                'error': 'investment_id is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get investment
+        try:
+            investment = Investment.objects.get(
+                id=investment_id,
+                investor=request.user,
+                status='pending_payment'
+            )
+        except Investment.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Investment not found or not in pending_payment status'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        spv = investment.spv
+        if not spv:
+            return Response({
+                'success': False,
+                'error': 'Investment has no associated SPV'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if payment already exists for this investment
+        if investment.payment:
+            existing_payment = investment.payment
+            if existing_payment.status == 'pending' and existing_payment.client_secret:
+                return Response({
+                    'success': True,
+                    'message': 'Using existing payment intent',
+                    'client_secret': existing_payment.client_secret,
+                    'payment_id': existing_payment.payment_id,
+                    'amount': float(existing_payment.amount),
+                })
+        
+        # Get SPV's Stripe account (or use platform account if not connected)
+        stripe_account_id = None
+        platform_fee = 0
+        
+        try:
+            stripe_account = spv.stripe_account
+            if stripe_account.is_ready_for_payments:
+                stripe_account_id = stripe_account.stripe_account_id
+                platform_fee = int(float(investment.invested_amount) * (PLATFORM_FEE_PERCENTAGE / 100) * 100)
+        except SPVStripeAccount.DoesNotExist:
+            pass  # Will use platform account directly
+        
+        amount_cents = int(float(investment.invested_amount) * 100)
+        
+        try:
+            # Build PaymentIntent params
+            intent_params = {
+                'amount': amount_cents,
+                'currency': currency,
+                'automatic_payment_methods': {'enabled': True},
+                'metadata': {
+                    'investment_id': str(investment.id),
+                    'spv_id': str(spv.id),
+                    'spv_name': spv.display_name,
+                    'investor_id': str(request.user.id),
+                    'investor_email': request.user.email,
+                }
+            }
+            
+            # Add transfer if SPV has connected Stripe
+            if stripe_account_id:
+                intent_params['application_fee_amount'] = platform_fee
+                intent_params['transfer_data'] = {
+                    'destination': stripe_account_id,
+                }
+            
+            payment_intent = stripe.PaymentIntent.create(**intent_params)
+            
+            # Create Payment record
+            payment = Payment.objects.create(
+                investor=request.user,
+                spv=spv,
+                investment=investment,
+                amount=investment.invested_amount,
+                currency=currency,
+                stripe_payment_intent_id=payment_intent.id,
+                client_secret=payment_intent.client_secret,
+                status='pending',
+                platform_fee=float(platform_fee) / 100 if platform_fee else 0,
+                platform_fee_percentage=PLATFORM_FEE_PERCENTAGE,
+                net_amount=float(investment.invested_amount) - (float(platform_fee) / 100) if platform_fee else float(investment.invested_amount),
+                description=f"Investment in {spv.display_name}",
+            )
+            
+            # Link payment to investment
+            investment.payment = payment
+            investment.status = 'payment_processing'
+            investment.save(update_fields=['payment', 'status', 'updated_at'])
+            
+            return Response({
+                'success': True,
+                'message': 'Payment intent created',
+                'client_secret': payment_intent.client_secret,
+                'payment_id': payment.payment_id,
+                'amount': float(investment.invested_amount),
+                'currency': currency,
+            }, status=status.HTTP_201_CREATED)
+            
+        except stripe.error.StripeError as e:
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=False, methods=['post'])
     def confirm(self, request):
         """
         Confirm a payment after successful frontend confirmation.
@@ -454,7 +593,9 @@ class StripeWebhookView(APIView):
         return HttpResponse(status=200)
     
     def _handle_payment_succeeded(self, payment_intent):
-        """Handle successful payment"""
+        """Handle successful payment - update Investment status and create notification"""
+        from investors.dashboard_models import Notification
+        
         try:
             payment = Payment.objects.get(
                 stripe_payment_intent_id=payment_intent.id
@@ -464,15 +605,94 @@ class StripeWebhookView(APIView):
             payment.stripe_charge_id = payment_intent.latest_charge
             payment.save()
             
-            # Create investment if not already created
-            if not payment.investment:
-                PaymentViewSet()._create_investment_record(payment)
+            # Update linked investment if exists
+            investment = payment.investment
+            if investment:
+                investment.status = 'committed'
+                investment.commitment_date = timezone.now()
+                investment.invested_at = timezone.now()
+                investment.save(update_fields=['status', 'commitment_date', 'invested_at', 'updated_at'])
+                
+                # Calculate ownership percentage
+                investment.calculate_ownership()
+                
+                # Update portfolio
+                portfolio, _ = Portfolio.objects.get_or_create(user=payment.investor)
+                portfolio.recalculate()
+                
+                # Create notification
+                Notification.objects.create(
+                    user=payment.investor,
+                    notification_type='investment',
+                    title='Investment Confirmed!',
+                    message=f'Your investment of ${payment.amount:,.2f} in {investment.syndicate_name} has been confirmed. Thank you for investing!',
+                    priority='high',
+                    action_required=False,
+                    action_url=f'/investments/{investment.id}',
+                    action_label='View Investment',
+                    related_investment=investment,
+                    related_spv=investment.spv,
+                )
+            elif not payment.investment:
+                # Legacy: Create investment if not already created
+                self._create_investment_from_payment(payment)
                 
         except Payment.DoesNotExist:
             pass
     
+    def _create_investment_from_payment(self, payment):
+        """Create an Investment record from a payment (legacy flow)"""
+        from investors.dashboard_models import Notification
+        
+        try:
+            investment = Investment.objects.create(
+                investor=payment.investor,
+                spv=payment.spv,
+                payment=payment,
+                syndicate_name=payment.spv.display_name,
+                sector=payment.spv.company_stage.name if payment.spv.company_stage else None,
+                stage=payment.spv.company_stage.name if payment.spv.company_stage else None,
+                investment_type='syndicate_deal',
+                allocated=payment.spv.allocation or payment.amount,
+                raised=payment.amount,
+                target=payment.spv.allocation or payment.amount,
+                invested_amount=payment.amount,
+                min_investment=payment.spv.min_investment or 0,
+                current_value=payment.amount,
+                status='committed',
+                invested_at=timezone.now(),
+                commitment_date=timezone.now(),
+            )
+            
+            # Link payment to investment
+            payment.investment = investment
+            payment.save()
+            
+            # Calculate ownership
+            investment.calculate_ownership()
+            
+            # Update portfolio
+            portfolio, _ = Portfolio.objects.get_or_create(user=payment.investor)
+            portfolio.recalculate()
+            
+            # Create notification
+            Notification.objects.create(
+                user=payment.investor,
+                notification_type='investment',
+                title='Investment Confirmed!',
+                message=f'Your investment of ${payment.amount:,.2f} in {investment.syndicate_name} has been confirmed.',
+                priority='high',
+                related_investment=investment,
+                related_spv=investment.spv,
+            )
+            
+        except Exception as e:
+            print(f"Error creating investment from payment: {e}")
+    
     def _handle_payment_failed(self, payment_intent):
-        """Handle failed payment"""
+        """Handle failed payment - update Investment status and notify"""
+        from investors.dashboard_models import Notification
+        
         try:
             payment = Payment.objects.get(
                 stripe_payment_intent_id=payment_intent.id
@@ -482,6 +702,27 @@ class StripeWebhookView(APIView):
                 payment.error_code = payment_intent.last_payment_error.code
                 payment.error_message = payment_intent.last_payment_error.message
             payment.save()
+            
+            # Update linked investment
+            if payment.investment:
+                investment = payment.investment
+                investment.status = 'failed'
+                investment.save(update_fields=['status', 'updated_at'])
+                
+                # Create notification
+                Notification.objects.create(
+                    user=payment.investor,
+                    notification_type='investment',
+                    title='Payment Failed',
+                    message=f'Your payment of ${payment.amount:,.2f} for {investment.syndicate_name} failed. Please try again.',
+                    priority='urgent',
+                    action_required=True,
+                    action_url=f'/investments/{investment.id}/pay',
+                    action_label='Retry Payment',
+                    related_investment=investment,
+                    related_spv=investment.spv,
+                )
+                
         except Payment.DoesNotExist:
             pass
     
@@ -501,3 +742,4 @@ class StripeWebhookView(APIView):
             stripe_account.save()
         except SPVStripeAccount.DoesNotExist:
             pass
+

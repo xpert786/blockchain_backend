@@ -28,6 +28,7 @@ from .detail_views import (
     spv_manage_lp_defaults,
     spv_remove_lp_invite,
     spv_bulk_invite_lps,
+    spv_cap_table,
 )
 
 spv_list = SPVViewSet.as_view({'get': 'list', 'post': 'create'})
@@ -121,6 +122,7 @@ urlpatterns = [
     path('spv/<int:spv_id>/investment-terms/', spv_investment_terms, name='spv-investment-terms'),
     path('spv/<int:spv_id>/investors/', spv_investors, name='spv-investors'),
     path('spv/<int:spv_id>/documents/', spv_documents, name='spv-documents'),
+    path('spv/<int:spv_id>/cap-table/', spv_cap_table, name='spv-cap-table'),
     
     # LP Invitation endpoints
     path('spv/<int:spv_id>/invite-lps/', spv_invite_lps, name='spv-invite-lps'),
@@ -128,4 +130,5 @@ urlpatterns = [
     path('spv/<int:spv_id>/invite-lps/<str:email>/', spv_remove_lp_invite, name='spv-remove-lp-invite'),
     path('spv/bulk-invite-lps/', spv_bulk_invite_lps, name='spv-bulk-invite-lps'),
 ]
+
 
