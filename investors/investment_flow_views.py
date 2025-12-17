@@ -149,6 +149,8 @@ def initiate_investment(request):
     spv_id = request.data.get('spv_id')
     amount = request.data.get('amount')
     investment_type = request.data.get('investment_type', 'syndicate_deal')
+    message = request.data.get('message', '')  # Investor's message to syndicate
+    priority = request.data.get('priority', 'medium')  # Request priority
     
     # Validate required fields
     if not spv_id:
@@ -277,28 +279,43 @@ def initiate_investment(request):
             raised=total_invested,
             target=spv.round_size or 0,
             min_investment=spv.minimum_lp_investment or 0,
-            status='pending_payment',
+            status='pending_approval',  # NEW: Wait for syndicate approval first
+            request_message=message,
+            priority=priority if priority in ['low', 'medium', 'high'] else 'medium',
             deadline=spv.target_closing_date,
             days_left=(spv.target_closing_date - timezone.now().date()).days if spv.target_closing_date else 0,
         )
         
-        # Create notification
+        # Create notification for INVESTOR
         Notification.objects.create(
             user=user,
             notification_type='investment',
-            title='Investment Initiated',
-            message=f'Your investment of ${amount:,.2f} in {spv.display_name} has been initiated. Please complete payment to confirm.',
-            priority='high',
-            action_required=True,
-            action_url=f'/investments/{investment.id}/pay',
-            action_label='Complete Payment',
+            title='Investment Request Submitted',
+            message=f'Your investment request of ${amount:,.2f} in {spv.display_name} has been submitted for approval.',
+            priority='normal',
+            action_required=False,
             related_investment=investment,
             related_spv=spv,
         )
+        
+        # Create notification for SYNDICATE MANAGER
+        if spv.created_by:
+            Notification.objects.create(
+                user=spv.created_by,
+                notification_type='investment',
+                title='New Investment Request',
+                message=f'{user.get_full_name() or user.username} has requested to invest ${amount:,.2f} in {spv.display_name}. Please review and approve.',
+                priority='high',
+                action_required=True,
+                action_url=f'/requests/{investment.id}/review',
+                action_label='Review Request',
+                related_investment=investment,
+                related_spv=spv,
+            )
     
     return Response({
         'success': True,
-        'message': 'Investment initiated successfully. Please complete payment.',
+        'message': 'Investment request submitted for approval. You will be notified when approved.',
         'investment': {
             'id': investment.id,
             'spv_id': spv.id,

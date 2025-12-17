@@ -319,18 +319,23 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 'error': 'investment_id is required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Get investment
+        # Get investment - accept both 'approved' and 'pending_payment' status
         try:
             investment = Investment.objects.get(
                 id=investment_id,
                 investor=request.user,
-                status='pending_payment'
+                status__in=['approved', 'pending_payment']  # Allow approved investments
             )
         except Investment.DoesNotExist:
             return Response({
                 'success': False,
-                'error': 'Investment not found or not in pending_payment status'
+                'error': 'Investment not found or not approved for payment. Please wait for syndicate approval.'
             }, status=status.HTTP_404_NOT_FOUND)
+        
+        # If status is 'approved', update to 'pending_payment'
+        if investment.status == 'approved':
+            investment.status = 'pending_payment'
+            investment.save(update_fields=['status', 'updated_at'])
         
         spv = investment.spv
         if not spv:

@@ -82,7 +82,10 @@ class Investment(models.Model):
     """Model for individual investments"""
     
     STATUS_CHOICES = [
-        ('pending_payment', 'Pending Payment'),  # Investment initiated, waiting for payment
+        ('pending_approval', 'Pending Approval'),  # NEW: Investor requested, waiting for syndicate approval
+        ('approved', 'Approved'),  # NEW: Syndicate approved, investor can pay
+        ('rejected', 'Rejected'),  # NEW: Syndicate rejected the request
+        ('pending_payment', 'Pending Payment'),  # Investment approved, waiting for payment
         ('payment_processing', 'Payment Processing'),  # Payment submitted, confirming with Stripe
         ('committed', 'Committed'),  # Payment received, funds secured
         ('pending', 'Pending'),  # Legacy: pending approval
@@ -92,6 +95,12 @@ class Investment(models.Model):
         ('cancelled', 'Cancelled'),  # Investor cancelled
         ('failed', 'Failed'),  # Payment failed
         ('refunded', 'Refunded'),  # Payment refunded
+    ]
+    
+    PRIORITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
     ]
     
     INVESTMENT_TYPE_CHOICES = [
@@ -112,6 +121,20 @@ class Investment(models.Model):
         related_name='investment_records',
         help_text="Associated payment record"
     )
+    
+    # Approval Fields (NEW)
+    approved_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_investments',
+        help_text="Syndicate manager who approved/rejected"
+    )
+    approved_at = models.DateTimeField(blank=True, null=True, help_text="Date when approved/rejected")
+    rejection_reason = models.TextField(blank=True, null=True, help_text="Reason for rejection")
+    request_message = models.TextField(blank=True, null=True, help_text="Investor's message with request")
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
     
     # Investment Details
     syndicate_name = models.CharField(max_length=255, help_text="Name of the syndicate/deal")
@@ -136,7 +159,7 @@ class Investment(models.Model):
     )
     
     # Status and Timeline
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending_payment')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending_approval')
     deadline = models.DateField(blank=True, null=True, help_text="Investment deadline")
     days_left = models.IntegerField(default=0, help_text="Days remaining for investment")
     

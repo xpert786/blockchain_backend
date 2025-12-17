@@ -30,6 +30,12 @@ from .detail_views import (
     spv_bulk_invite_lps,
     spv_cap_table,
 )
+from .approval_views import (
+    investment_requests_list,
+    investment_request_detail,
+    approve_investment_request,
+    reject_investment_request,
+)
 
 spv_list = SPVViewSet.as_view({'get': 'list', 'post': 'create'})
 spv_detail = SPVViewSet.as_view({
@@ -129,6 +135,13 @@ urlpatterns = [
     path('spv/invite-lps/defaults/', spv_manage_lp_defaults, name='spv-manage-lp-defaults'),
     path('spv/<int:spv_id>/invite-lps/<str:email>/', spv_remove_lp_invite, name='spv-remove-lp-invite'),
     path('spv/bulk-invite-lps/', spv_bulk_invite_lps, name='spv-bulk-invite-lps'),
+    
+    # Investment Request Approval endpoints (Syndicate Panel)
+    path('investment-requests/', investment_requests_list, name='investment-requests-list'),
+    path('investment-requests/<int:request_id>/', investment_request_detail, name='investment-request-detail'),
+    path('investment-requests/<int:request_id>/approve/', approve_investment_request, name='approve-investment-request'),
+    path('investment-requests/<int:request_id>/reject/', reject_investment_request, name='reject-investment-request'),
 ]
+
 
 
