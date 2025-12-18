@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from . import views
 from . import simple_auth_views
 from . import registration_views
+from . import password_reset_views
 from . import test_views
 from . import debug_views
 from . import cors_views
@@ -62,6 +63,12 @@ urlpatterns = [
     path('auth/resend_code/', simple_auth_views.resend_code, name='resend-code'),
     path('auth/disable_2fa/', simple_auth_views.disable_2fa, name='disable-2fa'),
     path('auth/get_2fa_status/', simple_auth_views.get_2fa_status, name='get-2fa-status'),
+    
+    # Password reset endpoints
+    path('auth/forgot_password/', password_reset_views.forgot_password, name='forgot-password'),
+    path('auth/verify_reset_otp/', password_reset_views.verify_reset_otp, name='verify-reset-otp'),
+    path('auth/reset_password/', password_reset_views.reset_password, name='reset-password'),
+    path('auth/resend_reset_otp/', password_reset_views.resend_reset_otp, name='resend-reset-otp'),
     
     # User profile endpoints
     path('update-phone/', views.update_user_phone, name='update-user-phone'),

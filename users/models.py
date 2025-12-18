@@ -93,6 +93,29 @@ class EmailVerification(models.Model):
         return f"{self.email} - {self.code}"
 
 
+class PasswordReset(models.Model):
+    """Model for password reset OTP codes"""
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='password_resets')
+    email = models.EmailField()
+    otp = models.CharField(max_length=4)
+    is_verified = models.BooleanField(default=False)
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    
+    class Meta:
+        verbose_name = 'password reset'
+        verbose_name_plural = 'password resets'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.email} - {self.otp}"
+    
+    def is_valid(self):
+        """Check if OTP is still valid"""
+        return not self.is_used and not self.is_verified and timezone.now() < self.expires_at
+
+
 class TwoFactorAuth(models.Model):
     """Model for two-factor authentication"""
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='two_factor_auths')

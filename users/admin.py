@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
-from .models import CustomUser, Sector, Geography, TwoFactorAuth, EmailVerification, TermsAcceptance, SyndicateProfile, Syndicate, TeamMember, ComplianceDocument, FeeRecipient, CreditCard, BankAccount, BeneficialOwner
+from .models import CustomUser, Sector, Geography, TwoFactorAuth, EmailVerification, PasswordReset, TermsAcceptance, SyndicateProfile, Syndicate, TeamMember, ComplianceDocument, FeeRecipient, CreditCard, BankAccount, BeneficialOwner
 
 # Register CustomUser with Django admin
 @admin.register(CustomUser)
@@ -42,6 +42,70 @@ admin.site.register(Geography)
 admin.site.register(TwoFactorAuth)
 admin.site.register(EmailVerification)
 admin.site.register(TermsAcceptance)
+
+
+@admin.register(PasswordReset)
+class PasswordResetAdmin(admin.ModelAdmin):
+    """Admin interface for Password Reset OTPs"""
+    list_display = (
+        'id', 'user_display', 'email', 'otp', 'status_badge',
+        'is_verified', 'is_used', 'created_at', 'expires_at'
+    )
+    list_filter = ('is_verified', 'is_used', 'created_at', 'expires_at')
+    search_fields = ('email', 'user__username', 'user__email', 'otp')
+    readonly_fields = ('created_at', 'is_valid_display')
+    ordering = ('-created_at',)
+    date_hierarchy = 'created_at'
+    
+    fieldsets = (
+        ('User Information', {
+            'fields': ('user', 'email')
+        }),
+        ('OTP Details', {
+            'fields': ('otp', 'created_at', 'expires_at', 'is_valid_display')
+        }),
+        ('Status', {
+            'fields': ('is_verified', 'is_used')
+        }),
+    )
+    
+    def user_display(self, obj):
+        """Display user information"""
+        return f"{obj.user.username} ({obj.user.email})"
+    user_display.short_description = 'User'
+    
+    def status_badge(self, obj):
+        """Display status with colored badge"""
+        from django.utils import timezone
+        
+        if obj.is_used:
+            return format_html(
+                '<span style="background-color: gray; color: white; padding: 3px 8px; border-radius: 3px; font-size: 11px;">USED</span>'
+            )
+        elif obj.is_verified:
+            if timezone.now() > obj.expires_at:
+                return format_html(
+                    '<span style="background-color: red; color: white; padding: 3px 8px; border-radius: 3px; font-size: 11px;">VERIFIED (EXPIRED)</span>'
+                )
+            return format_html(
+                '<span style="background-color: green; color: white; padding: 3px 8px; border-radius: 3px; font-size: 11px;">VERIFIED</span>'
+            )
+        elif timezone.now() > obj.expires_at:
+            return format_html(
+                '<span style="background-color: red; color: white; padding: 3px 8px; border-radius: 3px; font-size: 11px;">EXPIRED</span>'
+            )
+        else:
+            return format_html(
+                '<span style="background-color: orange; color: white; padding: 3px 8px; border-radius: 3px; font-size: 11px;">PENDING</span>'
+            )
+    status_badge.short_description = 'Status'
+    
+    def is_valid_display(self, obj):
+        """Display if OTP is currently valid"""
+        if obj.is_valid():
+            return format_html('<span style="color: green; font-weight: bold;">✓ Valid</span>')
+        return format_html('<span style="color: red; font-weight: bold;">✗ Invalid</span>')
+    is_valid_display.short_description = 'Currently Valid'
 
 
 @admin.register(FeeRecipient)

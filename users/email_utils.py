@@ -174,3 +174,82 @@ def send_2fa_code_email(email, code, user_name=None):
     except Exception as e:
         print(f"Error sending 2FA email: {e}")
         return False
+
+
+def send_password_reset_otp(email, otp, user_name=None):
+    """
+    Send password reset OTP via email
+    """
+    try:
+        subject = 'Password Reset OTP - Blockchain Admin'
+        
+        # Create HTML email content
+        html_message = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #2c3e50; text-align: center;">Password Reset Request</h2>
+                
+                <p>Hello {user_name or 'User'},</p>
+                
+                <p>We received a request to reset your password. Use the 4-digit OTP below to proceed with resetting your password:</p>
+                
+                <div style="background-color: #f8f9fa; border: 2px solid #e9ecef; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
+                    <h1 style="color: #2c3e50; font-size: 48px; letter-spacing: 10px; margin: 0;">{otp}</h1>
+                </div>
+                
+                <p><strong>Security Notice:</strong></p>
+                <ul>
+                    <li>This OTP will expire in 15 minutes</li>
+                    <li>Never share this OTP with anyone</li>
+                    <li>If you didn't request a password reset, please ignore this email and secure your account</li>
+                    <li>Your password will not change until you complete the reset process</li>
+                </ul>
+                
+                <p>If you have any questions or concerns, please contact our support team immediately.</p>
+                
+                <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                <p style="text-align: center; color: #666; font-size: 12px;">
+                    This is an automated message. Please do not reply to this email.
+                </p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Create plain text version
+        plain_message = f"""
+        Password Reset Request
+        
+        Hello {user_name or 'User'},
+        
+        We received a request to reset your password. Use the 4-digit OTP below to proceed with resetting your password:
+        
+        OTP: {otp}
+        
+        Security Notice:
+        - This OTP will expire in 15 minutes
+        - Never share this OTP with anyone
+        - If you didn't request a password reset, please ignore this email and secure your account
+        - Your password will not change until you complete the reset process
+        
+        If you have any questions or concerns, please contact our support team immediately.
+        
+        This is an automated message. Please do not reply to this email.
+        """
+        
+        # Send email
+        send_mail(
+            subject=subject,
+            message=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error sending password reset email: {e}")
+        return False
