@@ -684,8 +684,7 @@ class SyndicateStep3Serializer(serializers.ModelSerializer):
             if not attrs.get('risk_regulatory_attestation'):
                 raise serializers.ValidationError({"risk_regulatory_attestation": "Risk & Regulatory Attestation is required."})
             
-            if not attrs.get('jurisdictional_compliance_acknowledged'):
-                raise serializers.ValidationError({"jurisdictional_compliance_acknowledged": "Jurisdictional compliance acknowledgment is required."})
+            # Note: jurisdictional_compliance_acknowledged is optional
         
         return attrs
 

@@ -361,10 +361,9 @@ class SyndicateProfile(models.Model):
     @property
     def step3_completed(self):
         """Check if Step 3 is completed"""
-        return all([
-            self.risk_regulatory_attestation,
-            self.jurisdictional_compliance_acknowledged
-        ])
+        # Only risk_regulatory_attestation is required
+        # jurisdictional_compliance_acknowledged is optional
+        return self.risk_regulatory_attestation
     
     @property
     def step4_completed(self):
