@@ -729,6 +729,8 @@ def spv_dashboard_summary(request):
     Dashboard summary for syndicate managers.
     GET /api/spv/dashboard/
     """
+    from investors.dashboard_models import Investment
+    
     user = request.user
     if user.is_staff or getattr(user, 'role', '') == 'admin':
         queryset = SPV.objects.all()
@@ -747,9 +749,15 @@ def spv_dashboard_summary(request):
     total_target = _safe_decimal(totals.get('total_round_size'))
     spv_count = totals.get('spv_count', 0) or 0
 
-    # Safely calculate active investors using .values()
+    # Count active investors (those who have actually invested, not just invited)
+    # Only count investments with active/committed/approved status
+    invested_statuses = ['active', 'committed', 'approved', 'pending_payment', 'payment_processing']
     try:
-        active_investors = sum(len(spv.get('lp_invite_emails') or []) for spv in queryset.values('lp_invite_emails'))
+        spv_ids = list(queryset.values_list('id', flat=True))
+        active_investors = Investment.objects.filter(
+            spv_id__in=spv_ids,
+            status__in=invested_statuses
+        ).values('investor').distinct().count()
     except Exception:
         active_investors = 0
         
@@ -788,6 +796,12 @@ def spv_dashboard_summary(request):
             progress_percent = min(progress_percent, Decimal('100'))
             total_progress += progress_percent
 
+            # Count actual investors for this SPV (not just invited)
+            spv_investor_count = Investment.objects.filter(
+                spv_id=spv['id'],
+                status__in=invested_statuses
+            ).values('investor').distinct().count()
+            
             my_spv_cards.append({
                 'id': spv['id'],
                 'code': f"SPV-{spv['id']:03d}",
@@ -797,7 +811,8 @@ def spv_dashboard_summary(request):
                 'my_commitment': _decimal_to_float(my_commitment),
                 'target_amount': _decimal_to_float(target_amount),
                 'target_currency': 'USD',
-                'investor_count': len(spv['lp_invite_emails'] or []),
+                'investor_count': spv_investor_count,
+                'invited_count': len(spv['lp_invite_emails'] or []),  # Also include invited count separately
                 'round': spv['round__name'],
                 'stage': spv['company_stage__name'],
                 'progress_percent': float(progress_percent.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)),
@@ -934,6 +949,8 @@ def spv_management_overview(request):
     SPV management overview list with status filters.
     GET /api/spv/management/
     """
+    from investors.dashboard_models import Investment
+    
     user = request.user
     if user.is_staff or getattr(user, 'role', '') == 'admin':
         base_queryset = SPV.objects.all()
@@ -961,9 +978,14 @@ def spv_management_overview(request):
     total_target = _safe_decimal(totals.get('total_round_size'))
     spv_count = totals.get('spv_count', 0) or 0
 
-    # Use .values() to avoid Decimal conversion issues in SQLite
+    # Count active investors (those who have actually invested, not just invited)
+    invested_statuses = ['active', 'committed', 'approved', 'pending_payment', 'payment_processing']
     try:
-        active_investors = sum(len(spv.get('lp_invite_emails') or []) for spv in base_queryset.values('lp_invite_emails'))
+        spv_ids = list(base_queryset.values_list('id', flat=True))
+        active_investors = Investment.objects.filter(
+            spv_id__in=spv_ids,
+            status__in=invested_statuses
+        ).values('investor').distinct().count()
     except Exception:
         active_investors = 0
     
@@ -1005,6 +1027,12 @@ def spv_management_overview(request):
                 progress_percent = (my_commitment / target_amount) * Decimal('100')
             progress_percent = min(progress_percent, Decimal('100'))
 
+            # Count actual investors for this SPV (not just invited)
+            spv_investor_count = Investment.objects.filter(
+                spv_id=spv['id'],
+                status__in=invested_statuses
+            ).values('investor').distinct().count()
+            
             spv_cards.append({
                 'id': spv['id'],
                 'code': f"SPV-{spv['id']:03d}",
@@ -1017,7 +1045,8 @@ def spv_management_overview(request):
                 'created_at': spv['created_at'].isoformat() if spv['created_at'] else None,
                 'target_amount': _decimal_to_float(target_amount),
                 'my_commitment': _decimal_to_float(my_commitment),
-                'investor_count': len(spv['lp_invite_emails'] or []),
+                'investor_count': spv_investor_count,
+                'invited_count': len(spv['lp_invite_emails'] or []),  # Also include invited count separately
                 'minimum_investment': _decimal_to_float(min_investment),
                 'round': spv['round__name'],
                 'stage': spv['company_stage__name'],
