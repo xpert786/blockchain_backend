@@ -1031,17 +1031,26 @@ def spv_management_overview(request):
                 my_commitment = Decimal('0')
                 target_amount = Decimal('0')
                 min_investment = Decimal('0')
-                
-            progress_percent = Decimal('0')
-            if target_amount > 0:
-                progress_percent = (my_commitment / target_amount) * Decimal('100')
-            progress_percent = min(progress_percent, Decimal('100'))
 
             # Count actual investors for this SPV (not just invited)
             spv_investor_count = Investment.objects.filter(
                 spv_id=spv['id'],
                 status__in=invested_statuses
             ).values('investor').distinct().count()
+            
+            # Get total raised amount from actual investors
+            total_raised = Investment.objects.filter(
+                spv_id=spv['id'],
+                status__in=invested_statuses
+            ).aggregate(total=Sum('invested_amount'))['total'] or Decimal('0')
+            
+            total_raised = _safe_decimal(total_raised)
+            
+            # Calculate progress based on total amount raised vs target (round_size)
+            progress_percent = Decimal('0')
+            if target_amount > 0:
+                progress_percent = (total_raised / target_amount) * Decimal('100')
+            progress_percent = min(progress_percent, Decimal('100'))
             
             spv_cards.append({
                 'id': spv['id'],
@@ -1054,6 +1063,7 @@ def spv_management_overview(request):
                 'industry_tags': spv['deal_tags'] or [],
                 'created_at': spv['created_at'].isoformat() if spv['created_at'] else None,
                 'target_amount': _decimal_to_float(target_amount),
+                'amount_raised': _decimal_to_float(total_raised),
                 'my_commitment': _decimal_to_float(my_commitment),
                 'investor_count': spv_investor_count,
                 'invited_count': len(spv['lp_invite_emails'] or []),  # Also include invited count separately
