@@ -10,11 +10,12 @@ import string
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from .models import CustomUser, Sector, Geography, EmailVerification, TwoFactorAuth, TermsAcceptance
+from .models import CustomUser, Sector, Geography, EmailVerification, SyndicateProfile, TwoFactorAuth, TermsAcceptance
 from .email_utils import send_verification_email, send_sms_verification, send_2fa_code_email
 from .sms_utils import send_twilio_sms
 from .serializers import (
-    CustomUserSerializer, 
+    CustomUserSerializer,
+    SyndicateKYBProfileSerializer, 
     UserRegistrationSerializer,
     SectorSerializer,
     GeographySerializer,
@@ -867,3 +868,37 @@ class QuickProfileView(generics.RetrieveUpdateAPIView):
     def get_object(self):
         profile, created = InvestorProfile.objects.get_or_create(user=self.request.user)
         return profile
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_kyb_verification_status(request):
+    """
+    Get KYB verification status for authenticated user
+    GET /api/users/kyb-status/
+    """
+    try:
+        profile = SyndicateProfile.objects.filter(user=request.user).first()
+        
+        if not profile:
+            return Response({
+                'success': True,
+                'kyb_verified': False,
+                'message': 'No syndicate profile found',
+                'profile': None
+            }, status=status.HTTP_200_OK)
+        
+        serializer = SyndicateKYBProfileSerializer(profile)
+        return Response({
+            'success': True,
+            'kyb_verified': profile.kyb_verification_completed,
+            'kyb_verification_submitted_at': profile.kyb_verification_submitted_at,
+            'application_status': profile.application_status,
+            'profile': serializer.data
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            'success': False,
+            'kyb_verified': False,
+            'error': f'Error retrieving profile: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

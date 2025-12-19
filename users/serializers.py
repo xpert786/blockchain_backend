@@ -1803,3 +1803,18 @@ class BeneficialOwnerUpdateSerializer(serializers.ModelSerializer):
         if value < 0 or value > 100:
             raise serializers.ValidationError("Ownership percentage must be between 0 and 100.")
         return value
+    
+
+class SyndicateKYBProfileSerializer(serializers.ModelSerializer):
+    """Serializer for Syndicate KYB Profile"""
+    
+    class Meta:
+        model = SyndicateProfile
+        fields = [
+            'kyb_verification_completed',
+            'kyb_verification_submitted_at'
+        ]
+        read_only_fields = [
+            'kyb_verification_completed',
+            'kyb_verification_submitted_at'
+        ]

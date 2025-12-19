@@ -11,7 +11,7 @@ from . import syndicate_views
 from . import syndicate_settings_views
 from . import team_management_views
 from . import compliance_views
-from .views import GoogleLoginWithRoleView, QuickProfileView
+from .views import GoogleLoginWithRoleView, QuickProfileView, get_kyb_verification_status
 
 # Create router for ViewSets
 router = DefaultRouter()
@@ -125,6 +125,7 @@ urlpatterns = [
     # Backwards-compatible alias: original endpoint maps to signin
     path('auth/google/', GoogleLoginWithRoleView.as_view(), name='google_login'),
     path('profile/quick-setup/', QuickProfileView.as_view(), name='quick-profile-setup'),
+    path('user/kyb-status/', get_kyb_verification_status, name='kyb-status'),
     
     # Include router URLs for ViewSets
     path('', include(router.urls)),
