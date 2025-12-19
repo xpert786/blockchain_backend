@@ -789,18 +789,27 @@ def spv_dashboard_summary(request):
             except Exception:
                 my_commitment = Decimal('0')
                 target_amount = Decimal('0')
-                
-            progress_percent = Decimal('0')
-            if target_amount > 0:
-                progress_percent = (my_commitment / target_amount) * Decimal('100')
-            progress_percent = min(progress_percent, Decimal('100'))
-            total_progress += progress_percent
 
             # Count actual investors for this SPV (not just invited)
             spv_investor_count = Investment.objects.filter(
                 spv_id=spv['id'],
                 status__in=invested_statuses
             ).values('investor').distinct().count()
+            
+            # Get total raised amount from actual investors
+            total_raised = Investment.objects.filter(
+                spv_id=spv['id'],
+                status__in=invested_statuses
+            ).aggregate(total=Sum('invested_amount'))['total'] or Decimal('0')
+            
+            total_raised = _safe_decimal(total_raised)
+                
+            # Calculate progress based on total amount raised vs target (round_size)
+            progress_percent = Decimal('0')
+            if target_amount > 0:
+                progress_percent = (total_raised / target_amount) * Decimal('100')
+            progress_percent = min(progress_percent, Decimal('100'))
+            total_progress += progress_percent
             
             my_spv_cards.append({
                 'id': spv['id'],
@@ -809,6 +818,7 @@ def spv_dashboard_summary(request):
                 'status': spv['status'],
                 'status_label': dict(SPV.STATUS_CHOICES).get(spv['status'], spv['status']),
                 'my_commitment': _decimal_to_float(my_commitment),
+                'amount_raised': _decimal_to_float(total_raised),
                 'target_amount': _decimal_to_float(target_amount),
                 'target_currency': 'USD',
                 'investor_count': spv_investor_count,
